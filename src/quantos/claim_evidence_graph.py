@@ -196,7 +196,7 @@ class ClaimEvidenceGraph:
             return relation
 
         self._con.execute(
-            "INSERT INTO claim_relations VALUES (?, ?, ?, ?, ?, ?)",
+            "INSERT INTO claim_relations VALUES (?, ?, ?, ?, ?, ?, ?)",
             [
                 relation.relation_id,
                 relation.from_claim_id,
