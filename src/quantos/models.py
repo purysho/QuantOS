@@ -40,6 +40,8 @@ class Event:
                 raise ValueError(f"{name} must be timezone-aware")
         if self.knowledge_time < self.event_time:
             raise ValueError("knowledge_time cannot precede event_time")
+        if not self.entity_id or not self.event_type or not self.source_id:
+            raise ValueError("entity_id, event_type, and source_id are required")
 
 
 @dataclass(frozen=True)
