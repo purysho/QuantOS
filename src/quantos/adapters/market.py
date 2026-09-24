@@ -37,7 +37,15 @@ class MarketEventNormalizer:
         if record.price <= 0 or record.size < 0:
             raise ValueError("market record has invalid price/size")
 
+        deterministic_id = (
+            f"market:{record.source}:{record.security_id}:{record.venue}:{record.sequence}"
+            if record.sequence is not None
+            else None
+        )
+        kwargs = {"event_id": deterministic_id} if deterministic_id else {}
+
         return Event(
+            **kwargs,
             entity_id=record.security_id,
             event_type="market.trade",
             event_time=record.event_time,
