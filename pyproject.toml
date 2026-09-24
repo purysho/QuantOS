@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "first-current-quant-os"
-version = "0.4.0"
+version = "0.4.3"
 description = "High-assurance live intelligence and edge-discovery prototype"
 requires-python = ">=3.11"
 dependencies = [
@@ -14,6 +14,7 @@ dependencies = [
 
 [project.scripts]
 quantos = "quantos.cli:main"
+quantos-radar = "quantos.radar_cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
