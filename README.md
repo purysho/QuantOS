@@ -1,67 +1,130 @@
-# First Current Quant OS — Prototype v0.1
+# First Current Quant OS — Prototype v0.2
 
 A high-assurance prototype for a live quantitative intelligence loop.
 
-This build is **research-only**. It cannot submit live orders. The prototype proves four properties before real market connectivity is added:
+The prototype is **research-only**. Live data may enter the research plane, but no component can submit live orders.
 
-1. events preserve `event_time` and `knowledge_time`;
-2. current state can be reconstructed as-of a historical knowledge timestamp;
-3. hypotheses are explicitly labeled as inference, never facts;
-4. the capital boundary fails closed: no hypothesis can create a live order.
+## What v0.2 proves
+
+1. events preserve separate `event_time` and `knowledge_time`;
+2. state can be reconstructed as-of a historical knowledge timestamp;
+3. events persist across process restarts in DuckDB and can export to Parquet;
+4. expectations are themselves point-in-time events, so revised consensus cannot leak backward;
+5. hypotheses are explicitly labeled as inference and recorded in a research ledger;
+6. SEC and FRED/ALFRED data normalize into the same event contract;
+7. market-feed records have a provider-neutral normalization boundary;
+8. repeated identical provider events are idempotent, while conflicting reuse of an event ID fails closed;
+9. the capital firewall still blocks every live order.
 
 ## Architecture
 
 ```text
-Event adapters
-    ↓
-Point-in-time Event Store
-    ↓
-Expectation + Surprise Engine
-    ↓
-Hypothesis Generator
-    ↓
-Evidence / Epistemic Labels
-    ↓
-Research Gate
-    ↓
-SHADOW_ONLY
+SEC / FRED vintages / market adapters
+                 ↓
+        Idempotent ingestion
+                 ↓
+       DuckDB event ledger
+        ↙               ↘
+Parquet snapshots    as-of replay
+                 ↓
+       Expectation book
+                 ↓
+        Surprise engine
+                 ↓
+      Hypothesis generator
+                 ↓
+       Research ledger
+                 ↓
+        Research gate
+                 ↓
+          SHADOW ONLY
 
-              ╳
-        no direct path
-              ╳
+                 ╳
+          no direct path
+                 ╳
 
-         Live Capital
+           Live capital
 ```
 
-## Quick start
+## Install and test
 
 ```bash
+python -m pip install -e .
 python -m unittest discover -s tests -v
-PYTHONPATH=src python -m quantos.cli demo
+quantos demo
 ```
 
-The demo ingests a synthetic earnings event with a prior expectation, generates a hypothesis from the surprise, evaluates it through the research gate, and proves that the execution boundary rejects the order proposal.
+CI runs the suite on Python 3.11, 3.12 and 3.13.
 
-## Current prototype modules
+## Live research ingestion
+
+### SEC
+
+Set an identifying SEC User-Agent with a contact address, then ingest a CIK:
+
+```bash
+export SEC_USER_AGENT="First Current Quant OS your-contact@example.com"
+quantos sec --cik 320193 --db data/events.duckdb
+```
+
+SEC accession numbers become deterministic event IDs, so repeated polling of the same filing is a safe no-op.
+
+### FRED / ALFRED vintages
+
+Set a FRED API key and request a historical vintage:
+
+```bash
+export FRED_API_KEY="..."
+quantos fred --series CPIAUCSL --vintage 2020-04-15 --db data/events.duckdb
+```
+
+When FRED provides only a vintage **date**, not an exact release timestamp, Quant OS conservatively marks knowledge availability at end-of-day UTC rather than pretending the value was knowable earlier.
+
+### Reconstruct what the OS knew
+
+```bash
+quantos asof \
+  --entity FRED:CPIAUCSL \
+  --as-of 2020-04-15T23:59:59Z \
+  --db data/events.duckdb
+```
+
+### Export the ledger
+
+```bash
+quantos export --db data/events.duckdb --parquet data/events.parquet
+```
+
+## Core modules
 
 - `models.py` — typed events, claims, hypotheses, decisions and order proposals.
-- `store.py` — append-only point-in-time event store.
-- `intelligence.py` — expectation, surprise and deterministic hypothesis generation.
-- `evidence.py` — claim registry and epistemic validation.
-- `gates.py` — research promotion gate and capital firewall.
-- `service.py` — end-to-end orchestration.
-- `cli.py` — runnable demo.
+- `persistent.py` — durable DuckDB point-in-time event ledger + Parquet export.
+- `expectations.py` — versioned point-in-time expectation book.
+- `ingestion.py` — idempotent provider-ingestion boundary with conflict detection.
+- `ledger.py` — persistent hypothesis and research-decision ledger.
+- `intelligence.py` — surprise calculation and deterministic hypothesis generation.
+- `adapters/sec.py` — SEC submissions normalization.
+- `adapters/fred.py` — FRED/ALFRED vintage normalization.
+- `adapters/market.py` — provider-neutral market-record contract.
+- `evidence.py` — epistemic/provenance validation.
+- `gates.py` — research gate and capital firewall.
+- `service.py` — orchestration.
 
 ## Safety boundary
 
-`CapitalFirewall.authorize_live_order()` always raises `LiveTradingDisabled` in v0.1. This is intentional. Live execution will only be introduced after the independent risk kernel, compliance policy, reconciliation, credentials isolation and paper environment exist.
+`CapitalFirewall.authorize_live_order()` always raises `LiveTradingDisabled` in v0.2.
 
-## Next prototype increments
+No SEC/FRED/market adapter has broker credentials or a reference to the execution layer. The next live-capital steps remain gated behind an independent risk kernel, compliance policy, broker-state reconciliation, credential isolation and a sustained paper environment.
 
-1. Real SEC event adapter with accession IDs and timestamps.
-2. FRED/ALFRED macro-vintage adapter.
-3. Market-data adapter interface (Databento-compatible schema).
-4. DuckDB/Parquet event persistence.
-5. Claim-card RAG index and contradictory-evidence retrieval.
-6. Perspective terminal over the same event/hypothesis stream.
-7. Shadow strategy ledger and prospective scoring.
+## Next stage
+
+The next useful work is no longer basic ingestion plumbing. It is the beginning of the **edge-discovery loop**:
+
+1. source-artifact hashing and data lineage;
+2. claim-card retrieval and contradictory-evidence retrieval;
+3. expectations from multiple independent models/sources;
+4. event/entity graph;
+5. market-reaction residuals;
+6. shadow hypothesis scoring through time;
+7. signal-decay / edge-health metrics;
+8. Perspective terminal over events, hypotheses and shadow performance.
