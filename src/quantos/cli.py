@@ -241,6 +241,28 @@ def ingest_fred(*, series_id: str, vintage_date: str, db: str) -> int:
         store.close()
 
 
+
+def import_research_registry(*, registry: str, catalog_db: str) -> int:
+    payload = json.loads(Path(registry).read_text(encoding="utf-8"))
+    catalog = ResearchCatalog(catalog_db)
+    try:
+        result = catalog.import_registry(payload)
+        quarantined = len(catalog.list_status(VerificationStatus.QUARANTINED))
+        verified = len(catalog.list_status(VerificationStatus.VERIFIED))
+        rejected = len(catalog.list_status(VerificationStatus.REJECTED))
+        print(
+            "RESEARCH_CATALOG",
+            f"inserted={result.inserted}",
+            f"skipped={result.skipped_identical}",
+            f"quarantined={quarantined}",
+            f"verified={verified}",
+            f"rejected={rejected}",
+        )
+        return 0
+    finally:
+        catalog.close()
+
+
 def export_events(*, db: str, parquet: str) -> int:
     store = _store(db)
     try:
@@ -297,7 +319,14 @@ def main() -> int:
     fred.add_argument("--vintage", required=True)
     fred.add_argument("--db", default="data/events.duckdb")
 
-    export = sub.add_parser("export", help="export the event ledger to Parquet")
+
+    research_import = sub.add_parser(
+        "research-import",
+        help="import research source cards into quarantine; does not verify them",
+    )
+    research_import.add_argument("--registry", required=True)
+    research_import.add_argument("--catalog-db", default="data/research-catalog.duckdb")
+\n    export = sub.add_parser("export", help="export the event ledger to Parquet")
     export.add_argument("--db", default="data/events.duckdb")
     export.add_argument("--parquet", default="data/events.parquet")
 
