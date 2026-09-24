@@ -34,11 +34,7 @@ def _parse_sec_time(value: str | None, fallback_date: str | None) -> datetime:
 
 
 class SECSubmissionsAdapter:
-    """Read SEC submissions and convert recent filings into point-in-time events.
-
-    The adapter treats fetched content strictly as untrusted data. It does not
-    interpret filing text or execute instructions from documents.
-    """
+    """Read SEC submissions and convert recent filings into point-in-time events."""
 
     base_url = "https://data.sec.gov/submissions"
 
@@ -107,12 +103,20 @@ class SECSubmissionsAdapter:
 
         events: list[Event] = []
         for index, accession in enumerate(accession_numbers):
+            if not accession:
+                raise SECAdapterError("SEC filing missing accession number")
             row: dict[str, Any] = {"accessionNumber": accession}
             for key in keys:
                 column = recent.get(key, [])
-                row[key] = column[index] if isinstance(column, list) and index < len(column) else None
+                row[key] = (
+                    column[index]
+                    if isinstance(column, list) and index < len(column)
+                    else None
+                )
 
-            accepted_at = _parse_sec_time(row.get("acceptanceDateTime"), row.get("filingDate"))
+            accepted_at = _parse_sec_time(
+                row.get("acceptanceDateTime"), row.get("filingDate")
+            )
             if fetched_at < accepted_at:
                 raise SECAdapterError(
                     "fetched_at precedes SEC acceptance time; clock or fixture is invalid"
@@ -120,6 +124,7 @@ class SECSubmissionsAdapter:
 
             events.append(
                 Event(
+                    event_id=f"sec:{resolved_cik:010d}:{accession}",
                     entity_id=f"CIK:{resolved_cik:010d}",
                     event_type=f"sec.filing.{row.get('form') or 'UNKNOWN'}",
                     event_time=accepted_at,
