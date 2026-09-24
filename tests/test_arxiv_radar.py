@@ -50,6 +50,25 @@ class ArxivRadarTests(unittest.TestCase):
         self.assertEqual(len(ARXIV_FINANCE_CATEGORIES), 9)
         self.assertTrue(all(category.startswith("q-fin.") for category in ARXIV_FINANCE_CATEGORIES))
 
+    def test_legacy_api_url_and_headers_match_minimal_contract(self):
+        seen = {}
+
+        def transport(url, headers, timeout):
+            seen["url"] = url
+            seen["headers"] = headers
+            return FEED, "application/atom+xml"
+
+        adapter = ArxivRadarAdapter(
+            user_agent="First Current Quant OS test@example.com",
+            transport=transport,
+        )
+        adapter.fetch(categories=("q-fin.PM",), max_results=1)
+        self.assertTrue(seen["url"].startswith("http://export.arxiv.org/api/query?"))
+        self.assertEqual(
+            seen["headers"],
+            {"User-Agent": "First Current Quant OS test@example.com"},
+        )
+
     def test_feed_parses_revision_and_metadata(self):
         items = ArxivRadarAdapter.parse_feed(
             FEED,

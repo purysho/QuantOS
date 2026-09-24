@@ -58,7 +58,7 @@ def _default_transport(
 class ArxivRadarAdapter:
     """Metadata-only arXiv discovery adapter with legacy-API rate limiting."""
 
-    base_url = "https://export.arxiv.org/api/query"
+    base_url = "http://export.arxiv.org/api/query"
 
     def __init__(
         self,
@@ -102,11 +102,7 @@ class ArxivRadarAdapter:
         self._throttle()
         body, media_type = self.transport(
             url,
-            {
-                "User-Agent": self.user_agent,
-                "Accept": "application/atom+xml, application/xml;q=0.9",
-                "Accept-Encoding": "identity",
-            },
+            {"User-Agent": self.user_agent},
             self.timeout_seconds,
         )
         self._last_request_at = self.clock()
