@@ -135,6 +135,19 @@ class ClaimStore:
             ],
         )
 
+    def get(self, claim_id: str) -> ClaimCard | None:
+        row = self._con.execute(
+            """
+            SELECT claim_id, text, claim_type, stance, epistemic_state, topic,
+                   source_artifact_ids_json, locator, scope_json,
+                   assumptions_json, limitations_json, as_of
+            FROM claim_cards
+            WHERE claim_id = ?
+            """,
+            [claim_id],
+        ).fetchone()
+        return None if row is None else self._row(row)
+
     def all(self) -> tuple[ClaimCard, ...]:
         rows = self._con.execute(
             """
