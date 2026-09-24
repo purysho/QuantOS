@@ -51,6 +51,18 @@ class DuckDBEventStore:
             ],
         )
 
+    def get(self, event_id: str) -> Event | None:
+        row = self._con.execute(
+            """
+            SELECT event_id, entity_id, event_type, event_time,
+                   knowledge_time, source_id, payload_json
+            FROM events
+            WHERE event_id = ?
+            """,
+            [event_id],
+        ).fetchone()
+        return self._row_to_event(row) if row else None
+
     def all(self) -> tuple[Event, ...]:
         rows = self._con.execute(
             """
