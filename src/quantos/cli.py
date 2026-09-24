@@ -2,16 +2,28 @@ from __future__ import annotations
 
 import argparse
 import os
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
 from .adapters.fred import FREDVintageAdapter
 from .adapters.sec import SECSubmissionsAdapter
+from .artifacts import SourceArtifactStore
+from .claims import (
+    ClaimCard,
+    ClaimStance,
+    ClaimStore,
+    ClaimType,
+    EvidenceRetriever,
+    make_claim_id,
+)
 from .gates import CapitalFirewall, LiveTradingDisabled
 from .ingestion import IngestionEngine
-from .models import Event, OrderProposal
+from .models import EpistemicState, Event, OrderProposal
 from .persistent import DuckDBEventStore
+from .reactions import MarketReactionEngine
 from .service import QuantOS
+from .shadow import ShadowLedger
 
 
 def demo() -> int:
@@ -52,6 +64,90 @@ def demo() -> int:
         return 0
 
     raise RuntimeError("capital firewall unexpectedly allowed a live order")
+
+
+def edge_demo() -> int:
+    now = datetime.now(timezone.utc)
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        artifacts = SourceArtifactStore(root / "artifacts", root / "artifacts.duckdb")
+        claims = ClaimStore(root / "claims.duckdb")
+        shadow = ShadowLedger(root / "shadow.duckdb")
+        try:
+            support_ref = artifacts.put(
+                source_uri="demo://research/support",
+                content=b"Historical sample documents an earnings-surprise relation.",
+                fetched_at=now,
+                media_type="text/plain",
+            )
+            limit_ref = artifacts.put(
+                source_uri="demo://research/limit",
+                content=b"Publication, costs, regime shifts and crowding can reduce predictability.",
+                fetched_at=now,
+                media_type="text/plain",
+            )
+            support_text = "Historical earnings surprises showed return continuation in the studied sample."
+            limit_text = "Earnings-surprise predictability can decay and requires out-of-sample validation."
+            for text, stance, ref in (
+                (support_text, ClaimStance.SUPPORTS, support_ref),
+                (limit_text, ClaimStance.LIMITS, limit_ref),
+            ):
+                sources = (ref.artifact_id,)
+                claims.add(
+                    ClaimCard(
+                        text=text,
+                        claim_type=ClaimType.EMPIRICAL,
+                        stance=stance,
+                        epistemic_state=EpistemicState.OBSERVED,
+                        topic="earnings surprise",
+                        source_artifact_ids=sources,
+                        locator="demo",
+                        scope={"mode": "synthetic demonstration"},
+                        assumptions=(),
+                        limitations=(),
+                        as_of=now,
+                        claim_id=make_claim_id(
+                            text=text,
+                            source_artifact_ids=sources,
+                            locator="demo",
+                        ),
+                    )
+                )
+
+            bundle = EvidenceRetriever(claims).bundle("earnings surprise")
+            reaction = MarketReactionEngine.measure(
+                event_id="demo-event",
+                security_id="DEMO",
+                measured_at=now,
+                horizon="1d",
+                security_pre=100.0,
+                security_post=102.0,
+                benchmark_pre=100.0,
+                benchmark_post=101.0,
+            )
+            shadow.record(
+                signal_id="earnings-surprise-demo",
+                hypothesis_id="demo-hypothesis",
+                measured_at=now,
+                expected_direction=1,
+                residual_return=reaction.residual_return,
+            )
+            health = shadow.health("earnings-surprise-demo")
+
+            print("ARTIFACTS", support_ref.artifact_id, limit_ref.artifact_id)
+            print(
+                "EVIDENCE",
+                f"support={len(bundle.supporting)}",
+                f"limits={len(bundle.limiting)}",
+                f"contradictions={len(bundle.contradicting)}",
+            )
+            print("REACTION_RESIDUAL", round(reaction.residual_return, 6))
+            print("EDGE_HEALTH", health.state, f"observations={health.observations}")
+            return 0
+        finally:
+            shadow.close()
+            claims.close()
+            artifacts.close()
 
 
 def _store(path: str) -> DuckDBEventStore:
@@ -138,6 +234,7 @@ def main() -> int:
     sub = parser.add_subparsers(dest="command", required=True)
 
     sub.add_parser("demo", help="run the fail-closed synthetic intelligence demo")
+    sub.add_parser("edge-demo", help="run the provenance-to-shadow edge demo")
 
     sec = sub.add_parser("sec", help="ingest current SEC submissions for a CIK")
     sec.add_argument("--cik", type=int, required=True)
@@ -160,6 +257,8 @@ def main() -> int:
     args = parser.parse_args()
     if args.command == "demo":
         return demo()
+    if args.command == "edge-demo":
+        return edge_demo()
     if args.command == "sec":
         return ingest_sec(cik=args.cik, db=args.db)
     if args.command == "fred":
