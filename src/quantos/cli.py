@@ -176,6 +176,48 @@ def ingest_sec(*, cik: int, db: str) -> int:
         store.close()
 
 
+
+def capture_sec_document(
+    *,
+    event_id: str,
+    db: str,
+    artifact_root: str,
+    artifact_db: str,
+    lineage_db: str,
+) -> int:
+    user_agent = os.environ.get("SEC_USER_AGENT")
+    if not user_agent:
+        raise SystemExit(
+            "SEC_USER_AGENT is required, e.g. 'First Current Quant OS contact@example.com'"
+        )
+
+    store = _store(db)
+    artifacts = SourceArtifactStore(artifact_root, artifact_db)
+    lineage = LineageStore(lineage_db)
+    try:
+        event = store.get(event_id)
+        if event is None:
+            raise SystemExit(f"event not found: {event_id}")
+        ref = SECFilingArtifactFetcher(
+            user_agent=user_agent
+        ).capture_primary_document(
+            event=event,
+            artifact_store=artifacts,
+            lineage_store=lineage,
+        )
+        print(
+            "SEC_DOCUMENT",
+            f"event={event_id}",
+            f"artifact={ref.artifact_id}",
+            f"bytes={ref.byte_length}",
+        )
+        return 0
+    finally:
+        lineage.close()
+        artifacts.close()
+        store.close()
+
+
 def ingest_fred(*, series_id: str, vintage_date: str, db: str) -> int:
     api_key = os.environ.get("FRED_API_KEY")
     if not api_key:
@@ -240,7 +282,17 @@ def main() -> int:
     sec.add_argument("--cik", type=int, required=True)
     sec.add_argument("--db", default="data/events.duckdb")
 
-    fred = sub.add_parser("fred", help="ingest a FRED series as of one vintage date")
+
+    sec_document = sub.add_parser(
+        "sec-document",
+        help="archive the primary document for one already-ingested SEC filing event",
+    )
+    sec_document.add_argument("--event-id", required=True)
+    sec_document.add_argument("--db", default="data/events.duckdb")
+    sec_document.add_argument("--artifact-root", default="data/artifacts")
+    sec_document.add_argument("--artifact-db", default="data/artifacts.duckdb")
+    sec_document.add_argument("--lineage-db", default="data/lineage.duckdb")
+\n    fred = sub.add_parser("fred", help="ingest a FRED series as of one vintage date")
     fred.add_argument("--series", required=True)
     fred.add_argument("--vintage", required=True)
     fred.add_argument("--db", default="data/events.duckdb")
