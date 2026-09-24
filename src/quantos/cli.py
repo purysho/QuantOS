@@ -292,7 +292,7 @@ def main() -> int:
     sec_document.add_argument("--artifact-root", default="data/artifacts")
     sec_document.add_argument("--artifact-db", default="data/artifacts.duckdb")
     sec_document.add_argument("--lineage-db", default="data/lineage.duckdb")
-\n    fred = sub.add_parser("fred", help="ingest a FRED series as of one vintage date")
+    fred = sub.add_parser("fred", help="ingest a FRED series as of one vintage date")
     fred.add_argument("--series", required=True)
     fred.add_argument("--vintage", required=True)
     fred.add_argument("--db", default="data/events.duckdb")
