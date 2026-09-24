@@ -136,7 +136,7 @@ class EntityGraphStore:
             return
 
         self._con.execute(
-            "INSERT INTO entity_edges VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO entity_edges VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             [
                 edge.edge_id,
                 edge.from_entity,
