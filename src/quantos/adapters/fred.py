@@ -14,11 +14,7 @@ class FREDAdapterError(ValueError):
 
 
 def _safe_knowledge_time(date_text: str) -> datetime:
-    """Use end-of-day UTC when FRED only gives a vintage date, not a release time.
-
-    This is intentionally conservative: it avoids pretending the value was
-    knowable at midnight on its vintage date.
-    """
+    """Use end-of-day UTC when FRED only gives a vintage date, not a release time."""
     try:
         day = datetime.strptime(date_text, "%Y-%m-%d").date()
     except ValueError as exc:
@@ -93,6 +89,9 @@ class FREDVintageAdapter:
 
             events.append(
                 Event(
+                    event_id=(
+                        f"fred:{series_id}:{observation_date}:{realtime_start}"
+                    ),
                     entity_id=f"FRED:{series_id}",
                     event_type="macro.observation",
                     event_time=event_time,
