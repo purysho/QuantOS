@@ -102,6 +102,30 @@ class ShadowLedger:
         )
         return observation
 
+
+    def observations(self, signal_id: str) -> tuple[ShadowObservation, ...]:
+        rows = self._con.execute(
+            """
+            SELECT signal_id, hypothesis_id, measured_at,
+                   expected_direction, residual_return, score
+            FROM shadow_observations
+            WHERE signal_id = ?
+            ORDER BY measured_at, hypothesis_id
+            """,
+            [signal_id],
+        ).fetchall()
+        return tuple(
+            ShadowObservation(
+                signal_id=str(row[0]),
+                hypothesis_id=str(row[1]),
+                measured_at=row[2],
+                expected_direction=int(row[3]),
+                residual_return=float(row[4]),
+                score=float(row[5]),
+            )
+            for row in rows
+        )
+
     def health(
         self,
         signal_id: str,
