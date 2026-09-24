@@ -1,0 +1,33 @@
+name: Radar Live Smoke
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/radar-smoke.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install prototype
+        run: python -m pip install -e .
+      - name: Run one live arXiv metadata scan
+        run: |
+          quantos-radar scan-arxiv             --category q-fin.PM             --max-results 5             --print-limit 5             --radar-db data/research-radar.duckdb             --artifact-root data/artifacts             --artifact-db data/artifacts.duckdb             --triage-db data/radar-triage.duckdb
+      - name: Upload disposable radar state
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: radar-live-smoke
+          path: data/
+          if-no-files-found: warn
+          retention-days: 3
