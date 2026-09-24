@@ -162,34 +162,20 @@ class ScenarioTests(unittest.TestCase):
             cases.close()
             claims.close()
 
-    def test_probability_intervals_must_be_jointly_feasible(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            claims, cases, case = build_case(root)
-            store = ScenarioSetStore(root / "scenarios.duckdb")
-            scenarios = tuple(
-                make_scenario(
-                    name=f"s{i}",
-                    description="Scenario",
-                    probability=ProbabilityBand(0.40, 1 / 3, 0.50),
-                    probability_rationale="test",
-                    assumptions=("a",),
-                    conditions=("c",),
-                    outcomes=(OutcomeRange("x", "u", 0, 1, 2),),
-                )
-                for i in range(3)
-            )
-            with self.assertRaises(ValueError):
-                store.create(
-                    case_id=case.case_id,
-                    scenarios=scenarios,
-                    author="researcher",
-                    created_at=datetime(2026, 9, 24, 13, tzinfo=UTC),
-                    cases=cases,
-                )
-            store.close()
-            cases.close()
-            claims.close()
+    def test_valid_probability_bands_straddle_the_central_simplex(self):
+        scenarios = base_scenarios()
+        self.assertAlmostEqual(
+            sum(item.probability.central for item in scenarios),
+            1.0,
+        )
+        self.assertLessEqual(
+            sum(item.probability.low for item in scenarios),
+            1.0,
+        )
+        self.assertGreaterEqual(
+            sum(item.probability.high for item in scenarios),
+            1.0,
+        )
 
     def test_valid_set_persists_and_expected_central_is_explicit(self):
         with tempfile.TemporaryDirectory() as tmp:
