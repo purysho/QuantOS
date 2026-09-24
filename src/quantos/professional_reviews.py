@@ -35,6 +35,16 @@ class ReviewPanelState(str, Enum):
     REVIEW_SET_COMPLETE = "REVIEW_SET_COMPLETE"
 
 
+@dataclass(frozen=True)
+class ReviewResolution:
+    resolution_id: str
+    review_id: str
+    resolver: str
+    resolved_at: datetime
+    notes: str
+    evidence_references: tuple[str, ...]
+
+
 ROLE_CHECKS: dict[ProfessionalRole, tuple[str, ...]] = {
     ProfessionalRole.FUNDAMENTAL_ANALYST: (
         "economic_interpretation",
@@ -95,6 +105,7 @@ class ReviewPanel:
     missing_roles: tuple[ProfessionalRole, ...]
     blocking_review_ids: tuple[str, ...]
     conditional_review_ids: tuple[str, ...]
+    resolved_review_ids: tuple[str, ...]
     caveat: str
 
 
@@ -113,6 +124,27 @@ def dossier_fingerprint(dossier: EvidenceDossier) -> str:
     }
     material = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
     return "dossier:" + hashlib.sha256(material).hexdigest()
+
+
+def make_resolution_id(
+    *,
+    review_id: str,
+    resolver: str,
+    notes: str,
+    evidence_references: tuple[str, ...],
+) -> str:
+    payload = {
+        "review_id": review_id,
+        "resolver": resolver,
+        "notes": notes,
+        "evidence_references": evidence_references,
+    }
+    material = json.dumps(
+        payload,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode()
+    return "review-resolution:" + hashlib.sha256(material).hexdigest()
 
 
 def make_review_id(
@@ -172,6 +204,18 @@ class ProfessionalReviewLedger:
                 findings_json VARCHAR NOT NULL,
                 objections_json VARCHAR NOT NULL,
                 required_followups_json VARCHAR NOT NULL
+            )
+            """
+        )
+        self._con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS review_resolutions (
+                resolution_id VARCHAR PRIMARY KEY,
+                review_id VARCHAR NOT NULL UNIQUE,
+                resolver VARCHAR NOT NULL,
+                resolved_at TIMESTAMPTZ NOT NULL,
+                notes VARCHAR NOT NULL,
+                evidence_references_json VARCHAR NOT NULL
             )
             """
         )
@@ -301,6 +345,100 @@ class ProfessionalReviewLedger:
         ).fetchall()
         return tuple(self._row(row) for row in rows)
 
+    def resolve_review(
+        self,
+        *,
+        review_id: str,
+        resolver: str,
+        resolved_at: datetime,
+        notes: str,
+        evidence_references: tuple[str, ...],
+    ) -> ReviewResolution:
+        review = self.get(review_id)
+        if review is None:
+            raise KeyError(review_id)
+        if review.disposition not in {
+            ReviewDisposition.BLOCKING_OBJECTION,
+            ReviewDisposition.CONDITIONAL,
+        }:
+            raise ValueError(
+                "only blocking or conditional reviews can be resolved"
+            )
+        if resolver.strip() != review.reviewer:
+            raise ValueError(
+                "only the reviewer who raised the issue may resolve it"
+            )
+        if resolved_at.tzinfo is None:
+            raise ValueError("resolved_at must be timezone-aware")
+        if not notes.strip():
+            raise ValueError("resolution notes are required")
+        clean_evidence = tuple(
+            item.strip() for item in evidence_references if item.strip()
+        )
+        if not clean_evidence:
+            raise ValueError("at least one resolution evidence reference is required")
+
+        resolution_id = make_resolution_id(
+            review_id=review_id,
+            resolver=resolver.strip(),
+            notes=notes.strip(),
+            evidence_references=clean_evidence,
+        )
+        existing = self.resolution_for(review_id)
+        if existing is not None:
+            expected = (
+                existing.resolver,
+                existing.notes,
+                existing.evidence_references,
+            )
+            requested = (
+                resolver.strip(),
+                notes.strip(),
+                clean_evidence,
+            )
+            if expected != requested:
+                raise ValueError("review already has a different resolution")
+            return existing
+
+        self._con.execute(
+            """
+            INSERT INTO review_resolutions
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            [
+                resolution_id,
+                review_id,
+                resolver.strip(),
+                resolved_at,
+                notes.strip(),
+                json.dumps(clean_evidence),
+            ],
+        )
+        result = self.resolution_for(review_id)
+        assert result is not None
+        return result
+
+    def resolution_for(self, review_id: str) -> ReviewResolution | None:
+        row = self._con.execute(
+            """
+            SELECT resolution_id, review_id, resolver, resolved_at,
+                   notes, evidence_references_json
+            FROM review_resolutions
+            WHERE review_id = ?
+            """,
+            [review_id],
+        ).fetchone()
+        if row is None:
+            return None
+        return ReviewResolution(
+            resolution_id=str(row[0]),
+            review_id=str(row[1]),
+            resolver=str(row[2]),
+            resolved_at=row[3],
+            notes=str(row[4]),
+            evidence_references=tuple(json.loads(str(row[5]))),
+        )
+
     def panel(self, dossier: EvidenceDossier) -> ReviewPanel:
         fingerprint = dossier_fingerprint(dossier)
         reviews = self.reviews_for(
@@ -316,15 +454,23 @@ class ProfessionalReviewLedger:
         missing = tuple(
             role for role in ProfessionalRole if role not in represented
         )
+        resolved = tuple(
+            review.review_id
+            for review in reviews
+            if self.resolution_for(review.review_id) is not None
+        )
+        resolved_set = set(resolved)
         blocking = tuple(
             review.review_id
             for review in reviews
             if review.disposition is ReviewDisposition.BLOCKING_OBJECTION
+            and review.review_id not in resolved_set
         )
         conditional = tuple(
             review.review_id
             for review in reviews
             if review.disposition is ReviewDisposition.CONDITIONAL
+            and review.review_id not in resolved_set
         )
 
         if blocking:
@@ -345,6 +491,7 @@ class ProfessionalReviewLedger:
             missing_roles=missing,
             blocking_review_ids=blocking,
             conditional_review_ids=conditional,
+            resolved_review_ids=resolved,
             caveat=self.PANEL_CAVEAT,
         )
 
