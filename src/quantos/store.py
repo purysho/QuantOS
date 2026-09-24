@@ -6,11 +6,7 @@ from .models import Event
 
 
 class PointInTimeEventStore:
-    """Append-only in-memory store for prototype testing.
-
-    Production will replace this with immutable Parquet + DuckDB while keeping
-    the same knowledge-time semantics.
-    """
+    """Append-only in-memory store for prototype testing."""
 
     def __init__(self) -> None:
         self._events: list[Event] = []
@@ -21,6 +17,12 @@ class PointInTimeEventStore:
             raise ValueError(f"duplicate event_id: {event.event_id}")
         self._events.append(event)
         self._ids.add(event.event_id)
+
+    def get(self, event_id: str) -> Event | None:
+        for event in self._events:
+            if event.event_id == event_id:
+                return event
+        return None
 
     def all(self) -> tuple[Event, ...]:
         return tuple(self._events)
