@@ -63,10 +63,10 @@ class ArxivRadarTests(unittest.TestCase):
             transport=transport,
         )
         adapter.fetch(categories=("q-fin.PM",), max_results=1)
-        self.assertTrue(seen["url"].startswith("http://export.arxiv.org/api/query?"))
+        self.assertTrue(seen["url"].startswith("https://export.arxiv.org/api/query?"))
         self.assertEqual(
             seen["headers"],
-            {"User-Agent": "First Current Quant OS test@example.com"},
+            {"user-agent": "First Current Quant OS test@example.com"},
         )
 
     def test_feed_parses_revision_and_metadata(self):

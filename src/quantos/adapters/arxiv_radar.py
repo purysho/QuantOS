@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Callable
 from urllib.parse import urlencode
-from urllib.request import Request, urlopen
+import requests
 
 from quantos.artifacts import ArtifactRef, SourceArtifactStore
 from quantos.research_radar import DiscoveryItem, make_discovery_id
@@ -48,17 +48,30 @@ def _default_transport(
     headers: dict[str, str],
     timeout_seconds: float,
 ) -> tuple[bytes, str]:
-    request = Request(url, headers=headers)
-    with urlopen(request, timeout=timeout_seconds) as response:
-        content = response.read()
-        media_type = response.headers.get_content_type() or "application/atom+xml"
-    return content, media_type
+    try:
+        response = requests.get(
+            url,
+            headers=headers,
+            timeout=timeout_seconds,
+        )
+    except requests.RequestException as exc:
+        raise ArxivRadarError("arXiv metadata request failed") from exc
+    if response.status_code != 200:
+        raise ArxivRadarError(
+            f"arXiv metadata request failed with HTTP {response.status_code}"
+        )
+    media_type = (
+        response.headers.get("content-type", "application/atom+xml")
+        .split(";", 1)[0]
+        .strip()
+    )
+    return response.content, media_type
 
 
 class ArxivRadarAdapter:
     """Metadata-only arXiv discovery adapter with legacy-API rate limiting."""
 
-    base_url = "http://export.arxiv.org/api/query"
+    base_url = "https://export.arxiv.org/api/query"
 
     def __init__(
         self,
@@ -102,7 +115,7 @@ class ArxivRadarAdapter:
         self._throttle()
         body, media_type = self.transport(
             url,
-            {"User-Agent": self.user_agent},
+            {"user-agent": self.user_agent},
             self.timeout_seconds,
         )
         self._last_request_at = self.clock()
