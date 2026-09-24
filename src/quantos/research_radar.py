@@ -135,6 +135,20 @@ class ResearchRadarStore:
             inserted += 1
         return RadarIngestResult(inserted=inserted, skipped_identical=skipped)
 
+    def get(self, discovery_id: str) -> DiscoveryItem | None:
+        row = self._con.execute(
+            """
+            SELECT discovery_id, provider, external_id, canonical_id,
+                   title, summary, authors_json, categories_json,
+                   published_at, updated_at, discovered_at, source_uri,
+                   feed_artifact_id, status
+            FROM radar_items
+            WHERE discovery_id = ?
+            """,
+            [discovery_id],
+        ).fetchone()
+        return None if row is None else self._row(row)
+
     def latest(
         self,
         *,

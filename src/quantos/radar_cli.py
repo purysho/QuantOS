@@ -9,7 +9,9 @@ from typing import Protocol
 from .adapters.arxiv_radar import ARXIV_FINANCE_CATEGORIES, ArxivRadarAdapter, ArxivRadarFetch
 from .artifacts import SourceArtifactStore
 from .radar_triage import RadarTriageEngine, RadarTriageStore, TriageResult
+from .research_catalog import ResearchCatalog
 from .research_radar import DiscoveryItem, ResearchRadarStore
+from .research_review import ResearchReviewService
 from .review_queue import ResearchReviewQueue, ReviewStatus
 
 
@@ -142,6 +144,142 @@ def scan_arxiv(
         radar.close()
 
 
+
+def list_reviews(*, review_db: str, status: str, limit: int) -> int:
+    try:
+        review_status = ReviewStatus(status)
+    except ValueError as exc:
+        raise SystemExit(f"invalid review status: {status}") from exc
+    queue = ResearchReviewQueue(review_db)
+    try:
+        items = queue.list_status(review_status, limit=limit)
+        for item in items:
+            print(
+                item.queue_id,
+                item.status.value,
+                f"score={item.initial_attention_score:.3f}",
+                item.external_id,
+                item.source_uri,
+                item.reviewer or "-",
+            )
+        print("REVIEW_COUNT", len(items), review_status.value)
+        return 0
+    finally:
+        queue.close()
+
+
+def start_review(*, review_db: str, queue_id: str, reviewer: str) -> int:
+    queue = ResearchReviewQueue(review_db)
+    try:
+        item = queue.start_review(
+            queue_id=queue_id,
+            reviewer=reviewer,
+            reviewed_at=datetime.now(timezone.utc),
+        )
+        print("REVIEW_STATUS", item.queue_id, item.status.value, item.reviewer)
+        return 0
+    finally:
+        queue.close()
+
+
+def complete_review(
+    *,
+    review_db: str,
+    queue_id: str,
+    reviewer: str,
+    notes: str,
+    candidate: bool,
+) -> int:
+    queue = ResearchReviewQueue(review_db)
+    try:
+        now = datetime.now(timezone.utc)
+        if candidate:
+            item = queue.mark_catalog_candidate(
+                queue_id=queue_id,
+                reviewer=reviewer,
+                reviewed_at=now,
+                notes=notes,
+            )
+        else:
+            item = queue.dismiss(
+                queue_id=queue_id,
+                reviewer=reviewer,
+                reviewed_at=now,
+                notes=notes,
+            )
+        print("REVIEW_STATUS", item.queue_id, item.status.value)
+        return 0
+    finally:
+        queue.close()
+
+
+def admit_catalog_candidate(
+    *,
+    review_db: str,
+    radar_db: str,
+    catalog_db: str,
+    queue_id: str,
+) -> int:
+    queue = ResearchReviewQueue(review_db)
+    radar = ResearchRadarStore(radar_db)
+    catalog = ResearchCatalog(catalog_db)
+    try:
+        admission = ResearchReviewService().admit_catalog_candidate(
+            queue_id=queue_id,
+            review_queue=queue,
+            radar_store=radar,
+            catalog=catalog,
+        )
+        print(
+            "CATALOG_ADMISSION",
+            admission.source_id,
+            admission.catalog_status.value,
+            f"queue={admission.queue_id}",
+        )
+        return 0
+    finally:
+        catalog.close()
+        radar.close()
+        queue.close()
+
+
+def verify_catalog_file(
+    *,
+    catalog_db: str,
+    artifact_root: str,
+    artifact_db: str,
+    source_id: str,
+    path: str,
+    source_uri: str,
+    verifier: str,
+    notes: str,
+) -> int:
+    catalog = ResearchCatalog(catalog_db)
+    artifacts = SourceArtifactStore(artifact_root, artifact_db)
+    try:
+        result = ResearchReviewService().verify_source_file(
+            source_id=source_id,
+            file_path=path,
+            source_uri=source_uri,
+            verifier=verifier,
+            notes=notes,
+            catalog=catalog,
+            artifact_store=artifacts,
+        )
+        print(
+            "CATALOG_VERIFIED_SOURCE",
+            result.source_id,
+            result.reference.status.value,
+            result.artifact.artifact_id,
+            f"bytes={result.artifact.byte_length}",
+        )
+        print("CLAIM_TRUST", "UNCHANGED", "no claims created")
+        return 0
+    finally:
+        artifacts.close()
+        catalog.close()
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         prog="quantos-radar",
@@ -165,7 +303,102 @@ def main() -> int:
     scan.add_argument("--queue-threshold", type=float, default=0.50)
     scan.add_argument("--print-limit", type=int, default=10)
 
+
+    review_list = sub.add_parser("review-list", help="list research review queue items")
+    review_list.add_argument("--review-db", default="data/research-review.duckdb")
+    review_list.add_argument("--status", default="QUEUED")
+    review_list.add_argument("--limit", type=int, default=50)
+
+    review_start = sub.add_parser("review-start", help="assign and start one review")
+    review_start.add_argument("--review-db", default="data/research-review.duckdb")
+    review_start.add_argument("--queue-id", required=True)
+    review_start.add_argument("--reviewer", required=True)
+
+    review_dismiss = sub.add_parser("review-dismiss", help="dismiss an item after review")
+    review_dismiss.add_argument("--review-db", default="data/research-review.duckdb")
+    review_dismiss.add_argument("--queue-id", required=True)
+    review_dismiss.add_argument("--reviewer", required=True)
+    review_dismiss.add_argument("--notes", required=True)
+
+    review_candidate = sub.add_parser(
+        "review-candidate",
+        help="mark a reviewed item as eligible for quarantined catalog admission",
+    )
+    review_candidate.add_argument("--review-db", default="data/research-review.duckdb")
+    review_candidate.add_argument("--queue-id", required=True)
+    review_candidate.add_argument("--reviewer", required=True)
+    review_candidate.add_argument("--notes", required=True)
+
+    catalog_admit = sub.add_parser(
+        "catalog-admit",
+        help="admit a reviewed candidate to the research catalog as QUARANTINED",
+    )
+    catalog_admit.add_argument("--review-db", default="data/research-review.duckdb")
+    catalog_admit.add_argument("--radar-db", default="data/research-radar.duckdb")
+    catalog_admit.add_argument("--catalog-db", default="data/research-catalog.duckdb")
+    catalog_admit.add_argument("--queue-id", required=True)
+
+    catalog_verify = sub.add_parser(
+        "catalog-verify-file",
+        help="attach exact source bytes and verify source identity; creates no claims",
+    )
+    catalog_verify.add_argument("--catalog-db", default="data/research-catalog.duckdb")
+    catalog_verify.add_argument("--artifact-root", default="data/artifacts")
+    catalog_verify.add_argument("--artifact-db", default="data/artifacts.duckdb")
+    catalog_verify.add_argument("--source-id", required=True)
+    catalog_verify.add_argument("--path", required=True)
+    catalog_verify.add_argument("--source-uri", required=True)
+    catalog_verify.add_argument("--verifier", required=True)
+    catalog_verify.add_argument("--notes", required=True)
+
     args = parser.parse_args()
+
+    if args.command == "review-list":
+        return list_reviews(
+            review_db=args.review_db,
+            status=args.status,
+            limit=args.limit,
+        )
+    if args.command == "review-start":
+        return start_review(
+            review_db=args.review_db,
+            queue_id=args.queue_id,
+            reviewer=args.reviewer,
+        )
+    if args.command == "review-dismiss":
+        return complete_review(
+            review_db=args.review_db,
+            queue_id=args.queue_id,
+            reviewer=args.reviewer,
+            notes=args.notes,
+            candidate=False,
+        )
+    if args.command == "review-candidate":
+        return complete_review(
+            review_db=args.review_db,
+            queue_id=args.queue_id,
+            reviewer=args.reviewer,
+            notes=args.notes,
+            candidate=True,
+        )
+    if args.command == "catalog-admit":
+        return admit_catalog_candidate(
+            review_db=args.review_db,
+            radar_db=args.radar_db,
+            catalog_db=args.catalog_db,
+            queue_id=args.queue_id,
+        )
+    if args.command == "catalog-verify-file":
+        return verify_catalog_file(
+            catalog_db=args.catalog_db,
+            artifact_root=args.artifact_root,
+            artifact_db=args.artifact_db,
+            source_id=args.source_id,
+            path=args.path,
+            source_uri=args.source_uri,
+            verifier=args.verifier,
+            notes=args.notes,
+        )
     if args.command == "scan-arxiv":
         categories = (
             tuple(args.categories)
