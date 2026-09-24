@@ -326,7 +326,7 @@ def main() -> int:
     )
     research_import.add_argument("--registry", required=True)
     research_import.add_argument("--catalog-db", default="data/research-catalog.duckdb")
-\n    export = sub.add_parser("export", help="export the event ledger to Parquet")
+    export = sub.add_parser("export", help="export the event ledger to Parquet")
     export.add_argument("--db", default="data/events.duckdb")
     export.add_argument("--parquet", default="data/events.parquet")
 
@@ -342,11 +342,24 @@ def main() -> int:
         return edge_demo()
     if args.command == "sec":
         return ingest_sec(cik=args.cik, db=args.db)
+    if args.command == "sec-document":
+        return capture_sec_document(
+            event_id=args.event_id,
+            db=args.db,
+            artifact_root=args.artifact_root,
+            artifact_db=args.artifact_db,
+            lineage_db=args.lineage_db,
+        )
     if args.command == "fred":
         return ingest_fred(
             series_id=args.series,
             vintage_date=args.vintage,
             db=args.db,
+        )
+    if args.command == "research-import":
+        return import_research_registry(
+            registry=args.registry,
+            catalog_db=args.catalog_db,
         )
     if args.command == "export":
         return export_events(db=args.db, parquet=args.parquet)
