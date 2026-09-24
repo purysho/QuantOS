@@ -10,6 +10,7 @@ from .adapters.arxiv_radar import ARXIV_FINANCE_CATEGORIES, ArxivRadarAdapter, A
 from .artifacts import SourceArtifactStore
 from .radar_triage import RadarTriageEngine, RadarTriageStore, TriageResult
 from .research_radar import DiscoveryItem, ResearchRadarStore
+from .review_queue import ResearchReviewQueue, ReviewStatus
 
 
 DEFAULT_USER_AGENT = (
@@ -37,16 +38,21 @@ def scan_arxiv(
     artifact_root: str,
     artifact_db: str,
     triage_db: str,
+    review_db: str,
+    queue_threshold: float = 0.50,
     print_limit: int = 10,
     adapter: RadarAdapter | None = None,
 ) -> tuple[TriageResult, ...]:
     if not 1 <= print_limit <= 100:
         raise ValueError("print_limit must be between 1 and 100")
+    if not 0.0 <= queue_threshold <= 1.0:
+        raise ValueError("queue_threshold must be between 0 and 1")
 
     Path(radar_db).parent.mkdir(parents=True, exist_ok=True)
     radar = ResearchRadarStore(radar_db)
     artifacts = SourceArtifactStore(artifact_root, artifact_db)
     triage = RadarTriageStore(triage_db)
+    review = ResearchReviewQueue(review_db)
     try:
         prior = list(radar.latest(provider="arxiv", limit=1000))
         client = adapter or ArxivRadarAdapter(
@@ -97,6 +103,17 @@ def scan_arxiv(
             f"feed_artifact={artifact_id}",
         )
         by_id = {item.discovery_id: item for item in fetched.items}
+        queued = 0
+        queued_at = datetime.now(timezone.utc)
+        for result in ranked:
+            if result.attention_score >= queue_threshold:
+                review.enqueue(
+                    discovery=by_id[result.discovery_id],
+                    triage=result,
+                    queued_at=queued_at,
+                )
+                queued += 1
+
         for result in ranked[:print_limit]:
             item = by_id[result.discovery_id]
             themes = ",".join(match.theme for match in result.theme_matches) or "none"
@@ -110,9 +127,16 @@ def scan_arxiv(
                 item.canonical_id,
                 item.title,
             )
+        print(
+            "REVIEW_QUEUE",
+            f"queued_this_scan={queued}",
+            f"queue_threshold={queue_threshold:.3f}",
+            f"open={len(review.list_status(ReviewStatus.QUEUED, limit=1000))}",
+        )
         print("RADAR_TRUST", "DISCOVERY_ONLY", "no claims promoted")
         return ranked
     finally:
+        review.close()
         triage.close()
         artifacts.close()
         radar.close()
@@ -137,6 +161,8 @@ def main() -> int:
     scan.add_argument("--artifact-root", default="data/artifacts")
     scan.add_argument("--artifact-db", default="data/artifacts.duckdb")
     scan.add_argument("--triage-db", default="data/radar-triage.duckdb")
+    scan.add_argument("--review-db", default="data/research-review.duckdb")
+    scan.add_argument("--queue-threshold", type=float, default=0.50)
     scan.add_argument("--print-limit", type=int, default=10)
 
     args = parser.parse_args()
@@ -153,6 +179,8 @@ def main() -> int:
             artifact_root=args.artifact_root,
             artifact_db=args.artifact_db,
             triage_db=args.triage_db,
+            review_db=args.review_db,
+            queue_threshold=args.queue_threshold,
             print_limit=args.print_limit,
         )
         return 0

@@ -58,6 +58,8 @@ class RadarCLITests(unittest.TestCase):
                 artifact_root=str(root / "artifacts"),
                 artifact_db=str(root / "artifacts.duckdb"),
                 triage_db=str(root / "triage.duckdb"),
+                review_db=str(root / "review.duckdb"),
+                queue_threshold=0.50,
                 print_limit=5,
                 adapter=FakeAdapter(),
             )
@@ -70,7 +72,11 @@ class RadarCLITests(unittest.TestCase):
                 "SELECT count(*) FROM radar_triage"
             ).fetchone()[0]
             self.assertEqual(radar_count, 1)
+            review_count = duckdb.connect(str(root / "review.duckdb")).execute(
+                "SELECT count(*) FROM research_review_queue"
+            ).fetchone()[0]
             self.assertEqual(triage_count, 1)
+            self.assertEqual(review_count, 1)
 
     def test_cli_defaults_to_finance_categories(self):
         argv = [
