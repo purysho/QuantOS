@@ -7,8 +7,8 @@ from enum import Enum
 
 from .claim_evidence_graph import ClaimEvidenceGraph
 from .claims import ClaimStore
-from .reasoning_dossier import EvidenceDossier, EvidenceDossierBuilder
 from .professional_reviews import dossier_fingerprint
+from .reasoning_dossier import EvidenceDossier, EvidenceDossierBuilder
 from .research_case import ResearchCase, ResearchCaseStore
 from .scenarios import ScenarioSet, ScenarioSetStore
 
@@ -56,6 +56,7 @@ class CaseDossierBuilder:
         case = cases.get(case_id)
         if case is None:
             raise KeyError(case_id)
+
         scenario_set = scenarios.get(scenario_set_id)
         if scenario_set is None:
             raise KeyError(scenario_set_id)
@@ -74,3 +75,55 @@ class CaseDossierBuilder:
             for claim_id in claim_ids:
                 dossier = builder.build(
                     claim_id,
+                    claims=claims,
+                    evidence_graph=evidence_graph,
+                )
+                claim_dossiers.append(
+                    CaseClaimDossier(
+                        role=role,
+                        claim_id=claim_id,
+                        dossier_fingerprint=dossier_fingerprint(dossier),
+                        dossier=dossier,
+                    )
+                )
+
+        claim_dossiers.sort(key=lambda item: (item.role.value, item.claim_id))
+        frozen_claim_dossiers = tuple(claim_dossiers)
+        fingerprint = self._fingerprint(
+            case_id=case.case_id,
+            scenario_set_id=scenario_set.scenario_set_id,
+            claim_dossiers=frozen_claim_dossiers,
+        )
+        return CaseDossier(
+            case=case,
+            scenario_set=scenario_set,
+            claim_dossiers=frozen_claim_dossiers,
+            case_dossier_fingerprint=fingerprint,
+            caveat=self.CAVEAT,
+        )
+
+    @staticmethod
+    def _fingerprint(
+        *,
+        case_id: str,
+        scenario_set_id: str,
+        claim_dossiers: tuple[CaseClaimDossier, ...],
+    ) -> str:
+        payload = {
+            "case_id": case_id,
+            "scenario_set_id": scenario_set_id,
+            "claim_dossiers": [
+                {
+                    "role": item.role.value,
+                    "claim_id": item.claim_id,
+                    "dossier_fingerprint": item.dossier_fingerprint,
+                }
+                for item in claim_dossiers
+            ],
+        }
+        material = json.dumps(
+            payload,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        return "case-dossier:" + hashlib.sha256(material).hexdigest()
