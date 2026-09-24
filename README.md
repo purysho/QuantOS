@@ -1,61 +1,47 @@
-# First Current Quant OS — Prototype v0.6.0
+# First Current Quant OS — Prototype v0.7.0
 
 A high-assurance quantitative research operating-system prototype built around one rule:
 
 > **Research may be aggressive; evidence, trust and capital authority must remain conservative and explicit.**
 
-The repository is research-only. It can ingest live information, discover external research, construct reviewed evidence, and measure prospective signals, but **live order authorization is disabled by construction**.
+The repository is research-only. It can ingest live information, discover research, construct reviewed evidence, build whole-case reasoning, and run prospective shadow evaluation controls, but **live order authorization is disabled by construction**.
 
-## Current control stack
+## What v0.7.0 proves
 
-### Point-in-time intelligence
+### Point-in-time foundation
 - separate event time and knowledge time
-- durable DuckDB event ledger
-- Parquet export
-- point-in-time expectations
+- durable DuckDB event ledger and Parquet export
 - as-of reconstruction without revision leakage
-- idempotent ingestion and conflict detection
-
-### Live-source boundaries
-- SEC submissions normalization
-- SEC primary-document artifact capture
-- FRED/ALFRED vintage normalization
-- provider-neutral market-event contract
-- real arXiv metadata discovery with raw-feed provenance
+- deterministic identities, idempotence and conflict detection
+- SEC submissions and primary-document capture
+- FRED/ALFRED vintage ingestion
 
 ### Research intake
-- revision-preserving Research Radar
-- deterministic research-attention triage
+- live arXiv metadata radar
+- immutable raw-feed provenance
+- deterministic attention triage
 - review quarantine
-- explicit reviewer assignment
 - quarantined research catalog
 - exact-source SHA-256 verification
-- publication and attention never imply trust
+- publication/attention never imply trust
 
 ### Claim trust
 - verified source required before drafting
-- exact source locator
-- scope, assumptions and limitations
-- independent claim reviewer
+- exact locator, scope, assumptions and limitations
+- drafter/reviewer separation
 - mandatory counter-evidence notes
 - approval separate from promotion
 - promotion rechecks exact source artifact
 
-### Evidence graph
-- explicit SUPPORTS / LIMITS / CONTRADICTS / EXTENDS links
+### Evidence structure
+- SUPPORTS / LIMITS / CONTRADICTS / EXTENDS links
 - direct / conceptual / reanalysis replication records
-- successful, partial, failed and inconclusive replication outcomes
-- failed replications remain visible
+- successful / partial / failed / inconclusive outcomes
+- fail-visible evidence dossiers
 - no opaque truth score
 
-### Evidence dossiers
-- fail-visible evidence posture
-- contradiction and failed-replication precedence
-- explicit unresolved-evidence flags
-- structural summary only; no probability of truth
-
-### Professional reasoning controls
-Six independent role contracts:
+### Professional reasoning
+Six durable professional roles:
 1. Fundamental Analyst
 2. Quant Researcher
 3. Portfolio Manager
@@ -63,24 +49,42 @@ Six independent role contracts:
 5. Execution Trader
 6. Red Team
 
-Each role records mandatory review dimensions, findings, objections and follow-ups against an exact evidence-dossier fingerprint.
+A blocking objection cannot be outvoted. Resolutions require the original reviewer plus evidence references, while the original objection remains immutable.
 
-A single blocking objection cannot be outvoted.
+### Whole-case reasoning
+- immutable point-in-time Research Cases
+- explicit thesis, mechanism, alternatives and falsifiers
+- trusted supporting / limiting / contradicting claims
+- probability-band scenario sets
+- explicit outcome ranges and probability rationale
+- Case Dossier fingerprint over:
+  - exact Research Case
+  - exact Scenario Set
+  - current Evidence Dossiers for every cited claim
+- case-level six-role reviews bound to that fingerprint
+- old reviews become stale automatically when evidence/scenarios change
 
-Blocking or conditional reviews can be resolved only by the reviewer who raised them, with explicit resolution notes and evidence references. The original objection remains immutable.
+### Research readiness
+The only positive readiness state is:
 
-### Edge-discovery plumbing
-- expectation surprises
-- benchmark-adjusted market reactions
-- implementability-aware reaction windows
-- prospective shadow ledger
-- minimum-sample gate
-- edge-decay diagnostics
+`READY_FOR_PROSPECTIVE_SHADOW`
 
-### Capital boundary
-`CapitalFirewall.authorize_live_order()` remains unconditionally disabled.
+A resulting permit is:
+- bound to the exact Case Dossier fingerprint;
+- bound to the exact Scenario Set;
+- explicitly `PROSPECTIVE_SHADOW_ONLY`;
+- invalidated by a changed Case Dossier.
 
-Nothing in the current stack has authority to allocate real capital.
+The live-capital firewall remains unchanged.
+
+### Forecast calibration
+- scenario probabilities frozen prospectively
+- outcome classification only after the horizon
+- outcome adjudicator must differ from forecaster
+- outcome evidence references required
+- multiclass Brier score
+- log loss
+- calibration remains `INSUFFICIENT_EVIDENCE` below the configured sample threshold
 
 ## Reasoning chain
 
@@ -97,44 +101,53 @@ typed evidence / replication graph
     ↓
 Evidence Dossier
     ↓
-six professional role reviews
+immutable Research Case
     ↓
-open objections / conditions remain visible
+Scenario Set
     ↓
-documented resolution where justified
+Case Dossier fingerprint
+    ↓
+six professional case reviews
+    ↓
+research readiness gate
+    ↓
+PROSPECTIVE_SHADOW_ONLY permit
+    ↓
+prospective forecast / shadow measurement / calibration
 
     ╳
-no automatic capital authorization
+no automatic live-capital path
     ╳
 ```
+
+## Install and test
+
+```bash
+python -m pip install -e .
+python -m unittest discover -s tests -v
+quantos demo
+quantos edge-demo
+```
+
+CI validates the complete suite on Python 3.11, 3.12 and 3.13.
 
 ## Research Radar
 
 ```bash
 quantos-radar scan-arxiv --max-results 20
 quantos-radar review-list --status QUEUED
-quantos-radar review-start --queue-id review:... --reviewer analyst-1
-quantos-radar review-candidate \
-  --queue-id review:... \
-  --reviewer analyst-1 \
-  --notes "Relevant enough for source verification; no claims accepted."
-quantos-radar catalog-admit --queue-id review:...
-quantos-radar catalog-verify-file \
-  --source-id ARXIV:2609.01234v2 \
-  --path /secure/intake/paper.pdf \
-  --source-uri https://arxiv.org/abs/2609.01234v2 \
-  --verifier analyst-2 \
-  --notes "Revision, title, authors and canonical source identity checked."
 ```
+
+A separate live smoke workflow makes one small real arXiv metadata request and stores only disposable CI artifacts.
 
 ## Safety semantics
 
-- `VERIFIED` source means source identity checked, not conclusions proven.
-- `APPROVED` claim means a scoped claim passed its review workflow, not that it is universally true.
-- `REPLICATION_SUPPORTED` is a structural evidence posture, not a probability.
-- `REVIEW_SET_COMPLETE` is a workflow state, not an investment recommendation.
-- an objection resolution closes one documented issue; it does not erase the original issue.
-- `MEASURED` does not mean profitable.
-- `NO_TRADE`, `UNKNOWN`, `QUARANTINED`, `INCOMPLETE` and `INSUFFICIENT_EVIDENCE` are valid outcomes.
+- `VERIFIED` source = source identity checked, not conclusions proven.
+- `APPROVED` claim = scoped claim passed review, not universal truth.
+- `REPLICATION_SUPPORTED` = evidence structure, not a probability.
+- `REVIEW_SET_COMPLETE` = workflow completeness, not an investment recommendation.
+- `READY_FOR_PROSPECTIVE_SHADOW` = permission to measure prospectively, not permission to trade.
+- `MEASURED` = sample exists, not profitable.
+- `NO_TRADE`, `UNKNOWN`, `QUARANTINED`, `INCOMPLETE`, and `INSUFFICIENT_EVIDENCE` are valid outcomes.
 
-See `docs/STAGE_5_COMPLETE.md`.
+See `docs/STAGE_6_COMPLETE.md` for the full v0.7.0 boundary.
