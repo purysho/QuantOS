@@ -15,6 +15,7 @@ classifiers = [
 dependencies = [
   "cvxpy>=1.6,<2",
   "duckdb>=1.4,<2",
+  "exchange_calendars>=4.5,<5",
   "numpy>=2,<3",
   "packaging>=24",
   "nautilus_trader==2.0.0rc5; python_version >= '3.12'",

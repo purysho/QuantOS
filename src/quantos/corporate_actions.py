@@ -399,6 +399,7 @@ class CorporateActionEngine:
         known_at: datetime,
         prices: dict[date, Decimal],
         counterparty_prices: dict[tuple[str, date], Decimal] | None = None,
+        terminate_without_close: bool = False,
     ) -> TotalReturnSeries:
         """Close-to-close total returns including every corporate action.
 
@@ -429,6 +430,10 @@ class CorporateActionEngine:
                         )
                     )
             days = [day for day in days if day <= terminal.ex_date]
+            if terminate_without_close and days and days[-1] < terminal.ex_date:
+                # The security stopped trading before its terminal ex date;
+                # the terminal window uses proceeds, never a closing print.
+                days.append(terminal.ex_date)
         for previous, current in zip(days, days[1:]):
             window = [
                 item

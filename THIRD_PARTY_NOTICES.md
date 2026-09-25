@@ -24,10 +24,12 @@ These are allowed only while unmodified, installed as separate packages and impo
 | cvxpy | Apache-2.0 |  |
 | cvxpy-base | Apache-2.0 |  |
 | duckdb | MIT |  |
+| exchange-calendars | Apache-2.0 | external calendar engine behind First Current rules |
 | highspy | MIT |  |
 | idna | BSD-3-Clause |  |
 | jinja2 | BSD-3-Clause |  |
 | joblib | BSD-3-Clause |  |
+| korean-lunar-calendar | MIT |  |
 | markupsafe | BSD-3-Clause |  |
 | narwhals | MIT |  |
 | numpy | BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0 |  |
@@ -37,6 +39,7 @@ These are allowed only while unmodified, installed as separate packages and impo
 | pandas | BSD-3-Clause |  |
 | plotly | MIT |  |
 | pycparser | BSD-3-Clause |  |
+| pyluach | MIT |  |
 | python-dateutil | Apache-2.0 AND BSD-3-Clause | dual-licensed; both terms are permissive |
 | pytz | MIT |  |
 | qdldl | Apache-2.0 |  |
@@ -50,7 +53,8 @@ These are allowed only while unmodified, installed as separate packages and impo
 | skfolio | BSD-3-Clause |  |
 | sparsediffpy | Apache-2.0 |  |
 | threadpoolctl | BSD-3-Clause |  |
-| tzdata | Apache-2.0 | Windows-only transitive |
+| toolz | BSD-3-Clause |  |
+| tzdata | Apache-2.0 | IANA time zone data |
 | urllib3 | MIT |  |
 
 ## Prohibited for the core

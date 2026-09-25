@@ -70,10 +70,12 @@ REVIEWED_DEPENDENCY_LICENSES: dict[str, ReviewedDependencyLicense] = {
         ReviewedDependencyLicense("cvxpy", "Apache-2.0"),
         ReviewedDependencyLicense("cvxpy-base", "Apache-2.0"),
         ReviewedDependencyLicense("duckdb", "MIT"),
+        ReviewedDependencyLicense("exchange-calendars", "Apache-2.0", "external calendar engine behind First Current rules"),
         ReviewedDependencyLicense("highspy", "MIT"),
         ReviewedDependencyLicense("idna", "BSD-3-Clause"),
         ReviewedDependencyLicense("jinja2", "BSD-3-Clause"),
         ReviewedDependencyLicense("joblib", "BSD-3-Clause"),
+        ReviewedDependencyLicense("korean-lunar-calendar", "MIT"),
         ReviewedDependencyLicense("markupsafe", "BSD-3-Clause"),
         ReviewedDependencyLicense("narwhals", "MIT"),
         ReviewedDependencyLicense(
@@ -100,6 +102,7 @@ REVIEWED_DEPENDENCY_LICENSES: dict[str, ReviewedDependencyLicense] = {
             "Apache-2.0 AND BSD-3-Clause",
             "dual-licensed; both terms are permissive",
         ),
+        ReviewedDependencyLicense("pyluach", "MIT"),
         ReviewedDependencyLicense("pytz", "MIT"),
         ReviewedDependencyLicense("qdldl", "Apache-2.0"),
         ReviewedDependencyLicense("quantlib", "BSD-3-Clause", "QuantLib modified BSD"),
@@ -112,7 +115,8 @@ REVIEWED_DEPENDENCY_LICENSES: dict[str, ReviewedDependencyLicense] = {
         ReviewedDependencyLicense("skfolio", "BSD-3-Clause"),
         ReviewedDependencyLicense("sparsediffpy", "Apache-2.0"),
         ReviewedDependencyLicense("threadpoolctl", "BSD-3-Clause"),
-        ReviewedDependencyLicense("tzdata", "Apache-2.0", "Windows-only transitive"),
+        ReviewedDependencyLicense("toolz", "BSD-3-Clause"),
+        ReviewedDependencyLicense("tzdata", "Apache-2.0", "IANA time zone data"),
         ReviewedDependencyLicense("urllib3", "MIT"),
     )
 }
