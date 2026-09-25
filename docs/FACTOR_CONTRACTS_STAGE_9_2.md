@@ -2,9 +2,11 @@
 
 Stage 9.2 creates the contract between a point-in-time investable universe and a factor score.
 
-## Exact universe binding
+## Universe binding
 
-Every FactorSpecification contains the exact InvestableUniverse ID it was designed to score. A factor cannot silently run on another universe.
+Every FactorSpecification binds to an exact UniversePolicy ID so the same economic factor definition can be evaluated through time as new point-in-time universe snapshots are reconstructed under that unchanged policy.
+
+Every FactorRun still pins the exact InvestableUniverse ID used at that decision time. A specification may also set an optional pinned universe ID for one-off research that must not move to another snapshot.
 
 ## Components
 
@@ -38,7 +40,7 @@ A security missing any required component is excluded from that factor run with 
 
 ## Identity
 
-Factor specification IDs include name, version, exact universe ID, component windows, lag/staleness rules, transforms, weights, rationale, and evidence references.
+Factor specification IDs include name, version, universe-policy ID, optional pinned universe ID, component windows, lag/staleness rules, transforms, weights, rationale, and evidence references.
 
 Factor-run IDs include exact factor ID, universe ID, decision time, scored component observation IDs, scores, and exclusions.
 
