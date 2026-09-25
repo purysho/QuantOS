@@ -18,6 +18,7 @@ from .factor_contracts import (
     FeatureObservation,
 )
 from .model_registry import (
+    ModelRegistryState,
     ResearchRunManifest,
     ResearchRunManifestBuilder,
 )
@@ -64,6 +65,13 @@ from .portfolio_optimization import (
     MinimumVariancePolicy,
     OptimizedPortfolioSolution,
     SkfolioMinimumVarianceOptimizer,
+)
+from .portfolio_paper_authorization import (
+    PortfolioPaperAuthorization,
+    PortfolioPaperAuthorizationEngine,
+    PortfolioPaperExecutionAssumptions,
+    PortfolioPaperMonitoringPolicy,
+    SelectedPortfolioSolution,
 )
 from .portfolio_robustness import (
     CovarianceSensitivityObservation,
@@ -118,6 +126,9 @@ class ResearchLabService:
         self._portfolio_comparison = PortfolioComparisonEngine()
         self._portfolio_robustness = PortfolioRobustnessEngine()
         self._portfolio_decision = PortfolioResearchDecisionEngine()
+        self._portfolio_paper_authorization = (
+            PortfolioPaperAuthorizationEngine()
+        )
 
     def build_universe(
         self,
@@ -372,6 +383,43 @@ class ResearchLabService:
             tradeoffs=tradeoffs,
             challenger_objections=challenger_objections,
             unresolved_objections=unresolved_objections,
+            rationale=rationale,
+            evidence_references=evidence_references,
+        )
+
+    def authorize_portfolio_paper(
+        self,
+        *,
+        manifest: ResearchRunManifest,
+        registry_state: ModelRegistryState,
+        permit: ProspectiveShadowPermit,
+        comparison: PortfolioComparisonDossier,
+        robustness: PortfolioRobustnessDossier,
+        decision: PortfolioResearchDecision,
+        selected_solution: SelectedPortfolioSolution,
+        execution_assumptions: PortfolioPaperExecutionAssumptions,
+        monitoring_policy: PortfolioPaperMonitoringPolicy,
+        authorized_at,
+        expires_at,
+        portfolio_reviewer: str,
+        independent_risk_reviewer: str,
+        rationale: str,
+        evidence_references: tuple[str, ...],
+    ) -> PortfolioPaperAuthorization:
+        return self._portfolio_paper_authorization.authorize(
+            manifest=manifest,
+            registry_state=registry_state,
+            permit=permit,
+            comparison=comparison,
+            robustness=robustness,
+            decision=decision,
+            selected_solution=selected_solution,
+            execution_assumptions=execution_assumptions,
+            monitoring_policy=monitoring_policy,
+            authorized_at=authorized_at,
+            expires_at=expires_at,
+            portfolio_reviewer=portfolio_reviewer,
+            independent_risk_reviewer=independent_risk_reviewer,
             rationale=rationale,
             evidence_references=evidence_references,
         )
