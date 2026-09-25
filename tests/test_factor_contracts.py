@@ -37,11 +37,15 @@ def universe(universe_id="investable-universe:test"):
     )
 
 
-def spec(version="1", universe_id="investable-universe:test"):
+def spec(
+    version="1",
+    universe_policy_id="universe-policy:test",
+    pinned_universe_id=None,
+):
     return FactorSpecification(
         name="quality-value",
         version=version,
-        universe_id=universe_id,
+        universe_policy_id=universe_policy_id,
         components=(
             FactorComponent(
                 feature_name="quality",
@@ -62,6 +66,7 @@ def spec(version="1", universe_id="investable-universe:test"):
         ),
         rationale="Reviewed cross-sectional quality/value specification.",
         evidence_references=("paper:qv",),
+        pinned_universe_id=pinned_universe_id,
     )
 
 
@@ -98,14 +103,43 @@ def complete_features():
 
 
 class FactorContractTests(unittest.TestCase):
-    def test_factor_is_bound_to_exact_universe(self):
+    def test_factor_is_bound_to_universe_policy(self):
+        mismatched = InvestableUniverse(
+            universe_id="investable-universe:other",
+            as_of=DECISION - timedelta(minutes=5),
+            policy_id="universe-policy:other",
+            decisions=universe().decisions,
+        )
         with self.assertRaises(ValueError):
             FactorEngine().run(
                 specification=spec(),
+                universe=mismatched,
+                decision_time=DECISION,
+                features=complete_features(),
+            )
+
+    def test_factor_can_optionally_pin_one_exact_universe(self):
+        with self.assertRaises(ValueError):
+            FactorEngine().run(
+                specification=spec(
+                    pinned_universe_id="investable-universe:test"
+                ),
                 universe=universe("investable-universe:other"),
                 decision_time=DECISION,
                 features=complete_features(),
             )
+
+    def test_same_factor_definition_can_run_on_new_snapshot_under_same_policy(self):
+        result = FactorEngine().run(
+            specification=spec(),
+            universe=universe("investable-universe:rebalance-2"),
+            decision_time=DECISION,
+            features=complete_features(),
+        )
+        self.assertEqual(
+            result.universe_id,
+            "investable-universe:rebalance-2",
+        )
 
     def test_future_known_feature_is_missing_not_used(self):
         features = list(complete_features())
