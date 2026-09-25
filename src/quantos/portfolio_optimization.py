@@ -15,6 +15,7 @@ from skfolio import RiskMeasure
 from skfolio.moments import BaseCovariance
 from skfolio.optimization import MeanRisk, ObjectiveFunction
 from skfolio.prior import EmpiricalPrior
+from sklearn.utils.validation import validate_data
 
 from .covariance import CovarianceArtifact
 from .portfolio_construction import (
@@ -41,7 +42,7 @@ class _FrozenCovariance(BaseCovariance):
         self.covariance_matrix = covariance_matrix
 
     def fit(self, X, y=None):
-        X = self._validate_data(X)
+        X = validate_data(self, X)
         covariance = np.asarray(self.covariance_matrix, dtype=float)
         if covariance.shape != (X.shape[1], X.shape[1]):
             raise ValueError("frozen covariance shape differs from optimizer input")
