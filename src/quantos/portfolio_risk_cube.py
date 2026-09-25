@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import dataclass
+from datetime import datetime
 from decimal import Decimal
 from enum import Enum
 from pathlib import Path
@@ -108,6 +109,7 @@ class PortfolioRiskCube:
     cube_id: str
     state: PortfolioRiskCubeState
     base_snapshot_id: str
+    valuation_time: datetime
     reporting_currency: str
     position_ids: tuple[str, ...]
     scenario_ids: tuple[str, ...]
@@ -205,6 +207,18 @@ class PortfolioRiskCubeEngine:
         if len(base_snapshot_ids) != 1:
             raise ValueError(
                 "risk cube cannot mix different base market snapshots"
+            )
+        valuation_times = {
+            item.valuation_time for item in revaluations
+        }
+        if len(valuation_times) != 1:
+            raise ValueError(
+                "risk cube cannot mix different valuation timestamps"
+            )
+        valuation_time = next(iter(valuation_times))
+        if valuation_time.tzinfo is None:
+            raise ValueError(
+                "risk cube valuation timestamp must be timezone-aware"
             )
         reporting_currencies = {
             item.reporting_currency for item in revaluations
@@ -490,6 +504,7 @@ class PortfolioRiskCubeEngine:
         payload = {
             "state": state.value,
             "base_snapshot_id": base_snapshot_id,
+            "valuation_time": valuation_time.isoformat(),
             "reporting_currency": reporting_currency,
             "position_ids": [
                 item.position_id for item in canonical_positions
@@ -529,6 +544,7 @@ class PortfolioRiskCubeEngine:
             cube_id=_content_id("portfolio-risk-cube", payload),
             state=state,
             base_snapshot_id=base_snapshot_id,
+            valuation_time=valuation_time,
             reporting_currency=reporting_currency,
             position_ids=tuple(
                 item.position_id for item in canonical_positions
@@ -631,6 +647,7 @@ def portfolio_risk_cube_payload(
         "cube_id": cube.cube_id,
         "state": cube.state.value,
         "base_snapshot_id": cube.base_snapshot_id,
+        "valuation_time": cube.valuation_time.isoformat(),
         "reporting_currency": cube.reporting_currency,
         "position_ids": list(cube.position_ids),
         "scenario_ids": list(cube.scenario_ids),

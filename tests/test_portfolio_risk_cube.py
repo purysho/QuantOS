@@ -168,6 +168,7 @@ class PortfolioRiskCubeTests(unittest.TestCase):
             revaluations=full_revaluations(),
         )
         self.assertEqual(cube.state, PortfolioRiskCubeState.COMPLETE)
+        self.assertEqual(cube.valuation_time, AT)
         self.assertEqual(cube.net_base_value, Decimal("350"))
         self.assertEqual(cube.gross_base_value, Decimal("350"))
         summaries = {

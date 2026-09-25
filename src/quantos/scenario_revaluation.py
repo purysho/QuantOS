@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import dataclass
+from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
 from typing import TypeAlias
@@ -199,6 +200,7 @@ class ScenarioRevaluationResult:
     shocked_request_id: str
     base_snapshot_id: str
     shocked_snapshot_id: str
+    valuation_time: datetime
     base_pricing_result_id: str
     shocked_pricing_result_id: str
     base_curve_ids: tuple[str, ...]
@@ -489,6 +491,7 @@ class ScenarioRevaluationEngine:
             "shocked_request_id": shocked_request.request_id,
             "base_snapshot_id": state.base_snapshot_id,
             "shocked_snapshot_id": state.shocked_snapshot_id,
+            "valuation_time": request.valuation_time.isoformat(),
             "base_pricing_result_id": base_result.result_id,
             "shocked_pricing_result_id": shocked_result.result_id,
             "base_curve_ids": list(base_curve_ids),
@@ -517,6 +520,7 @@ class ScenarioRevaluationEngine:
             shocked_request_id=shocked_request.request_id,
             base_snapshot_id=state.base_snapshot_id,
             shocked_snapshot_id=state.shocked_snapshot_id,
+            valuation_time=request.valuation_time,
             base_pricing_result_id=base_result.result_id,
             shocked_pricing_result_id=shocked_result.result_id,
             base_curve_ids=base_curve_ids,
@@ -628,6 +632,7 @@ def scenario_revaluation_payload(
         "shocked_request_id": result.shocked_request_id,
         "base_snapshot_id": result.base_snapshot_id,
         "shocked_snapshot_id": result.shocked_snapshot_id,
+        "valuation_time": result.valuation_time.isoformat(),
         "base_pricing_result_id": result.base_pricing_result_id,
         "shocked_pricing_result_id": result.shocked_pricing_result_id,
         "base_curve_ids": list(result.base_curve_ids),

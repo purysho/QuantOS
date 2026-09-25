@@ -318,6 +318,7 @@ class ScenarioRevaluationTests(unittest.TestCase):
                 )
             ),
         )
+        self.assertEqual(result.valuation_time, AT)
         self.assertEqual(result.base_npv, Decimal("100"))
         self.assertEqual(result.shocked_npv, Decimal("85"))
         self.assertEqual(result.scenario_pnl, Decimal("-15"))
