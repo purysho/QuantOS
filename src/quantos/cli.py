@@ -393,6 +393,11 @@ def _main() -> int:
         help="read an optional key from a file, e.g. TIINGO_API_KEY=/path/to/file (repeatable)",
     )
 
+    analyze = sub.add_parser("analyze", help="standardized point-in-time statements and metrics for a company")
+    analyze.add_argument("ticker")
+    analyze.add_argument("--as-of", default=None, help="knowledge time (ISO date or datetime, UTC); default now")
+    analyze.add_argument("--years", type=int, default=10)
+
     doctor = sub.add_parser("doctor", help="check this installation and explain what works")
     doctor.add_argument("--online", action="store_true", help="also probe each keyless public source")
 
@@ -400,7 +405,7 @@ def _main() -> int:
     daily.add_argument(
         "--only",
         default=None,
-        help="comma-separated subset of: universe,fundamentals,rates,factors,prices,research,terminal",
+        help="comma-separated subset of: universe,fundamentals,analysis,rates,factors,prices,research,terminal",
     )
     daily.add_argument("--backfill-from", type=int, default=None, help="first year of Treasury/ECB history to load")
     daily.add_argument("--price-days", type=int, default=10, help="calendar days of prices to (re)capture")
@@ -508,6 +513,20 @@ def _main() -> int:
             )
         except HomeError as exc:
             raise SystemExit(f"quantos setup: {exc}") from None
+        return 0
+    if args.command == "analyze":
+        from .company_analysis import render
+        from .home import load_config
+        from .runbook import analyze_ticker
+
+        config = load_config()
+        if not config.contact_email:
+            raise SystemExit("quantos: no contact email configured. Run `quantos setup` first.")
+        known_at = None
+        if args.as_of:
+            known_at = datetime.fromisoformat(args.as_of)
+            known_at = known_at if known_at.tzinfo else known_at.replace(tzinfo=timezone.utc)
+        print(render(analyze_ticker(config, args.ticker, known_at=known_at, years=args.years)))
         return 0
     if args.command == "doctor":
         from .doctor import doctor_command

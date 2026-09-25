@@ -54,7 +54,7 @@ WORKSPACES: dict[str, tuple[str, ...]] = {
         "claim_cards", "claim_drafts", "claim_relations", "replication_records", "events",
         "entity_edges", "hypotheses", "research_decisions",
     ),
-    "Company / Financials": ("financial_statements", "xbrl_facts"),
+    "Company / Financials": ("company_metrics", "statement_validation_issues", "financial_statements", "xbrl_facts"),
     "Valuation": ("fundamental_model_runs", "research_cases", "case_reviews", "case_review_resolutions"),
     "Portfolio": (
         "investable_universes", "covariance_artifacts", "portfolio_solutions",

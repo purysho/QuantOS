@@ -44,7 +44,9 @@ MARKET_DATA_DB = "data/market_data.duckdb"
 ARTIFACT_ROOT = "data/artifacts"
 ARTIFACT_DB = "data/artifacts.duckdb"
 
-STEPS = ("universe", "fundamentals", "rates", "factors", "prices", "research", "terminal")
+STEPS = ("universe", "fundamentals", "analysis", "rates", "factors", "prices", "research", "terminal")
+STATEMENTS_DB = "data/financial_statements.duckdb"
+ANALYSIS_DB = "data/company_analysis.duckdb"
 DEFAULT_FX = ("USD", "GBP", "JPY", "CHF")
 DEFAULT_FRED = ("DGS10", "DGS2", "DFF", "CPIAUCSL", "UNRATE", "T10YIE")
 
@@ -128,6 +130,61 @@ def step_fundamentals(config: QuantosConfig, resolved: dict[str, tuple[int, str]
     summary = f"{total} XBRL facts checked, {added} new"
     if without_facts:
         summary += "; no XBRL financials (funds/trusts): " + ", ".join(sorted(without_facts))
+    return summary
+
+
+def analyze_ticker(config: QuantosConfig, ticker: str, *, known_at: datetime | None = None, years: int = 10,
+                   transport=None):
+    """Resolves a ticker, fetches its facts if needed, and builds the analysis."""
+
+    from .company_analysis import CompanyAnalysisStore, analyze_company, load_facts, store_statements
+
+    directory = SECTickerDirectoryAdapter(user_agent=config.user_agent, transport=transport,
+                                          artifacts=_artifacts()).fetch()
+    entry = directory.lookup(ticker)
+    if entry is None:
+        raise KeylessError(f"{ticker.upper()} is not in SEC's company directory (funds and non-US listings are not)")
+    known_at = known_at or datetime.now(timezone.utc)
+    if not Path(FUNDAMENTALS_DB).exists() or not load_facts(FUNDAMENTALS_DB, cik=entry.cik, known_at=known_at):
+        step_fundamentals(config, {entry.ticker: (entry.cik, "")}, transport=transport)
+    analysis = analyze_company(cik=entry.cik, ticker=entry.ticker,
+                               facts=load_facts(FUNDAMENTALS_DB, cik=entry.cik, known_at=known_at),
+                               known_at=known_at, years=years)
+    store_statements(STATEMENTS_DB, analysis)
+    store = CompanyAnalysisStore(ANALYSIS_DB)
+    try:
+        store.add(analysis)
+    finally:
+        store.close()
+    return analysis
+
+
+def step_analysis(config: QuantosConfig, resolved: dict[str, tuple[int, str]]) -> str:
+    from .company_analysis import AnalysisError, CompanyAnalysisStore, analyze_company, load_facts, store_statements
+
+    companies = sorted({(cik, t) for t, (cik, _) in resolved.items() if cik is not None})
+    if not companies or not Path(FUNDAMENTALS_DB).exists():
+        return "no companies with XBRL facts"
+    known_at = datetime.now(timezone.utc)
+    analyzed, skipped, statements, errors = [], [], 0, 0
+    store = CompanyAnalysisStore(ANALYSIS_DB)
+    try:
+        for cik, ticker in companies:
+            try:
+                analysis = analyze_company(cik=cik, ticker=ticker, facts=load_facts(FUNDAMENTALS_DB, cik=cik, known_at=known_at),
+                                           known_at=known_at)
+            except AnalysisError:
+                skipped.append(ticker)  # funds and trusts file no 10-K balance sheets
+                continue
+            statements += store_statements(STATEMENTS_DB, analysis)
+            store.add(analysis)
+            analyzed.append(ticker)
+            errors += sum(1 for r in analysis.reports for sev, _, _ in r.issues if sev == "ERROR")
+    finally:
+        store.close()
+    summary = f"{len(analyzed)} companies, {statements} new statements, {errors} validation issues reported"
+    if skipped:
+        summary += "; no 10-K statements: " + ", ".join(skipped)
     return summary
 
 
@@ -261,6 +318,7 @@ def run_daily(*, steps: tuple[str, ...] | None = None, backfill_from: int | None
 
     run("universe", universe)
     run("fundamentals", lambda: step_fundamentals(config, resolved))
+    run("analysis", lambda: step_analysis(config, resolved))
     run("rates", lambda: step_rates(config, backfill_from=backfill_from))
     run("factors", lambda: step_factors(config))
     run("prices", lambda: step_prices(config, resolved, days=price_days))

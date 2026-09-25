@@ -324,8 +324,12 @@ class FinancialStatementValidator:
                 key in values
                 for key in ("total_assets", "total_liabilities", "total_equity")
             ):
+                # Redeemable (mezzanine) equity sits between liabilities and
+                # equity (ASC 480-10-S99) when a filer reports it.
                 difference = values["total_assets"] - (
-                    values["total_liabilities"] + values["total_equity"]
+                    values["total_liabilities"]
+                    + values.get("temporary_equity", Decimal(0))
+                    + values["total_equity"]
                 )
                 if abs(difference) > self.tolerance:
                     issues.append(
@@ -333,7 +337,7 @@ class FinancialStatementValidator:
                             code="BALANCE_SHEET_DOES_NOT_BALANCE",
                             severity=ValidationSeverity.ERROR,
                             message=(
-                                "total_assets must equal total_liabilities + total_equity"
+                                "total_assets must equal total_liabilities + total_equity (+ temporary_equity)"
                             ),
                             difference=difference,
                         )
@@ -350,10 +354,14 @@ class FinancialStatementValidator:
             )
             self._require_keys(values, required, issues)
             if all(key in values for key in required):
+                # ASC 230: the exchange-rate effect on cash is a separate
+                # reconciling item between the three activities and the
+                # net change in cash, when a filer reports one.
                 component_change = (
                     values["cash_from_operating_activities"]
                     + values["cash_from_investing_activities"]
                     + values["cash_from_financing_activities"]
+                    + values.get("effect_of_exchange_rate_on_cash", Decimal(0))
                 )
                 difference = values["net_change_in_cash"] - component_change
                 if abs(difference) > self.tolerance:
@@ -362,7 +370,7 @@ class FinancialStatementValidator:
                             code="CASH_FLOW_COMPONENTS_DO_NOT_TIE",
                             severity=ValidationSeverity.ERROR,
                             message=(
-                                "net_change_in_cash must equal operating + investing + financing cash flow"
+                                "net_change_in_cash must equal operating + investing + financing cash flow (+ exchange-rate effect)"
                             ),
                             difference=difference,
                         )
@@ -400,11 +408,15 @@ class FinancialStatementValidator:
                     "operating_income must equal gross_profit - operating_expenses",
                 ),
                 (
+                    # With noncontrolling interests, pretax income less tax is
+                    # consolidated profit; net_income is the parent's share.
                     "NET_INCOME_DOES_NOT_TIE",
-                    "net_income",
+                    "consolidated_net_income"
+                    if "consolidated_net_income" in values
+                    else "net_income",
                     ("pretax_income", "income_tax_expense"),
                     lambda v: v["pretax_income"] - v["income_tax_expense"],
-                    "net_income must equal pretax_income - income_tax_expense",
+                    "net income (consolidated, when reported) must equal pretax_income - income_tax_expense",
                 ),
             )
             for code, target, components, formula, message in identities:

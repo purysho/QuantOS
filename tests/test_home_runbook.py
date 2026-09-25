@@ -198,6 +198,7 @@ class RunbookTests(unittest.TestCase):
                     run_setup(email="a@b.org", organization="", universe=("AAPL",), interactive=False, home=Path(tmp))
                 with mock.patch.object(runbook, "step_universe", return_value=("1/1 tickers", {"AAPL": (320193, "SEC:0000320193:AAPL")})), \
                      mock.patch.object(runbook, "step_fundamentals", side_effect=RuntimeError("SEC down")), \
+                     mock.patch.object(runbook, "step_analysis", return_value="1 companies"), \
                      mock.patch.object(runbook, "step_rates", return_value="inserted=1"), \
                      mock.patch.object(runbook, "step_factors", return_value="inserted=2"), \
                      mock.patch.object(runbook, "step_research", return_value="0 items"), \
@@ -208,7 +209,7 @@ class RunbookTests(unittest.TestCase):
             finally:
                 os.chdir(cwd)
         by_step = {r.step: r for r in results}
-        self.assertEqual(list(by_step), ["universe", "fundamentals", "rates", "factors", "prices", "research", "terminal"])
+        self.assertEqual(list(by_step), list(runbook.STEPS))
         self.assertFalse(by_step["fundamentals"].ok)
         self.assertTrue(by_step["terminal"].ok)
         self.assertIn("keyless mode", by_step["prices"].summary)
