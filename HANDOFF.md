@@ -6,9 +6,9 @@
 >
 > **Repository:** purysho/First-Current-Quant-OS-prototype  
 > **Repository visibility:** private  
-> **Current package version:** 0.12.3  
-> **Implementation baseline reviewed for this handoff:** b262fcf1f18787fd5f4661de2ed3c5c3510ad49b  
-> **Baseline commit message:** Restore complete Nautilus differential module after rc5 patch
+> **Current package version:** 0.12.4  
+> **Implementation baseline for this handoff:** Stage 12.4 — frozen Nautilus equivalence contracts  
+> **Previous green baseline:** b262fcf1f18787fd5f4661de2ed3c5c3510ad49b (Stage 12.3)
 
 ---
 
@@ -297,7 +297,7 @@ VALUATION ENGINE                              │
 - requests/pytz for external intake and time support.
 - Parquet export exists in the earlier point-in-time data layer.
 
-Current pyproject dependencies at v0.12.3:
+Current pyproject dependencies at v0.12.4 (unchanged from v0.12.3):
 
 ~~~
 cvxpy >=1.6,<2
@@ -874,7 +874,7 @@ This is the execution differential oracle.
 
 Reference: docs/REFERENCE_EXECUTION_STAGE_12_2.md
 
-### 12.3 NautilusTrader historical differential adapter — implemented but NOT currently green
+### 12.3 NautilusTrader historical differential adapter — built, green
 
 The intended Stage 12.3 scope is deliberately narrow:
 
@@ -897,22 +897,53 @@ The intended Stage 12.3 scope is deliberately narrow:
 
 Reference: docs/NAUTILUS_DIFFERENTIAL_STAGE_12_3.md
 
+### 12.4 Frozen Nautilus equivalence contracts — built
+
+The Stage 12.3 overlap is now the `ZERO_FRICTION` contract. Five more frozen, content-addressed contracts each add exactly one behavior:
+
+1. 12.4.1 `DETERMINISTIC_FEES` — commission_bps → equal maker/taker fee rate; only commissions exactly representable at currency precision (Nautilus rounds half-even);
+2. 12.4.2 `ORDER_LATENCY` — StaticLatencyModel; activation must coincide with a quote arrival;
+3. 12.4.3 `MARKET_DATA_LATENCY` — knowledge_time + latency → ts_init; post-horizon arrivals dropped;
+4. 12.4.4 `IMMEDIATE_TIME_IN_FORCE` — IOC shortfall / FOK kill / non-marketable IOC-FOK; Nautilus venue cancel mapped explicitly to EXPIRED;
+5. 12.4.5 `LIMIT_TRANSITION` — resting DAY/GTC limit filled when the touch reaches the limit exactly, or expired at the replay horizon.
+
+Other properties:
+
+- contracts are registered in `NAUTILUS_EQUIVALENCE_CONTRACTS`; tampered contracts, contracts that do not exercise their behavior, and fixtures combining behaviors fail closed;
+- the differential now requires the reference `SimulatedFill` records and compares total fees and the exact per-fill time/quantity/price/fee sequence, in addition to state/count/quantity/VWAP;
+- Nautilus results record `contract_id`, behavior, raw Nautilus terminal state, fill times, fees and liquidity sides;
+- every observed reference/Nautilus divergence is recorded on its contract as `known_divergences` and refused;
+- differential-gate logic has synthetic tests that run on Python 3.11 without Nautilus;
+- CI sets `QUANTOS_REQUIRE_NAUTILUS=1` on 3.12/3.13 so runtime tests cannot silently skip.
+
+Observed divergences that define Stage 12.5 work:
+
+- Nautilus matches an in-flight (latency-delayed) order only on the next data arrival, against the post-activation book;
+- Nautilus L1 MARKET DAY/GTC orders larger than displayed size fill the remainder one tick worse immediately;
+- Nautilus fills a resting limit at its own limit price (MAKER) even when the book crosses through it;
+- Nautilus liquidity consumption does not refresh on an unchanged repeated quote;
+- Nautilus IOC takes displayed quantity even when the reference policy disables partial fills;
+- Nautilus rounds commissions half-even to currency minor units.
+
+Reference: docs/NAUTILUS_EQUIVALENCE_CONTRACTS_STAGE_12_4.md
+
 ---
 
 # 6. Current repository state — IMPORTANT
 
-## Current implementation head before this HANDOFF document
+## Current implementation head
 
-**Commit:** b262fcf1f18787fd5f4661de2ed3c5c3510ad49b  
-**Message:** Restore complete Nautilus differential module after rc5 patch
+**Stage 12.4 — frozen Nautilus equivalence contracts** (branch `claude/stoic-cerf-mts7pn`, pending merge to main).
 
 Current pyproject version:
 
-**0.12.3**
+**0.12.4**
 
 ## Current CI status
 
-Stage 12.3 is now **green and complete at its deliberately narrow differential scope**.
+Before push, Stage 12.4 was validated locally on Python 3.11, 3.12 and 3.13: 529 tests passing, plus the fail-closed demo and the edge-discovery demo. On 3.12 and 3.13 all Nautilus runtime tests executed under `QUANTOS_REQUIRE_NAUTILUS=1`, with none skipped. Confirm the GitHub CI matrix is green on the merged head before starting Stage 12.5.
+
+Stage 12.3 history: it was **green and complete at its deliberately narrow differential scope**.
 
 The integration had two intermediate failures worth remembering:
 
@@ -953,18 +984,18 @@ Start by reading:
 
 Confirm that the latest implementation ancestor at or after b262fcf remains green before adding scope.
 
-## 2. Begin Stage 12.4 only through frozen equivalence contracts
+## 2. Begin Stage 12.5 only through new frozen equivalence contracts
 
-The documented next slice is controlled differential expansion.
+Stage 12.4 is complete (see section 5). The next slice is multi-event / multi-order replay and the recorded Stage 12.4 divergences.
 
-Add one behavior at a time:
+For each divergence, decide explicitly whether to:
 
-1. explicit order latency;
-2. explicit market-data latency;
-3. deterministic fees;
-4. controlled partial-liquidity / partial-fill cases.
+- extend First Current reference semantics (for example, an explicit "match on next arrival" latency mode or a resting-limit maker-price policy); or
+- keep it refused and documented.
 
-Do not broaden the Stage 12.3 claim implicitly.
+Never add a numeric tolerance to make a divergence pass.
+
+Do not edit an existing contract to widen it; add a new contract (its `contract_id` will differ).
 
 ## 3. Preserve the Python compatibility boundary
 
@@ -1631,32 +1662,20 @@ Need eventually:
 
 The exact numbering after Stage 12 is not frozen beyond the existing Stage 12 docs. The recommended order below preserves the current architecture.
 
-## Immediate — Stage 12.3 is complete
+## Completed — Stage 12.3 and Stage 12.4
 
-The zero-friction Nautilus differential baseline is green across Python 3.11–3.13 after the rc5 compatibility repair.
+The zero-friction Nautilus baseline (12.3) and the five single-behavior contracts (12.4.1–12.4.5: fees, order latency, market-data latency, IOC/FOK remainders, limit transitions) are implemented as frozen equivalence contracts.
 
-The next implementation work begins at Stage 12.4.
+Multi-quote partial-fill accumulation was deliberately **not** admitted in 12.4, because Nautilus semantics diverge (see section 5). It moves to Stage 12.5.
 
-## Stage 12.4 — controlled differential expansion
+## Stage 12.5 — multi-event validation and divergence resolution
 
-The existing Stage 12.3 document already specifies this next slice.
-
-Expand one behavior at a time:
-
-1. explicit order latency;
-2. explicit market-data latency;
-3. deterministic fees;
-4. controlled partial liquidity / partial fills;
-5. IOC;
-6. FOK;
-7. limit orders with controlled non-marketable/marketable transitions.
-
-For every new behavior:
+For every new behavior, keep the Stage 12.4 pattern:
 
 - write a separate frozen equivalence contract;
 - prove First Current reference behavior first;
 - map Nautilus explicitly;
-- compare outcomes;
+- compare outcomes, including the per-fill sequence;
 - preserve mismatches rather than tolerating them silently.
 
 Do not jump directly to “Nautilus matches our simulator.”
@@ -1876,10 +1895,10 @@ No current artifact should be repurposed as live authorization.
 
 # 14. Recommended future build order
 
-After Stage 12.3 is repaired:
+Stage 12.3 is repaired and Stage 12.4 is complete. Next:
 
-1. Stage 12.4 controlled execution differential expansion.
-2. Stage 12.5 multi-event / partial-fill / latency execution validation.
+1. ~~Stage 12.4 controlled execution differential expansion~~ — done.
+2. Stage 12.5 multi-event / partial-fill / latency execution validation, starting from the recorded 12.4 divergences.
 3. Stage 12 execution robustness + TCA + shadow-only review.
 4. OpenSourceRisk/Engine differential adapter.
 5. Full Security Master + corporate actions.
@@ -2088,7 +2107,7 @@ Existing test families cover:
 - replay horizon violations;
 - Nautilus differential behavior.
 
-At the current Stage 12.3 branch, the suite is in the high-400-test range.
+At Stage 12.4 the suite has 529 tests. On Python 3.11, 42 NautilusTrader runtime tests are intentionally skipped.
 
 Do not weaken tests just to make CI green.
 
@@ -2195,8 +2214,9 @@ Read these first:
 4. docs/EXECUTION_CONTRACTS_STAGE_12_1.md
 5. docs/REFERENCE_EXECUTION_STAGE_12_2.md
 6. docs/NAUTILUS_DIFFERENTIAL_STAGE_12_3.md
-7. src/quantos/execution_nautilus.py
-8. tests/test_execution_nautilus.py
+7. docs/NAUTILUS_EQUIVALENCE_CONTRACTS_STAGE_12_4.md
+8. src/quantos/execution_nautilus.py
+9. tests/test_execution_nautilus.py
 
 For earlier architecture:
 
@@ -2325,9 +2345,13 @@ A separate production/live program would require materially more.
 
 # 26. Recommended next action
 
-Begin **Stage 12.4 — controlled Nautilus differential expansion**.
+Begin **Stage 12.5 — multi-event execution validation and divergence resolution**.
 
-The first slice should add exactly one new behavior behind a frozen equivalence contract, preferably explicit deterministic latency or deterministic fees.
+The first slice should pick exactly one recorded Stage 12.4 divergence, for example multi-quote partial-fill accumulation for resting limits. Then:
+
+- decide the First Current reference semantics explicitly;
+- freeze a new equivalence contract;
+- only then map Nautilus.
 
 Required pattern:
 
@@ -2339,4 +2363,4 @@ Do not combine latency, fees, partial fills, queue behavior, and multiple orders
 
 # 27. One-sentence handoff
 
-First Current Quant OS has already built a strict point-in-time evidence → reasoning → fundamentals → valuation → quant research → portfolio → pricing/risk pipeline and now has a green Stage 12.3 historical NautilusTrader differential baseline; the current codebase is at v0.12.3 and the next controlled build is Stage 12.4 execution-equivalence expansion without weakening the no-live-capital boundary.
+First Current Quant OS has already built a strict point-in-time evidence → reasoning → fundamentals → valuation → quant research → portfolio → pricing/risk pipeline and now has six frozen Stage 12.3/12.4 NautilusTrader historical equivalence contracts. The codebase is at v0.12.4. The next controlled build is Stage 12.5 (multi-event execution validation and resolution of the recorded divergences), without weakening the no-live-capital boundary.

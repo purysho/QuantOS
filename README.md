@@ -1,4 +1,4 @@
-# First Current Quant OS — Prototype v0.11.10
+# First Current Quant OS — Prototype v0.12.4
 
 A high-assurance quantitative research and valuation operating-system prototype built around one rule:
 
@@ -6,7 +6,7 @@ A high-assurance quantitative research and valuation operating-system prototype 
 
 The repository is research-only. It can ingest live information, construct reviewed evidence, build professional research cases, create point-in-time financial models, value businesses through multiple controlled frameworks, and run prospective shadow evaluation controls, but **live order authorization is disabled by construction**.
 
-## What v0.11.10 proves
+## What v0.12.4 proves
 
 ### Point-in-time foundation
 - separate event time and knowledge time
@@ -245,6 +245,22 @@ Examples:
 - statistical non-rejection never becomes model approval;
 - no regulatory classification is inferred.
 
+### Simulation & Execution Engine — v0.12.4 baseline
+
+**Execution contracts and reference oracle**
+- canonical execution instruments separate from venue symbols;
+- point-in-time top-of-book quotes and trade prints with event/knowledge time;
+- content-addressed historical replay datasets, simulation policies and run manifests;
+- strict simulated order state machine with immutable fills;
+- deterministic First Current top-of-book reference fill engine with explicit order/market-data latency, participation, tick/lot rounding, slippage, impact, commission, partial-fill, IOC/FOK and horizon-expiry semantics.
+
+**NautilusTrader historical differential**
+- NautilusTrader 2.0.0rc5 `BacktestEngine` only, on Python 3.12+; no `LiveNode` or venue adapters;
+- six frozen, content-addressed equivalence contracts, each adding exactly one behavior: zero friction, deterministic fees, order latency, market-data latency, IOC/FOK remainders, and non-marketable-to-marketable limit transitions;
+- exact comparison of final state, fill count, quantity, VWAP, total fees and the per-fill time/quantity/price/fee sequence;
+- observed reference/Nautilus divergences are recorded on each contract and refused rather than tolerated;
+- a match grants only `REFERENCE_MATCH_ONLY`; no network, external-order or capital authority.
+
 ## Intelligence, modeling and valuation chain
 
 ```text
@@ -307,6 +323,10 @@ portfolio risk cube
 historical VaR / ES
     ↓
 prospective calibration + risk review
+    ↓
+historical replay + reference fill oracle
+    ↓
+frozen-contract Nautilus differential
 
     ╳
 no automatic live-capital path
@@ -322,7 +342,7 @@ quantos demo
 quantos edge-demo
 ```
 
-CI validates the complete suite on Python 3.11, 3.12 and 3.13.
+CI validates the complete suite on Python 3.11, 3.12 and 3.13. NautilusTrader v2 installs only on Python 3.12+, where CI sets `QUANTOS_REQUIRE_NAUTILUS=1` so the runtime differential tests cannot silently skip.
 
 ## Research Radar
 
@@ -348,6 +368,7 @@ A separate live smoke workflow makes a small real arXiv metadata request and sto
 - historical-simulation VaR / ES = backward-looking empirical loss summaries, not guarantees or capital requirements.
 - `WITHIN_TEST_TOLERANCE` = a statistical null was not rejected under the frozen test, not model approval.
 - `WITHIN_POLICY` risk review = supplied evidence did not breach frozen research rules, not LIVE authority.
+- `REFERENCE_MATCH_ONLY` = Nautilus reproduced one frozen historical fixture under one named contract, not live execution validation.
 - `NO_TRADE`, `UNKNOWN`, `QUARANTINED`, `INCOMPLETE`, and `INSUFFICIENT_EVIDENCE` are valid outcomes.
 
-See `docs/STAGE_7_COMPLETE.md` for the Fundamental Engine baseline, `docs/STAGE_8_COMPLETE.md` for the Valuation Engine baseline, `docs/STAGE_10_COMPLETE.md` for the Portfolio Engine and shadow-PAPER control chain, and `docs/STAGE_11_COMPLETE.md` for Pricing & Risk.
+See `docs/STAGE_7_COMPLETE.md` for the Fundamental Engine baseline, `docs/STAGE_8_COMPLETE.md` for the Valuation Engine baseline, `docs/STAGE_10_COMPLETE.md` for the Portfolio Engine and shadow-PAPER control chain, `docs/STAGE_11_COMPLETE.md` for Pricing & Risk, and `docs/NAUTILUS_EQUIVALENCE_CONTRACTS_STAGE_12_4.md` for the current execution differential baseline.
