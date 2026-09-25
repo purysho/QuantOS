@@ -41,7 +41,7 @@ RUN --mount=type=secret,id=ca,required=false \
     /opt/quantos/venv/bin/quantos terminal vendor
 
 FROM ${BASE_IMAGE}
-ARG VERSION=0.19.0
+ARG VERSION=0.20.0
 LABEL org.opencontainers.image.title="First Current Quant OS" \
       org.opencontainers.image.description="Free, open-source, point-in-time investment research OS (no live-capital path)" \
       org.opencontainers.image.licenses="Apache-2.0" \

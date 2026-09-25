@@ -8,6 +8,7 @@ from unittest import mock
 from quantos import license_policy
 from quantos.license_policy import (
     PROJECT_DISTRIBUTION,
+    REVIEWED_BUILD_TOOL_LICENSES,
     REVIEWED_DEPENDENCY_LICENSES,
     installed_runtime_closure,
     license_violations,
@@ -42,11 +43,17 @@ class LicensePolicyTests(unittest.TestCase):
         self.assertEqual(license_violations(), ())
 
     def test_every_locked_distribution_has_a_reviewed_license(self):
-        missing = locked_distributions() - set(REVIEWED_DEPENDENCY_LICENSES)
+        reviewed = set(REVIEWED_DEPENDENCY_LICENSES) | set(REVIEWED_BUILD_TOOL_LICENSES)
+        missing = locked_distributions() - reviewed
         self.assertEqual(missing, set(), "review and record these licenses")
 
+    def test_build_tools_never_enter_the_runtime_closure(self):
+        self.assertEqual(set(REVIEWED_BUILD_TOOL_LICENSES) & set(REVIEWED_DEPENDENCY_LICENSES), set())
+        if project_installed():
+            self.assertEqual(set(installed_runtime_closure()) & set(REVIEWED_BUILD_TOOL_LICENSES), set())
+
     def test_reviewed_table_has_no_stale_entries(self):
-        stale = set(REVIEWED_DEPENDENCY_LICENSES) - locked_distributions()
+        stale = (set(REVIEWED_DEPENDENCY_LICENSES) | set(REVIEWED_BUILD_TOOL_LICENSES)) - locked_distributions()
         self.assertEqual(stale, set())
 
     def test_third_party_notices_match_reviewed_table(self):

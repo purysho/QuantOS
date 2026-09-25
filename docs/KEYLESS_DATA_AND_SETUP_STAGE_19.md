@@ -25,6 +25,8 @@ All five were verified live on 2026-09-25.
 | US Treasury par yield curve | `TreasuryYieldCurveAdapter` | `CAPTURE_TIME`, or `PUBLICATION_SCHEDULE` (18:00 New York) |
 | ECB euro FX reference rates | `ECBReferenceRateAdapter` | `CAPTURE_TIME`, or `PUBLICATION_SCHEDULE` (16:00 Frankfurt) |
 | FRED graph CSV | `FredCsvAdapter` | always `CAPTURE_TIME`: the values are latest revisions |
+| Nasdaq Trader symbol directory (added in 0.20) | `NasdaqSymbolDirectoryAdapter` | capture time; gives the ETF flag, security type from the listing name, and the listing venue |
+| Kenneth R. French Data Library (added in 0.20) | `FamaFrenchAdapter` | `CAPTURE_TIME`; the CRSP vintage is recorded, and later vintages are stored as revisions |
 
 Details:
 - **XBRL facts.** A restatement in a later filing is a new version. `as_of(cik, concept, known_at)` returns the latest value per period known at that time.

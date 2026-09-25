@@ -57,6 +57,19 @@ These are allowed only while unmodified, installed as separate packages and impo
 | tzdata | Apache-2.0 | IANA time zone data |
 | urllib3 | MIT |  |
 
+## Build-only tools
+
+Used to build the desktop downloads; not imported at runtime and not part of the core.
+
+| Distribution | License | Note |
+| --- | --- | --- |
+| altgraph | MIT |  |
+| macholib | MIT | macOS builds only |
+| pefile | MIT | Windows builds only |
+| pyinstaller | GPL-2.0-or-later WITH Bootloader-exception | the exception allows distributing bundled apps under any license |
+| pyinstaller-hooks-contrib | Apache-2.0 OR GPL-2.0-or-later |  |
+| pywin32-ctypes | BSD-3-Clause | Windows builds only |
+
 ## Prohibited for the core
 
 | License | Reason |

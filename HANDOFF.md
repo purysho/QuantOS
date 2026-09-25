@@ -6,8 +6,8 @@
 >
 > **Repository:** purysho/First-Current-Quant-OS-prototype  
 > **Repository visibility:** public (Apache-2.0)  
-> **Current package version:** 0.19.0  
-> **Implementation baseline for this handoff:** Stages 12.4–20 on branch `claude/stoic-cerf-mts7pn` (execution program and Nautilus divergence resolution, Security Master, exchange calendars and return panels, ORE products and analytics, research sources, observability/security, market-data pipeline, Perspective terminal, keyless data and first-run setup, container and live-USB packaging, Apache-2.0 licensing, locked environment)  
+> **Current package version:** 0.20.0  
+> **Implementation baseline for this handoff:** Stages 12.4–22 on branch `claude/stoic-cerf-mts7pn` (execution program and Nautilus divergence resolution, Security Master, exchange calendars and return panels, ORE products and analytics, research sources, observability/security, market-data pipeline, Perspective terminal, keyless data and first-run setup, container and live-USB packaging, company analysis, desktop app with Windows/macOS/Linux downloads, Apache-2.0 licensing, locked environment)  
 > **Previous green baseline on main:** b262fcf1f18787fd5f4661de2ed3c5c3510ad49b (Stage 12.3)
 
 ---
@@ -1138,6 +1138,26 @@ Reference: docs/KEYLESS_DATA_AND_SETUP_STAGE_19.md
 - **Live USB:** a Debian 13 live-build recipe with encrypted LUKS2 persistence, a first-login setup wizard, a daily timer and desktop launchers. It is free software only by default; `FC_FIRMWARE=1` adds non-free firmware for more hardware.
 
 Reference: docs/PACKAGING_STAGE_20.md, packaging/live-usb/README.md
+
+## Stage 21 — company analysis — built
+
+- `quantos analyze TICKER` produces standardized Stage 7 statements from SEC XBRL, as originally filed and point in time, with concept-level provenance and a metrics table;
+- the Stage 7 validator gains the standard reconciling items: the FX effect on cash, consolidated net income with noncontrolling interests, and temporary equity;
+- verified on AAPL, MSFT, JPM and BRK.B: figures match the published numbers and the identities tie, except Apple's untagged restricted cash (2020–23), which is correctly flagged;
+- also in this version:
+  - security kinds and listing venues come from Nasdaq's symbol directory;
+  - daily Fama-French factors are added;
+  - terminal workspaces open on useful views.
+
+Reference: docs/COMPANY_ANALYSIS_STAGE_21.md
+
+## Stage 22 — desktop app and release downloads — built
+
+- `quantos app`, the browser-based control center (setup, update, analyze, health), runs on loopback only with a per-launch token in the URL fragment. It checks Host and Origin, is single-instance, and supports portable mode;
+- PyInstaller builds on native runners: a Windows zip, a macOS dmg and a Linux AppImage. Each must pass its own `--smoke-test` before packaging;
+- `release.yml`: a `vX.Y.Z` tag publishes the desktop apps, the ISO (plus source image), the GHCR image, an SBOM, SHA256SUMS and build-provenance attestations, with stable asset names. The README download buttons point to `releases/latest/download/…`.
+
+Reference: docs/DESKTOP_APP_AND_RELEASES_STAGE_22.md
 
 ## Cross-cutting — licensing and reproducibility
 
@@ -2470,6 +2490,8 @@ For earlier architecture:
 - docs/KEYLESS_DATA_AND_SETUP_STAGE_19.md
 - docs/PACKAGING_STAGE_20.md
 - docs/USER_GUIDE.md
+- docs/COMPANY_ANALYSIS_STAGE_21.md
+- docs/DESKTOP_APP_AND_RELEASES_STAGE_22.md
 - docs/CAPABILITIES.md
 
 ---
@@ -2585,7 +2607,7 @@ A serious “Quant OS prototype complete” claim should require at least:
 - security review;
 - no silent capital path.
 
-Progress against these criteria at v0.19.0:
+Progress against these criteria at v0.20.0:
 
 - **Met at prototype depth:** fundamentals, valuation, research lab, portfolio, pricing/risk, ORE differential baseline (swaps, bonds, options, sensitivities, stress), historical execution simulation, reproducible environment, Perspective terminal (read-only), operational observability.
 - **Partial:**
@@ -2605,7 +2627,8 @@ A separate production/live program would require materially more.
 
 1. Open a PR for `claude/stoic-cerf-mts7pn` and get the full CI matrix green. This is the first GitHub run of the uv/ORE workflow.
 2. Then pick **one** slice from section 14. The most valuable next slices are:
-   - publish a release: tag v0.19.0, attach a built ISO with its sha256 file and source ISO, and push the container image;
+   - merge to main, then push the tag `v0.20.0` to publish the first release (the download buttons go live then);
+   - code signing: SignPath Foundation (free for open source) for Windows, and an Apple Developer ID for macOS notarization;
    - one live Stage 17 price capture with a free Tiingo key, reconciled across two providers;
    - a real-universe walk-forward, from Stage 17 closes through Stage 13.4 panels, with a stored backtest artifact the terminal can display.
 
@@ -2634,4 +2657,4 @@ First Current Quant OS has already built a strict point-in-time evidence → rea
 - a container image and a live-USB recipe with encrypted persistence;
 - a locked, manifest-captured environment.
 
-The codebase is at v0.19.0. The next controlled steps are a licensed data-provider decision, real-universe research on live data, and deeper execution semantics, all without weakening the no-live-capital boundary.
+The codebase is at v0.20.0. The next controlled steps are a licensed data-provider decision, real-universe research on live data, and deeper execution semantics, all without weakening the no-live-capital boundary.

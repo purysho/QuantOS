@@ -121,6 +121,25 @@ REVIEWED_DEPENDENCY_LICENSES: dict[str, ReviewedDependencyLicense] = {
     )
 }
 
+# Build-only tools (the locked ``desktop`` dependency group). They create the
+# desktop downloads but are never imported at runtime; only PyInstaller's
+# bootloader ends up in a bundle, which its exception explicitly permits.
+REVIEWED_BUILD_TOOL_LICENSES: dict[str, ReviewedDependencyLicense] = {
+    item.distribution: item
+    for item in (
+        ReviewedDependencyLicense("altgraph", "MIT"),
+        ReviewedDependencyLicense("macholib", "MIT", "macOS builds only"),
+        ReviewedDependencyLicense("pefile", "MIT", "Windows builds only"),
+        ReviewedDependencyLicense(
+            "pyinstaller",
+            "GPL-2.0-or-later WITH Bootloader-exception",
+            "the exception allows distributing bundled apps under any license",
+        ),
+        ReviewedDependencyLicense("pyinstaller-hooks-contrib", "Apache-2.0 OR GPL-2.0-or-later"),
+        ReviewedDependencyLicense("pywin32-ctypes", "BSD-3-Clause", "Windows builds only"),
+    )
+}
+
 
 def normalize_distribution_name(name: str) -> str:
     return re.sub(r"[-_.]+", "-", name).lower()
@@ -255,6 +274,18 @@ def render_third_party_notices() -> str:
         "| Distribution | License | Note |",
         "| --- | --- | --- |",
         *permissive,
+        "",
+        "## Build-only tools",
+        "",
+        "Used to build the desktop downloads; not imported at runtime and "
+        "not part of the core.",
+        "",
+        "| Distribution | License | Note |",
+        "| --- | --- | --- |",
+        *(
+            f"| {name} | {tool.spdx_expression} | {tool.note} |"
+            for name, tool in sorted(REVIEWED_BUILD_TOOL_LICENSES.items())
+        ),
         "",
         "## Prohibited for the core",
         "",

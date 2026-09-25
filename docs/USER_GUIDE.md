@@ -3,16 +3,63 @@
 This guide takes you from nothing to a working research terminal. You can use no API keys at all.
 
 - [1. Choose how to run it](#1-choose-how-to-run-it)
+  - [Verifying a download](#verifying-a-download)
 - [2. First-run setup](#2-first-run-setup)
 - [3. Check the installation](#3-check-the-installation)
 - [4. Fetch data](#4-fetch-data)
 - [5. Use the terminal](#5-use-the-terminal)
+- [Company analysis](#company-analysis)
 - [6. Research radar](#6-research-radar)
 - [7. Where your data lives](#7-where-your-data-lives)
 - [8. Keeping it updated automatically](#8-keeping-it-updated-automatically)
 - [9. Troubleshooting](#9-troubleshooting)
 
 ## 1. Choose how to run it
+
+### Desktop app (recommended)
+
+Download it from the [latest release](https://github.com/purysho/First-Current-Quant-OS-prototype/releases/latest), or use the buttons in the README.
+
+| System | File | How to start |
+|---|---|---|
+| Windows 10/11 (x64) | `FirstCurrent-Windows-x64.zip` | Right-click → **Extract All**, open `FirstCurrent`, double-click `FirstCurrent.exe` |
+| macOS 12+ (Apple Silicon) | `FirstCurrent-macOS-arm64.dmg` | Open it, drag **First Current** to Applications, start it from Applications |
+| Linux (x86-64) | `FirstCurrent-Linux-x86_64.AppImage` | `chmod +x FirstCurrent-Linux-x86_64.AppImage`, then run it (or double-click) |
+
+The app opens its **control center** in your web browser.
+- **Setup:** it asks for your contact email, your tickers and any optional keys.
+- **Update now:** fetches your data, showing progress step by step.
+- **Analyze a company:** type a ticker.
+- **Open terminal:** explore everything in the terminal.
+- **Health check:** see what works on your computer.
+
+On Windows and Linux, a small status window stays open while the app runs; closing it, or pressing **Quit** in the control center, stops First Current. Starting the app again while it is running just reopens the control center.
+
+Where your data is kept:
+- **Windows:** `%LOCALAPPDATA%\FirstCurrent`.
+- **macOS:** `~/Library/Application Support/FirstCurrent`.
+- **Linux:** `~/.local/share/FirstCurrent`.
+- **Portable mode:** create a folder named `FirstCurrent-data` next to the program and the data lives there instead. This is handy on a USB stick.
+
+**First launch warnings.** The builds are not code-signed yet (signing certificates cost money):
+- **Windows SmartScreen:** click **More info → Run anyway**.
+- **macOS:** right-click the app → **Open**, then **Open** again. On macOS 15, if that is not offered, go to **System Settings → Privacy & Security** and click **Open Anyway**.
+
+#### Verifying a download
+
+Every release lists SHA-256 checksums in `SHA256SUMS.txt`, and each file also has its own `.sha256` file.
+
+```bash
+sha256sum -c FirstCurrent-Linux-x86_64.AppImage.sha256          # Linux
+shasum -a 256 -c FirstCurrent-macOS-arm64.dmg.sha256            # macOS
+Get-FileHash FirstCurrent-Windows-x64.zip -Algorithm SHA256     # Windows PowerShell (compare by eye)
+```
+
+Every file also has a signed **build-provenance attestation**, which proves it was built by this repository's release workflow from a specific commit:
+
+```bash
+gh attestation verify FirstCurrent-Linux-x86_64.AppImage --repo purysho/First-Current-Quant-OS-prototype
+```
 
 ### Live USB
 
@@ -100,9 +147,11 @@ quantos daily --backfill-from 2015  # load Treasury/ECB history once
 
 | Step | What it does |
 |---|---|
-| universe | Resolves your tickers through SEC's directory and records the company, security, listing and CIK in the Security Master. |
+| universe | Resolves your tickers through SEC's directory and Nasdaq's symbol directory. It records the company, security (ETF/ADR/common, from the exchange listing), listing venue and CIK. |
 | fundamentals | Every XBRL fact your companies reported, with filing dates. Restatements are kept as later versions. |
+| analysis | Standardized statements and metrics for each company (see [Company analysis](#company-analysis)). |
 | rates | Treasury par curve, ECB FX (USD, GBP, JPY, CHF) and key FRED series (10y and 2y yields, fed funds, CPI, unemployment, breakevens). |
+| factors | Fama-French daily five factors and momentum (Kenneth R. French Data Library). |
 | prices | Recent daily bars from your configured provider (skipped in keyless mode). |
 | research | New working papers from NBER, Fed, BIS and ECB, triaged into the review queue. |
 | terminal | Refreshes the terminal export. |
@@ -126,6 +175,30 @@ quantos terminal serve     # http://127.0.0.1:8765/
 - The header shows the export ID and how many tables passed their **SHA-256 check**. The browser verifies every table before displaying it.
 - Large tables keep the most recent 200,000 rows and are marked *truncated*.
 - For offline use, run `quantos terminal vendor` once. The USB and container images already include it.
+
+## Company analysis
+
+In the app, type a ticker under **Analyze a company**. On the command line:
+
+```bash
+quantos analyze AAPL
+quantos analyze JPM --as-of 2024-06-30      # only what was known on that date
+```
+
+First Current builds standardized annual statements from the company's SEC XBRL filings:
+- the **income statement**, **balance sheet** and **cash flow**, each as **originally filed** in that year's 10-K (later restatements are kept separately and never overwrite history);
+- every line records the XBRL concept and filing it came from;
+- the statements are checked against accounting identities:
+  - assets = liabilities (+ redeemable equity) + equity;
+  - net income = pretax income − tax;
+  - the cash-flow components (+ FX effect) = the change in cash;
+  - balance-sheet cash = cash-flow ending cash.
+
+Any check that doesn't tie is **reported, never forced**. For example, Apple's statements for 2020–2023 show a restricted-cash difference that Apple doesn't tag.
+
+The metrics are revenue growth, gross, operating and net margins, diluted EPS, free cash flow, return on equity and assets, debt/equity and the current ratio. They appear in the app, and in the terminal under **Company / Financials**.
+
+First Current deliberately does **not** produce an automatic valuation: a DCF needs reviewed, evidence-backed assumptions. These statements are where that work starts.
 
 ## 6. Research radar
 
