@@ -134,6 +134,7 @@ class ProjectionRun:
     cash_flow: ProjectedStatement
     schedule_values: dict[str, Decimal]
     issues: tuple[ProjectionIssue, ...]
+    parent_projection_id: str | None = None
 
     @property
     def is_valid(self) -> bool:
@@ -211,7 +212,7 @@ class ThreeStatementProjectionEngine:
     ) -> ProjectionRun:
         base_report = self.validator.validate_three_statement_set(source_statements)
         base_report.require_valid()
-        self._validate_assumptions(assumptions)
+        self.validate_assumptions(assumptions)
 
         by_type = {statement.statement_type: statement for statement in source_statements}
         balance = by_type[StatementType.BALANCE_SHEET]
@@ -460,7 +461,7 @@ class ThreeStatementProjectionEngine:
             "net_change_in_cash": net_change_in_cash,
             "ending_cash": ending_cash,
         }
-        issues = self._validate_projection(
+        issues = self.validate_projection(
             income_statement=income_statement,
             balance_sheet=balance_sheet,
             cash_flow=cash_flow,
@@ -483,7 +484,7 @@ class ThreeStatementProjectionEngine:
             issues=issues,
         )
 
-    def _validate_assumptions(self, assumptions: AssumptionSet) -> None:
+    def validate_assumptions(self, assumptions: AssumptionSet) -> None:
         names = {item.name for item in assumptions.assumptions}
         missing = [name for name in REQUIRED_ASSUMPTIONS if name not in names]
         extra = [name for name in names if name not in REQUIRED_ASSUMPTIONS]
@@ -532,7 +533,7 @@ class ThreeStatementProjectionEngine:
                 f"{label} missing projection inputs: " + ", ".join(missing)
             )
 
-    def _validate_projection(
+    def validate_projection(
         self,
         *,
         income_statement: ProjectedStatement,
@@ -609,10 +610,12 @@ def make_projection_id(
     assumption_set_id: str,
     period: ProjectionPeriod,
     schedule_values: dict[str, Decimal],
+    parent_projection_id: str | None = None,
 ) -> str:
     payload = {
         "source_statement_ids": sorted(source_statement_ids),
         "assumption_set_id": assumption_set_id,
+        "parent_projection_id": parent_projection_id,
         "period": {
             "start_date": period.start_date.isoformat(),
             "end_date": period.end_date.isoformat(),
