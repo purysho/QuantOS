@@ -408,6 +408,38 @@ class SkfolioBaselineAllocator:
 
 
 
+def portfolio_solution_identity(solution: PortfolioSolution) -> str:
+    payload = {
+        "model_id": solution.model_id,
+        "manifest_id": solution.manifest_id,
+        "dataset_id": solution.dataset_id,
+        "decision_time": solution.decision_time.isoformat(),
+        "allocator": solution.allocator.value,
+        "engine_name": solution.engine_name,
+        "engine_version": solution.engine_version,
+        "constraint_policy_id": solution.constraint_policy_id,
+        "weights": [
+            {
+                "security_id": item.security_id,
+                "weight": str(item.weight),
+            }
+            for item in solution.weights
+        ],
+        "previous_weights": [
+            {
+                "security_id": item.security_id,
+                "weight": str(item.weight),
+            }
+            for item in solution.previous_weights
+        ],
+        "net_exposure": str(solution.net_exposure),
+        "gross_exposure": str(solution.gross_exposure),
+        "one_way_turnover": str(solution.one_way_turnover),
+        "capital_authority": solution.capital_authority,
+    }
+    return _content_id("portfolio-solution", payload)
+
+
 class PortfolioSolutionStore:
     """Immutable idempotent persistence for portfolio-construction outputs."""
 
@@ -432,6 +464,8 @@ class PortfolioSolutionStore:
         )
 
     def add(self, solution: PortfolioSolution) -> bool:
+        if solution.solution_id != portfolio_solution_identity(solution):
+            raise ValueError("portfolio solution content does not match solution_id")
         payload = json.dumps(
             {
                 "solution_id": solution.solution_id,
