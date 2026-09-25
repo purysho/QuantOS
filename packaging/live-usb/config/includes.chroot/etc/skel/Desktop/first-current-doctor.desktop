@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=First Current: health check
+Comment=Check what works on this machine
+Exec=xfce4-terminal --hold -e 'quantos doctor --online'
+Terminal=false
+Icon=utilities-system-monitor
+Categories=Office;Finance;

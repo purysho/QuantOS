@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=First Current Terminal
+Comment=Open the read-only research terminal
+Exec=/usr/local/bin/first-current-welcome
+Terminal=false
+Icon=utilities-system-monitor
+Categories=Office;Finance;

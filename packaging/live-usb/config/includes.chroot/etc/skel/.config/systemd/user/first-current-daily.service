@@ -1,0 +1,12 @@
+[Unit]
+Description=First Current daily data update
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+Environment=QUANTOS_VENDOR_DIR=/opt/quantos/vendor
+Environment=QUANTOS_HOME=%h/FirstCurrent
+ExecCondition=/usr/bin/test -f %h/FirstCurrent/quantos.toml
+ExecStart=/usr/local/bin/quantos daily
+NoNewPrivileges=yes

@@ -8,3 +8,10 @@ venv/
 data/
 *.duckdb
 *.duckdb.wal
+
+# Live-USB build output
+packaging/live-usb/build/
+# Local QuantOS home when run from the checkout
+quantos.toml
+secrets/
+vendor/

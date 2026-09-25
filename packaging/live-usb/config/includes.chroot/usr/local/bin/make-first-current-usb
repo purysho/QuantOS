@@ -1,0 +1,34 @@
+#!/bin/sh
+# Writes the First Current ISO to a USB stick and adds an encrypted
+# persistence partition in the remaining space.
+#
+#   sudo make-first-current-usb first-current-quant-os.iso /dev/sdX
+#
+# EVERYTHING ON THE TARGET DEVICE IS ERASED.
+set -eu
+ISO="${1:?usage: make-first-current-usb ISO DEVICE}"
+DEV="${2:?usage: make-first-current-usb ISO DEVICE}"
+[ "$(id -u)" = 0 ] || { echo "run as root (sudo)"; exit 1; }
+[ -b "$DEV" ] || { echo "$DEV is not a block device"; exit 1; }
+case "$DEV" in *[0-9]) echo "give the whole device (e.g. /dev/sdb), not a partition"; exit 1;; esac
+if grep -qs "^$DEV" /proc/mounts; then echo "$DEV is mounted; unmount it first"; exit 1; fi
+lsblk -o NAME,SIZE,MODEL,TRAN "$DEV"
+printf "\nErase %s and write First Current? Type YES: " "$DEV"; read answer; [ "$answer" = YES ] || exit 1
+
+dd if="$ISO" of="$DEV" bs=4M conv=fsync status=progress
+sync
+# Add a partition in the free space after the ISO image.
+echo ",,L" | sfdisk --append --no-reread "$DEV"
+partprobe "$DEV" 2>/dev/null || true; sleep 2
+PART="$(lsblk -lnpo NAME "$DEV" | tail -1)"
+echo "Choose a passphrase for the encrypted persistence partition:"
+cryptsetup luksFormat --type luks2 "$PART"
+cryptsetup open "$PART" fc-persistence
+mkfs.ext4 -q -L persistence /dev/mapper/fc-persistence
+mkdir -p /mnt/fc-persistence
+mount /dev/mapper/fc-persistence /mnt/fc-persistence
+echo "/home union" > /mnt/fc-persistence/persistence.conf
+umount /mnt/fc-persistence
+cryptsetup close fc-persistence
+sync
+echo "Done. Boot from $DEV; you will be asked for the passphrase at startup."

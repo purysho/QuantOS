@@ -6,8 +6,8 @@
 >
 > **Repository:** purysho/First-Current-Quant-OS-prototype  
 > **Repository visibility:** private  
-> **Current package version:** 0.18.0  
-> **Implementation baseline for this handoff:** Stages 12.4–18 on branch `claude/stoic-cerf-mts7pn` (execution program and Nautilus divergence resolution, Security Master, exchange calendars and return panels, ORE products and analytics, research sources, observability/security, market-data pipeline, Perspective terminal, licensing, locked environment)  
+> **Current package version:** 0.19.0  
+> **Implementation baseline for this handoff:** Stages 12.4–20 on branch `claude/stoic-cerf-mts7pn` (execution program and Nautilus divergence resolution, Security Master, exchange calendars and return panels, ORE products and analytics, research sources, observability/security, market-data pipeline, Perspective terminal, keyless data and first-run setup, container and live-USB packaging, Apache-2.0 licensing, locked environment)  
 > **Previous green baseline on main:** b262fcf1f18787fd5f4661de2ed3c5c3510ad49b (Stage 12.3)
 
 ---
@@ -301,7 +301,7 @@ VALUATION ENGINE                              │
 - uv for locking and syncing exact environments.
 - FINOS Perspective 3.8.0 in the browser (jsDelivr, SRI-pinned; not a Python dependency) for the read-only terminal.
 
-Current pyproject dependencies at v0.18.0:
+Current pyproject dependencies at v0.19.0:
 
 ~~~
 cvxpy >=1.6,<2
@@ -1116,9 +1116,32 @@ Reference: docs/MARKET_DATA_PIPELINE_STAGE_17.md
 
 Reference: docs/PERSPECTIVE_TERMINAL_STAGE_18.md
 
+## Stage 19 — keyless public data, setup, doctor and daily runbook — built
+
+- keyless official sources:
+  - SEC ticker directory and XBRL company facts (point-in-time fundamentals; a restatement is a new version);
+  - the US Treasury par curve;
+  - ECB FX;
+  - FRED CSV;
+- explicit knowledge-time policies (`CAPTURE_TIME` or `PUBLICATION_SCHEDULE`), stored on every row;
+- Security Master seeding from SEC's directory: idempotent, with assumptions flagged;
+- `QUANTOS_HOME` holds `quantos.toml`, a private `secrets/` directory and `data/`;
+- `quantos setup`, `quantos doctor [--online]` and `quantos daily` (failures isolated per step);
+- friendly CLI errors;
+- offline terminal assets through integrity-verified vendoring.
+
+Reference: docs/KEYLESS_DATA_AND_SETUP_STAGE_19.md
+
+## Stage 20 — container image and live USB — built
+
+- **Container:** non-root, read-only root filesystem, `cap_drop ALL`, terminal on the host's loopback only, offline assets included. It builds, and `setup`, `doctor`, `daily` and the terminal were verified in the container.
+- **Live USB:** a Debian 13 live-build recipe with encrypted LUKS2 persistence, a first-login setup wizard, a daily timer and desktop launchers. It is free software only by default; `FC_FIRMWARE=1` adds non-free firmware for more hardware.
+
+Reference: docs/PACKAGING_STAGE_20.md, packaging/live-usb/README.md
+
 ## Cross-cutting — licensing and reproducibility
 
-- **License:** the project is proprietary. `quantos.license_policy` gates every locked dependency's license, and `THIRD_PARTY_NOTICES.md` is generated from it. See docs/LICENSING.md.
+- **License:** the project is open source under Apache-2.0 (relicensed at v0.19.0). `quantos.license_policy` gates every locked dependency's license, and `THIRD_PARTY_NOTICES.md` is generated from it. See docs/LICENSING.md.
 - **Environment:** `uv.lock` and the hashed `requirements.lock` are enforced in CI, with a weekly dependency-drift workflow. `quantos env-manifest` gives a content-addressed environment identity. See docs/REPRODUCIBLE_ENVIRONMENT.md.
 
 ---
@@ -2117,8 +2140,8 @@ These are architectural notes from prior research and should be reverified befor
 
 **Decided:**
 
-- The repository is **proprietary, all rights reserved** (`LICENSE`, docs/LICENSING.md), with the `Private :: Do Not Upload` classifier.
-- If it is ever opened, Apache-2.0 is the recommended license.
+- The project is **open source under Apache-2.0** (`LICENSE`, `NOTICE`, docs/LICENSING.md). The owner relicensed it at v0.19.0 so that anyone can use it for free.
+- Redistributed images (container, live USB) carry license obligations beyond the source tree. For example, a published ISO must be accompanied by the matching Debian sources; see docs/LICENSING.md.
 - `quantos.license_policy` enforces the dependency rules in tests:
   - permissive licenses are free to use;
   - LGPL/MPL only while unmodified and separately installed;
@@ -2444,6 +2467,10 @@ For earlier architecture:
 - docs/OBSERVABILITY_AND_SECURITY_STAGE_16.md
 - docs/MARKET_DATA_PIPELINE_STAGE_17.md
 - docs/PERSPECTIVE_TERMINAL_STAGE_18.md
+- docs/KEYLESS_DATA_AND_SETUP_STAGE_19.md
+- docs/PACKAGING_STAGE_20.md
+- docs/USER_GUIDE.md
+- docs/CAPABILITIES.md
 
 ---
 
@@ -2558,12 +2585,12 @@ A serious “Quant OS prototype complete” claim should require at least:
 - security review;
 - no silent capital path.
 
-Progress against these criteria at v0.18.0:
+Progress against these criteria at v0.19.0:
 
 - **Met at prototype depth:** fundamentals, valuation, research lab, portfolio, pricing/risk, ORE differential baseline (swaps, bonds, options, sensitivities, stress), historical execution simulation, reproducible environment, Perspective terminal (read-only), operational observability.
 - **Partial:**
   - research intake covers arXiv, Crossref, SSRN, NBER and regulator/central-bank feeds, but the reviewed claim library is not populated;
-  - the point-in-time provider path is built and fixture-tested but has no licensed live key yet;
+  - keyless point-in-time data (SEC fundamentals, Treasury, ECB, FRED) runs live; the stock-price path is built and fixture-tested but has not been exercised with a live key;
   - the Security Master exists without a reference-data feed;
   - security controls exist (secrets, egress, kill switch, audit), but no independent security review has been done;
   - lineage runs from raw source to terminal export; a per-figure drill-down in the UI is still to do.
@@ -2578,7 +2605,8 @@ A separate production/live program would require materially more.
 
 1. Open a PR for `claude/stoic-cerf-mts7pn` and get the full CI matrix green. This is the first GitHub run of the uv/ORE workflow.
 2. Then pick **one** slice from section 14. The most valuable next slices are:
-   - a licensed provider decision and one live Stage 17 capture, reconciled across two providers;
+   - publish a release: tag v0.19.0, attach a built ISO with its sha256 file and source ISO, and push the container image;
+   - one live Stage 17 price capture with a free Tiingo key, reconciled across two providers;
    - a real-universe walk-forward, from Stage 17 closes through Stage 13.4 panels, with a stored backtest artifact the terminal can display.
 
 Required pattern, unchanged:
@@ -2601,7 +2629,9 @@ First Current Quant OS has already built a strict point-in-time evidence → rea
 - observability, secrets, egress control, a kill switch and a hash-chained audit log;
 - a revision-preserving market-data provider pipeline;
 - a read-only, integrity-verified Perspective terminal;
-- a proprietary license with a dependency gate;
+- an Apache-2.0 license with a dependency gate;
+- keyless public data, first-run setup, a doctor and a daily runbook;
+- a container image and a live-USB recipe with encrypted persistence;
 - a locked, manifest-captured environment.
 
-The codebase is at v0.18.0. The next controlled steps are a licensed data-provider decision, real-universe research on live data, and deeper execution semantics, all without weakening the no-live-capital boundary.
+The codebase is at v0.19.0. The next controlled steps are a licensed data-provider decision, real-universe research on live data, and deeper execution semantics, all without weakening the no-live-capital boundary.

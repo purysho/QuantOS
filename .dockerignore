@@ -1,0 +1,7 @@
+.git
+.venv
+**/__pycache__
+data/
+*.duckdb
+docs/
+packaging/live-usb/build/

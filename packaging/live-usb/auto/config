@@ -1,0 +1,22 @@
+#!/bin/sh
+# live-build configuration for the First Current Quant OS live USB.
+# FC_FIRMWARE=1 adds Debian's non-free-firmware (Wi-Fi/GPU firmware for more
+# laptops). Leave it unset for a 100% free-software (main only) image.
+set -e
+AREAS="main"
+[ "${FC_FIRMWARE:-0}" = "1" ] && AREAS="main non-free-firmware"
+lb config noauto \
+  --distribution trixie \
+  --architectures amd64 \
+  --archive-areas "$AREAS" \
+  --binary-images iso-hybrid \
+  --bootloaders "grub-efi,syslinux" \
+  --debian-installer none \
+  --memtest none \
+  --iso-application "First Current Quant OS" \
+  --iso-publisher "First Current Quant OS contributors" \
+  --iso-volume "FIRST_CURRENT" \
+  --bootappend-live "boot=live components persistence persistence-encryption=luks,none hostname=first-current username=quantos user-fullname=Quant quiet splash" \
+  --source "${FC_SOURCE:-false}" \
+  --source-images iso \
+  "${@}"

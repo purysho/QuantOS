@@ -18,7 +18,7 @@ The terminal consumes immutable domain artifacts. It holds no business logic and
   - Timestamps become epoch milliseconds (UTC), dates become ISO dates, and DECIMAL and BIGINT values become floats. Non-finite values become null.
   - The top-level scalar fields of a `payload_json` column are promoted to typed columns (numeric strings become floats). Nested values stay as JSON text, and the raw payload is left in DuckDB.
   - Values pass through the Stage 16 secret redactor.
-- The row limit per table defaults to 50,000; a table cut at the limit is flagged `truncated`.
+- The row limit per table defaults to 200,000 (the most recent rows are kept); a table cut at the limit is flagged `truncated`.
 - `terminal_manifest.json` records:
   - `export_id`: the SHA-256 over (file, sha256) pairs, so the same stores give the same ID;
   - the per-file SHA-256;

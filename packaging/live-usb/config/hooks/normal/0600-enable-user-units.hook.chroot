@@ -1,0 +1,7 @@
+#!/bin/sh
+# Enable the terminal service and the daily timer for every new user.
+set -eu
+install -d /etc/skel/.config/systemd/user/default.target.wants /etc/skel/.config/systemd/user/timers.target.wants
+ln -sf ../first-current-terminal.service /etc/skel/.config/systemd/user/default.target.wants/first-current-terminal.service
+ln -sf ../first-current-daily.timer /etc/skel/.config/systemd/user/timers.target.wants/first-current-daily.timer
+chmod +x /etc/skel/Desktop/*.desktop

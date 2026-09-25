@@ -1,0 +1,54 @@
+name: Packaging
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      build_iso:
+        description: "Also build the live-USB ISO"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  container:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -t first-current:ci -f Containerfile .
+      - name: Smoke test (locked-down runtime)
+        run: |
+          run="docker run --rm --read-only --tmpfs /tmp --cap-drop ALL --security-opt no-new-privileges:true -v fc-ci:/quantos first-current:ci"
+          $run --version
+          $run setup --non-interactive --email ci@example.org --organization CI --universe AAPL
+          $run doctor --online
+          $run daily --only universe,fundamentals,rates,terminal
+          # The terminal must refuse a non-loopback bind outside the container flag.
+          ! docker run --rm -e QUANTOS_CONTAINER=0 -v fc-ci:/quantos:ro first-current:ci terminal serve --host 0.0.0.0
+
+  live-usb:
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.build_iso)
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Free disk space
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+      - name: Build ISO (free software only) and matching source ISO
+        run: FC_SOURCE=true packaging/live-usb/build.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: first-current-live-usb
+          path: |
+            packaging/live-usb/build/*.iso
+            packaging/live-usb/build/*.sha256
+            packaging/live-usb/build/*source*
+            packaging/live-usb/build/make-first-current-usb
+          retention-days: 14

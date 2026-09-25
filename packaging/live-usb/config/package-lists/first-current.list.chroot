@@ -1,0 +1,22 @@
+# Base live system
+live-boot
+live-config
+live-config-systemd
+cryptsetup
+cryptsetup-initramfs
+# Minimal desktop
+xfce4
+xfce4-terminal
+lightdm
+network-manager-gnome
+firefox-esr
+fonts-dejavu
+mousepad
+# First Current runtime
+python3
+python3-venv
+python3-pip
+ca-certificates
+tzdata
+git
+curl
