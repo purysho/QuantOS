@@ -5,7 +5,7 @@
 > This document is intended to let a new ChatGPT/Codex/engineer session continue the project without reconstructing the architecture from chat history.
 >
 > **Repository:** purysho/First-Current-Quant-OS-prototype  
-> **Repository visibility:** private  
+> **Repository visibility:** public (Apache-2.0)  
 > **Current package version:** 0.19.0  
 > **Implementation baseline for this handoff:** Stages 12.4–20 on branch `claude/stoic-cerf-mts7pn` (execution program and Nautilus divergence resolution, Security Master, exchange calendars and return panels, ORE products and analytics, research sources, observability/security, market-data pipeline, Perspective terminal, keyless data and first-run setup, container and live-USB packaging, Apache-2.0 licensing, locked environment)  
 > **Previous green baseline on main:** b262fcf1f18787fd5f4661de2ed3c5c3510ad49b (Stage 12.3)
