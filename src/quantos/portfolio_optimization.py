@@ -422,6 +422,49 @@ class SkfolioMinimumVarianceOptimizer:
                 raise ValueError("baseline unexpectedly carries capital authority")
 
 
+def optimized_portfolio_solution_identity(
+    solution: OptimizedPortfolioSolution,
+) -> str:
+    payload = {
+        "model_id": solution.model_id,
+        "manifest_id": solution.manifest_id,
+        "dataset_id": solution.dataset_id,
+        "covariance_artifact_id": solution.covariance_artifact_id,
+        "decision_time": solution.decision_time.isoformat(),
+        "objective": solution.objective,
+        "risk_measure": solution.risk_measure,
+        "engine_name": solution.engine_name,
+        "engine_version": solution.engine_version,
+        "solver": solution.solver,
+        "solver_status": solution.solver_status,
+        "solver_objective_value": str(solution.solver_objective_value),
+        "optimization_policy_id": solution.optimization_policy_id,
+        "constraint_policy_id": solution.constraint_policy_id,
+        "baseline_solution_ids": list(solution.baseline_solution_ids),
+        "weights": [
+            {
+                "security_id": item.security_id,
+                "weight": str(item.weight),
+            }
+            for item in solution.weights
+        ],
+        "previous_weights": [
+            {
+                "security_id": item.security_id,
+                "weight": str(item.weight),
+            }
+            for item in solution.previous_weights
+        ],
+        "net_exposure": str(solution.net_exposure),
+        "gross_exposure": str(solution.gross_exposure),
+        "one_way_turnover": str(solution.one_way_turnover),
+        "portfolio_variance": str(solution.portfolio_variance),
+        "covariance_verified": solution.covariance_verified,
+        "capital_authority": solution.capital_authority,
+    }
+    return _content_id("optimized-portfolio-solution", payload)
+
+
 class OptimizedPortfolioStore:
     """Immutable idempotent persistence for constrained optimizer outputs."""
 
@@ -445,6 +488,13 @@ class OptimizedPortfolioStore:
         )
 
     def add(self, solution: OptimizedPortfolioSolution) -> bool:
+        if (
+            solution.solution_id
+            != optimized_portfolio_solution_identity(solution)
+        ):
+            raise ValueError(
+                "optimized portfolio solution content does not match solution_id"
+            )
         payload = json.dumps(
             {
                 key: (
