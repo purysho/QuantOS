@@ -17,6 +17,11 @@ from .portfolio_construction import (
     PortfolioWeight,
     portfolio_solution_identity,
 )
+from .portfolio_hierarchical import (
+    HierarchicalAllocator,
+    HierarchicalPortfolioSolution,
+    hierarchical_portfolio_solution_identity,
+)
 from .portfolio_optimization import (
     OptimizedPortfolioSolution,
     optimized_portfolio_solution_identity,
@@ -27,6 +32,8 @@ class PortfolioMethod(str, Enum):
     EQUAL_WEIGHT = "EQUAL_WEIGHT"
     INVERSE_VOLATILITY = "INVERSE_VOLATILITY"
     MINIMUM_VARIANCE = "MINIMUM_VARIANCE"
+    HRP = "HRP"
+    HERC = "HERC"
 
 
 @dataclass(frozen=True)
@@ -112,6 +119,7 @@ class PortfolioComparisonFold:
     optimized: OptimizedPortfolioSolution
     security_returns: tuple[OutOfSampleSecurityReturn, ...]
     market_benchmark: OutOfSampleBenchmarkReturn
+    hierarchical: tuple[HierarchicalPortfolioSolution, ...] = ()
 
     def __post_init__(self) -> None:
         if self.fold_number < 0:
@@ -148,6 +156,9 @@ class PortfolioComparisonFold:
                     item.solution_id for item in self.baselines
                 ),
                 "optimized_solution_id": self.optimized.solution_id,
+                "hierarchical_solution_ids": sorted(
+                    item.solution_id for item in self.hierarchical
+                ),
                 "security_return_ids": sorted(
                     item.return_id for item in self.security_returns
                 ),
@@ -295,8 +306,18 @@ class PortfolioComparisonEngine:
         if len(benchmark_ids) != 1:
             raise ValueError("all portfolio comparison folds require one benchmark")
 
+        method_sets = tuple(
+            frozenset(context["solutions"]) for context in contexts
+        )
+        if any(item != method_sets[0] for item in method_sets[1:]):
+            raise ValueError(
+                "every OOS fold must contain the same portfolio methods"
+            )
+        active_methods = tuple(
+            sorted(method_sets[0], key=lambda item: item.value)
+        )
         outcomes: dict[PortfolioMethod, list[PortfolioFoldOutcome]] = {
-            method: [] for method in PortfolioMethod
+            method: [] for method in active_methods
         }
         benchmark_wealth = Decimal("1")
         for fold, context in zip(folds, contexts):
@@ -357,11 +378,7 @@ class PortfolioComparisonEngine:
                 benchmark_wealth=benchmark_wealth,
                 confidence=policy.expected_shortfall_confidence,
             )
-            for method in (
-                PortfolioMethod.EQUAL_WEIGHT,
-                PortfolioMethod.INVERSE_VOLATILITY,
-                PortfolioMethod.MINIMUM_VARIANCE,
-            )
+            for method in active_methods
         )
         fold_ids = tuple(item.fold_id for item in folds)
         payload = {
@@ -459,9 +476,45 @@ class PortfolioComparisonEngine:
                 "optimized solution does not cite the exact fold baselines"
             )
 
+        hierarchical_by_method: dict[
+            PortfolioMethod,
+            HierarchicalPortfolioSolution,
+        ] = {}
+        if fold.hierarchical:
+            if len(fold.hierarchical) != 2:
+                raise ValueError(
+                    "hierarchical comparison requires exactly HRP and HERC"
+                )
+            for item in fold.hierarchical:
+                if (
+                    item.solution_id
+                    != hierarchical_portfolio_solution_identity(item)
+                ):
+                    raise ValueError(
+                        "hierarchical solution identity does not match content"
+                    )
+                method = (
+                    PortfolioMethod.HRP
+                    if item.allocator is HierarchicalAllocator.HRP
+                    else PortfolioMethod.HERC
+                )
+                if method in hierarchical_by_method:
+                    raise ValueError(
+                        "duplicate hierarchical method in OOS fold"
+                    )
+                hierarchical_by_method[method] = item
+            if set(hierarchical_by_method) != {
+                PortfolioMethod.HRP,
+                PortfolioMethod.HERC,
+            }:
+                raise ValueError(
+                    "hierarchical comparison requires HRP and HERC"
+                )
+
         solutions = {
             **baseline_by_method,
             PortfolioMethod.MINIMUM_VARIANCE: fold.optimized,
+            **hierarchical_by_method,
         }
         model_ids = {item.model_id for item in solutions.values()}
         manifest_ids = {item.manifest_id for item in solutions.values()}

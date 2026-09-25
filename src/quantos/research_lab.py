@@ -48,6 +48,12 @@ from .portfolio_construction import (
     PortfolioWeight,
     SkfolioBaselineAllocator,
 )
+from .portfolio_hierarchical import (
+    HierarchicalAllocationPolicy,
+    HierarchicalAllocator,
+    HierarchicalPortfolioSolution,
+    SkfolioHierarchicalAllocator,
+)
 from .portfolio_optimization import (
     MinimumVariancePolicy,
     OptimizedPortfolioSolution,
@@ -96,6 +102,7 @@ class ResearchLabService:
         self._baseline_allocator = SkfolioBaselineAllocator()
         self._covariance = SkfolioCovarianceEstimator()
         self._minimum_variance = SkfolioMinimumVarianceOptimizer()
+        self._hierarchical = SkfolioHierarchicalAllocator()
         self._portfolio_comparison = PortfolioComparisonEngine()
 
     def build_universe(
@@ -272,6 +279,25 @@ class ResearchLabService:
             constraints=constraints,
             policy=policy,
             baselines=baselines,
+            previous_weights=previous_weights,
+        )
+
+    def allocate_hierarchical_portfolio(
+        self,
+        *,
+        dataset: PortfolioDataset,
+        covariance: CovarianceArtifact,
+        constraints: PortfolioConstraintPolicy,
+        policy: HierarchicalAllocationPolicy,
+        allocator: HierarchicalAllocator,
+        previous_weights: tuple[PortfolioWeight, ...] = (),
+    ) -> HierarchicalPortfolioSolution:
+        return self._hierarchical.allocate(
+            dataset=dataset,
+            covariance=covariance,
+            constraints=constraints,
+            policy=policy,
+            allocator=allocator,
             previous_weights=previous_weights,
         )
 
