@@ -357,6 +357,19 @@ class PortfolioRobustnessEngine:
             constraints=constraints,
         )
 
+        if len({item.observation_id for item in covariance_sensitivity}) != len(
+            covariance_sensitivity
+        ):
+            raise ValueError("duplicate covariance-sensitivity observations")
+        for item in covariance_sensitivity:
+            if (
+                item.observation_id
+                != covariance_sensitivity_observation_identity(item)
+            ):
+                raise ValueError(
+                    "covariance-sensitivity observation identity mismatch"
+                )
+
         reasons: list[str] = []
         for item in weight_stability:
             if (
@@ -472,8 +485,9 @@ class PortfolioRobustnessEngine:
                 }
                 for item in cluster_stability
             ],
-            "covariance_sensitivity_ids": [
-                item.observation_id for item in covariance_sensitivity
+            "covariance_sensitivity": [
+                _covariance_sensitivity_payload(item)
+                for item in covariance_sensitivity
             ],
             "constraint_fragility": {
                 "minimum_upper_weight_headroom": str(
@@ -691,8 +705,9 @@ def portfolio_robustness_dossier_identity(
             }
             for item in dossier.cluster_stability
         ],
-        "covariance_sensitivity_ids": [
-            item.observation_id for item in dossier.covariance_sensitivity
+        "covariance_sensitivity": [
+            _covariance_sensitivity_payload(item)
+            for item in dossier.covariance_sensitivity
         ],
         "constraint_fragility": {
             "minimum_upper_weight_headroom": str(
@@ -779,6 +794,48 @@ class PortfolioRobustnessStore:
 
     def close(self) -> None:
         self._con.close()
+
+
+def covariance_sensitivity_observation_identity(
+    observation: CovarianceSensitivityObservation,
+) -> str:
+    payload = {
+        "dataset_id": observation.dataset_id,
+        "reference_covariance_id": observation.reference_covariance_id,
+        "alternate_covariance_id": observation.alternate_covariance_id,
+        "reference_estimator": observation.reference_estimator,
+        "alternate_estimator": observation.alternate_estimator,
+        "reference_solution_id": observation.reference_solution_id,
+        "alternate_solution_id": observation.alternate_solution_id,
+        "weight_turnover_distance": str(
+            observation.weight_turnover_distance
+        ),
+        "maximum_condition_number": str(
+            observation.maximum_condition_number
+        ),
+    }
+    return _content_id("covariance-sensitivity-observation", payload)
+
+
+def _covariance_sensitivity_payload(
+    observation: CovarianceSensitivityObservation,
+) -> dict[str, object]:
+    return {
+        "observation_id": observation.observation_id,
+        "dataset_id": observation.dataset_id,
+        "reference_covariance_id": observation.reference_covariance_id,
+        "alternate_covariance_id": observation.alternate_covariance_id,
+        "reference_estimator": observation.reference_estimator,
+        "alternate_estimator": observation.alternate_estimator,
+        "reference_solution_id": observation.reference_solution_id,
+        "alternate_solution_id": observation.alternate_solution_id,
+        "weight_turnover_distance": str(
+            observation.weight_turnover_distance
+        ),
+        "maximum_condition_number": str(
+            observation.maximum_condition_number
+        ),
+    }
 
 
 def _weight_turnover_distance(
@@ -880,14 +937,7 @@ def _jsonable(dossier: PortfolioRobustnessDossier) -> dict[str, object]:
             for item in dossier.cluster_stability
         ],
         "covariance_sensitivity": [
-            {
-                key: (
-                    str(value)
-                    if isinstance(value, Decimal)
-                    else value
-                )
-                for key, value in item.__dict__.items()
-            }
+            _covariance_sensitivity_payload(item)
             for item in dossier.covariance_sensitivity
         ],
         "constraint_fragility": {
