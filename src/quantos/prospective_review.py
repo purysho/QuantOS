@@ -72,6 +72,7 @@ class ProspectiveComparison:
     comparison_id: str
     model_id: str
     manifest_id: str
+    case_id: str
     expectation_id: str
     postmortem_id: str
     reviewed_at: datetime
@@ -348,6 +349,7 @@ class ProspectiveReviewEngine:
         payload = {
             "model_id": manifest.model_id,
             "manifest_id": manifest.manifest_id,
+            "case_id": manifest.research_case_id,
             "expectation_id": expectation.expectation_id,
             "postmortem_id": postmortem.postmortem_id,
             "reviewed_at": reviewed_at.isoformat(),
@@ -380,6 +382,7 @@ class ProspectiveReviewEngine:
             comparison_id=_content_id("prospective-comparison", payload),
             model_id=manifest.model_id,
             manifest_id=manifest.manifest_id,
+            case_id=manifest.research_case_id,
             expectation_id=expectation.expectation_id,
             postmortem_id=postmortem.postmortem_id,
             reviewed_at=reviewed_at,
@@ -413,8 +416,10 @@ class ProspectiveReviewEngine:
             raise ValueError("revision seed cannot predate prospective comparison")
         if not author.strip():
             raise ValueError("revision seed author is required")
-        if prior_case.case_id != comparison.model_id and False:
-            raise AssertionError("unreachable")
+        if prior_case.case_id != comparison.case_id:
+            raise ValueError(
+                "prospective comparison belongs to another prior Research Case"
+            )
         if not evidence_references or not all(
             item.strip() for item in evidence_references
         ):
