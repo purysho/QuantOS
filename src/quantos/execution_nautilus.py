@@ -13,6 +13,12 @@ from pathlib import Path
 import duckdb
 
 from .execution_contracts import (
+    CommissionRounding,
+    ImmediatePartialFills,
+    LiquidityRefresh,
+    MarketOrderResidual,
+    OrderActivationMode,
+    RestingLimitFillPrice,
     ExecutionAssetClass,
     ExecutionInstrument,
     ExecutionOrderType,
@@ -73,6 +79,11 @@ class NautilusDifferentialBehavior(str, Enum):
     IMMEDIATE_TIME_IN_FORCE = "IMMEDIATE_TIME_IN_FORCE"
     LIMIT_TRANSITION = "LIMIT_TRANSITION"
     MULTI_INSTRUMENT_SCHEDULE = "MULTI_INSTRUMENT_SCHEDULE"
+    ROUNDED_FEES = "ROUNDED_FEES"
+    NEXT_ARRIVAL_LATENCY = "NEXT_ARRIVAL_LATENCY"
+    RESTING_LIMIT_ACCUMULATION = "RESTING_LIMIT_ACCUMULATION"
+    MARKET_L1_SWEEP = "MARKET_L1_SWEEP"
+    IOC_ALWAYS_PARTIAL = "IOC_ALWAYS_PARTIAL"
 
 
 class NautilusRawTerminalState(str, Enum):
@@ -295,6 +306,120 @@ MULTI_INSTRUMENT_SCHEDULE_CONTRACT = NautilusEquivalenceContract(
     ),
 )
 
+_STAGE_12_10_SCOPE = (
+    "whole-share equity with unit multiplier",
+    "slippage and market impact are zero",
+    "maximum participation is exactly 1",
+    "every mapped quote arrival time is unique",
+    "exactly one quote arrives at order submission time",
+    "every reference semantics mode not named by the contract is at its default",
+)
+
+ROUNDED_FEES_CONTRACT = NautilusEquivalenceContract(
+    behavior=NautilusDifferentialBehavior.ROUNDED_FEES,
+    stage="12.10.1",
+    scope=_STAGE_12_10_SCOPE
+    + (
+        "commission_bps is strictly positive",
+        "reference commission_rounding is HALF_EVEN_MINOR_UNIT",
+        "market and order latency are zero, partial fills disabled",
+        "displayed contra liquidity fills the complete order, limits marketable",
+        "exact commission is not a half-minor-unit tie",
+    ),
+    mapping=(
+        "commission_bps / 10000 -> Equity.maker_fee and Equity.taker_fee",
+        "reference rounds each fill's commission half-even to minor units",
+    ),
+    compared_fields=COMPARED_FIELDS,
+    known_divergences=(
+        "Nautilus computes commissions in binary floating point before "
+        "rounding, so an exact half-minor-unit tie could round either way; "
+        "tie fixtures are refused.",
+    ),
+)
+
+NEXT_ARRIVAL_LATENCY_CONTRACT = NautilusEquivalenceContract(
+    behavior=NautilusDifferentialBehavior.NEXT_ARRIVAL_LATENCY,
+    stage="12.10.2",
+    scope=_STAGE_12_10_SCOPE
+    + (
+        "order_latency_ms is strictly positive",
+        "reference order_activation is NEXT_QUOTE_ARRIVAL",
+        "a quote arrives at or after activation inside the replay horizon",
+        "that first post-activation book fills the complete order",
+        "market latency and commission are zero, partial fills disabled",
+    ),
+    mapping=(
+        "order_latency_ms -> StaticLatencyModel insert/update/cancel latency",
+        "order matches the first book arriving at or after activation",
+    ),
+    compared_fields=COMPARED_FIELDS,
+    known_divergences=(),
+)
+
+RESTING_LIMIT_ACCUMULATION_CONTRACT = NautilusEquivalenceContract(
+    behavior=NautilusDifferentialBehavior.RESTING_LIMIT_ACCUMULATION,
+    stage="12.10.3",
+    scope=_STAGE_12_10_SCOPE
+    + (
+        "limit order with DAY or GTC time in force",
+        "reference resting_limit_fill_price is LIMIT_PRICE",
+        "reference liquidity_refresh is ON_LEVEL_SIZE_CHANGE",
+        "partial fills are enabled",
+        "the order does not fill completely on its activation book",
+        "latency and commission are zero",
+        "DAY fixtures do not cross a UTC date boundary",
+    ),
+    mapping=(
+        "activation-book fills at the contra touch (taker)",
+        "later fills of the resting order at its limit price (maker)",
+        "quantity taken at a price level stays consumed until that level "
+        "is shown with a different size, even after the book moves away",
+        "order working when replay data ends -> EXPIRED at horizon",
+    ),
+    compared_fields=COMPARED_FIELDS,
+    known_divergences=(),
+)
+
+MARKET_L1_SWEEP_CONTRACT = NautilusEquivalenceContract(
+    behavior=NautilusDifferentialBehavior.MARKET_L1_SWEEP,
+    stage="12.10.4",
+    scope=_STAGE_12_10_SCOPE
+    + (
+        "market order with DAY or GTC time in force",
+        "reference market_order_residual is ONE_TICK_THROUGH",
+        "displayed contra size is smaller than the order",
+        "latency and commission are zero",
+    ),
+    mapping=(
+        "displayed size fills at the touch, the whole residual one tick "
+        "through it, at the same instant (L1 synthetic depth)",
+    ),
+    compared_fields=COMPARED_FIELDS,
+    known_divergences=(
+        "IOC and FOK market orders do not sweep in Nautilus; they stay under "
+        "the IMMEDIATE_TIME_IN_FORCE contract.",
+    ),
+)
+
+IOC_ALWAYS_PARTIAL_CONTRACT = NautilusEquivalenceContract(
+    behavior=NautilusDifferentialBehavior.IOC_ALWAYS_PARTIAL,
+    stage="12.10.5",
+    scope=_STAGE_12_10_SCOPE
+    + (
+        "IOC order with partial fills disabled by policy",
+        "reference immediate_partial_fills is ALWAYS_ALLOW",
+        "marketable with displayed contra size smaller than the order",
+        "latency and commission are zero",
+    ),
+    mapping=(
+        "IOC takes displayed size regardless of the partial-fill flag",
+        "Nautilus venue cancel of the remainder -> EXPIRED",
+    ),
+    compared_fields=COMPARED_FIELDS,
+    known_divergences=(),
+)
+
 NAUTILUS_EQUIVALENCE_CONTRACTS: dict[
     NautilusDifferentialBehavior,
     NautilusEquivalenceContract,
@@ -308,8 +433,34 @@ NAUTILUS_EQUIVALENCE_CONTRACTS: dict[
         IMMEDIATE_TIME_IN_FORCE_CONTRACT,
         LIMIT_TRANSITION_CONTRACT,
         MULTI_INSTRUMENT_SCHEDULE_CONTRACT,
+        ROUNDED_FEES_CONTRACT,
+        NEXT_ARRIVAL_LATENCY_CONTRACT,
+        RESTING_LIMIT_ACCUMULATION_CONTRACT,
+        MARKET_L1_SWEEP_CONTRACT,
+        IOC_ALWAYS_PARTIAL_CONTRACT,
     )
 }
+
+_B = NautilusDifferentialBehavior
+# Reference semantics modes each contract requires; all others stay default.
+REQUIRED_REFERENCE_MODES: dict[NautilusDifferentialBehavior, dict[str, object]] = {
+    _B.ROUNDED_FEES: {"commission_rounding": CommissionRounding.HALF_EVEN_MINOR_UNIT},
+    _B.NEXT_ARRIVAL_LATENCY: {"order_activation": OrderActivationMode.NEXT_QUOTE_ARRIVAL},
+    _B.RESTING_LIMIT_ACCUMULATION: {
+        "resting_limit_fill_price": RestingLimitFillPrice.LIMIT_PRICE,
+        "liquidity_refresh": LiquidityRefresh.ON_LEVEL_SIZE_CHANGE,
+    },
+    _B.MARKET_L1_SWEEP: {"market_order_residual": MarketOrderResidual.ONE_TICK_THROUGH},
+    _B.IOC_ALWAYS_PARTIAL: {"immediate_partial_fills": ImmediatePartialFills.ALWAYS_ALLOW},
+}
+_MODE_FIELDS = (
+    "order_activation",
+    "market_order_residual",
+    "resting_limit_fill_price",
+    "liquidity_refresh",
+    "commission_rounding",
+    "immediate_partial_fills",
+)
 
 
 @dataclass(frozen=True)
@@ -1107,17 +1258,24 @@ class NautilusHistoricalBacktestAdapter:
             raise ValueError(
                 "order activation lies outside the replay horizon"
             )
-        activation_quote = (
-            _single_arrival(
+        if behavior is NautilusDifferentialBehavior.ORDER_LATENCY:
+            activation_quote = _single_arrival(
                 arrivals,
                 active_at,
                 "ORDER_LATENCY requires exactly one quote at order "
                 "activation time; Nautilus matches in-flight orders only "
                 "on the next data arrival",
             )
-            if behavior is NautilusDifferentialBehavior.ORDER_LATENCY
-            else submission_quote
-        )
+        elif behavior is NautilusDifferentialBehavior.NEXT_ARRIVAL_LATENCY:
+            following = [q for q, at in arrivals if at >= active_at]
+            if not following:
+                raise ValueError(
+                    "NEXT_ARRIVAL_LATENCY requires a quote arriving at or "
+                    "after activation inside the replay horizon"
+                )
+            activation_quote = following[0]
+        else:
+            activation_quote = submission_quote
         touch_price, touch_quantity = _contra_touch(
             intent.side,
             activation_quote,
@@ -1144,6 +1302,38 @@ class NautilusHistoricalBacktestAdapter:
                     "IOC shortfall with partial fills disabled is a known "
                     "reference/Nautilus divergence"
                 )
+        elif behavior is _B.RESTING_LIMIT_ACCUMULATION:
+            if intent.order_type is not ExecutionOrderType.LIMIT:
+                raise ValueError("RESTING_LIMIT_ACCUMULATION requires a limit order")
+            if intent.time_in_force not in _RESTING_TIME_IN_FORCE:
+                raise ValueError("RESTING_LIMIT_ACCUMULATION requires DAY or GTC")
+            if marketable and full_liquidity:
+                raise ValueError(
+                    "RESTING_LIMIT_ACCUMULATION fixture fills completely on "
+                    "its activation book; use the zero-friction contract"
+                )
+            if intent.time_in_force is TimeInForce.DAY and (
+                intent.submitted_at.astimezone(timezone.utc).date()
+                != dataset.end_time.astimezone(timezone.utc).date()
+            ):
+                raise ValueError("DAY fixture crosses a UTC date boundary")
+        elif behavior is _B.MARKET_L1_SWEEP:
+            if intent.order_type is not ExecutionOrderType.MARKET:
+                raise ValueError("MARKET_L1_SWEEP requires a market order")
+            if intent.time_in_force not in _RESTING_TIME_IN_FORCE:
+                raise ValueError("MARKET_L1_SWEEP requires DAY or GTC")
+            if full_liquidity:
+                raise ValueError(
+                    "MARKET_L1_SWEEP fixture has enough displayed size; use "
+                    "the zero-friction contract"
+                )
+        elif behavior is _B.IOC_ALWAYS_PARTIAL:
+            if intent.time_in_force is not TimeInForce.IOC:
+                raise ValueError("IOC_ALWAYS_PARTIAL requires IOC")
+            if not marketable or full_liquidity:
+                raise ValueError(
+                    "IOC_ALWAYS_PARTIAL requires a marketable shortfall"
+                )
         elif behavior is NautilusDifferentialBehavior.LIMIT_TRANSITION:
             self._validate_limit_transition(
                 dataset=dataset,
@@ -1164,6 +1354,13 @@ class NautilusHistoricalBacktestAdapter:
                 )
             if behavior is NautilusDifferentialBehavior.DETERMINISTIC_FEES:
                 _require_exact_commission(
+                    quantity=intent.quantity,
+                    price=touch_price,
+                    commission_bps=policy.commission_bps,
+                    currency=instrument.quote_currency,
+                )
+            if behavior is _B.ROUNDED_FEES:
+                _refuse_commission_tie(
                     quantity=intent.quantity,
                     price=touch_price,
                     commission_bps=policy.commission_bps,
@@ -1192,40 +1389,55 @@ class NautilusHistoricalBacktestAdapter:
             raise ValueError(
                 "Nautilus differential requires full participation"
             )
-        exercised = {
-            NautilusDifferentialBehavior.DETERMINISTIC_FEES: (
-                policy.commission_bps != Decimal("0")
-            ),
-            NautilusDifferentialBehavior.ORDER_LATENCY: (
-                policy.order_latency_ms != 0
-            ),
-            NautilusDifferentialBehavior.MARKET_DATA_LATENCY: (
-                policy.market_latency_ms != 0
-            ),
-        }
-        for other, active in exercised.items():
-            if other is behavior and not active:
+        required = REQUIRED_REFERENCE_MODES.get(behavior, {})
+        defaults = ExecutionSimulationPolicy.__dataclass_fields__
+        for name in _MODE_FIELDS:
+            expected = required.get(name, defaults[name].default)
+            if getattr(policy, name) is not expected:
                 raise ValueError(
-                    behavior.value
-                    + " contract requires the behavior it names"
+                    f"reference mode {name}={getattr(policy, name).value} is "
+                    f"outside the {behavior.value} equivalence contract"
                 )
-            if other is not behavior and active:
+        allowed = {
+            "commission": {_B.DETERMINISTIC_FEES, _B.ROUNDED_FEES},
+            "order_latency": {_B.ORDER_LATENCY, _B.NEXT_ARRIVAL_LATENCY},
+            "market_latency": {_B.MARKET_DATA_LATENCY},
+        }
+        active = {
+            "commission": policy.commission_bps != Decimal("0"),
+            "order_latency": policy.order_latency_ms != 0,
+            "market_latency": policy.market_latency_ms != 0,
+        }
+        names = {
+            "commission": "DETERMINISTIC_FEES",
+            "order_latency": "ORDER_LATENCY",
+            "market_latency": "MARKET_DATA_LATENCY",
+        }
+        for key, behaviors in allowed.items():
+            if behavior in behaviors and not active[key]:
                 raise ValueError(
-                    other.value
+                    behavior.value + " contract requires the behavior it names"
+                )
+            if behavior not in behaviors and active[key]:
+                raise ValueError(
+                    names[key]
                     + " is outside the "
                     + behavior.value
                     + " equivalence contract"
                 )
-        if (
-            policy.allow_partial_fills
-            and behavior
-            is not NautilusDifferentialBehavior.IMMEDIATE_TIME_IN_FORCE
-        ):
+        partial_contracts = {
+            _B.IMMEDIATE_TIME_IN_FORCE,
+            _B.RESTING_LIMIT_ACCUMULATION,
+            _B.MARKET_L1_SWEEP,
+        }
+        if policy.allow_partial_fills and behavior not in partial_contracts:
             raise ValueError(
                 "partial fills are outside the "
                 + behavior.value
                 + " equivalence contract"
             )
+        if behavior is _B.RESTING_LIMIT_ACCUMULATION and not policy.allow_partial_fills:
+            raise ValueError("RESTING_LIMIT_ACCUMULATION requires partial fills")
 
     @staticmethod
     def _validate_limit_transition(
@@ -1963,6 +2175,24 @@ def _require_exact_commission(
         raise ValueError(
             "DETERMINISTIC_FEES requires commission exactly representable "
             "at currency precision; Nautilus would round it"
+        )
+
+
+def _refuse_commission_tie(
+    *,
+    quantity: Decimal,
+    price: Decimal,
+    commission_bps: Decimal,
+    currency: Currency,
+) -> None:
+    precision = CURRENCY_PRECISION.get(currency)
+    if precision is None:
+        raise ValueError("fee differential currency has no frozen precision")
+    scaled = quantity * price * commission_bps / Decimal("10000") * Decimal(10) ** precision
+    if scaled - scaled.to_integral_value(rounding="ROUND_FLOOR") == Decimal("0.5"):
+        raise ValueError(
+            "ROUNDED_FEES refuses half-minor-unit commission ties; Nautilus "
+            "rounds a binary floating-point value"
         )
 
 

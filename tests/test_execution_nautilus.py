@@ -21,8 +21,21 @@ from quantos.execution_contracts import (
     TimeInForce,
     TopOfBookQuote,
 )
+from quantos.execution_contracts import (
+    CommissionRounding,
+    ImmediatePartialFills,
+    LiquidityRefresh,
+    MarketOrderResidual,
+    OrderActivationMode,
+    RestingLimitFillPrice,
+)
 from quantos.execution_nautilus import (
     DETERMINISTIC_FEES_CONTRACT,
+    IOC_ALWAYS_PARTIAL_CONTRACT,
+    MARKET_L1_SWEEP_CONTRACT,
+    NEXT_ARRIVAL_LATENCY_CONTRACT,
+    RESTING_LIMIT_ACCUMULATION_CONTRACT,
+    ROUNDED_FEES_CONTRACT,
     IMMEDIATE_TIME_IN_FORCE_CONTRACT,
     LIMIT_TRANSITION_CONTRACT,
     MARKET_DATA_LATENCY_CONTRACT,
@@ -895,6 +908,123 @@ class MultiInstrumentScheduleContractTests(DifferentialAssertions):
                 policy(commission_bps=Decimal("3")),
                 self.orders(),
             )
+
+
+ACCUMULATE = {
+    "allow_partial_fills": True,
+    "resting_limit_fill_price": RestingLimitFillPrice.LIMIT_PRICE,
+    "liquidity_refresh": LiquidityRefresh.ON_LEVEL_SIZE_CHANGE,
+}
+
+
+@requires_nautilus
+class Stage1210ContractTests(DifferentialAssertions):
+    def test_rounded_fees_match_half_even_reference(self):
+        p = policy(commission_bps=Decimal("1"), commission_rounding=CommissionRounding.HALF_EVEN_MINOR_UNIT)
+        reference, result, diff = compare(dataset(), p, ROUNDED_FEES_CONTRACT)
+        self.assertMatch(diff)
+        self.assertEqual(reference.total_fees, Decimal("1.00"))
+        self.assertEqual(result.total_fees, Decimal("1.00"))
+
+    def test_rounded_fee_tie_is_refused(self):
+        p = policy(commission_bps=Decimal("1"), commission_rounding=CommissionRounding.HALF_EVEN_MINOR_UNIT)
+        with self.assertRaisesRegex(ValueError, "ties"):
+            simulate_only(dataset(quote(bid="49.90", ask="50.00")), p, ROUNDED_FEES_CONTRACT, quantity="3")
+
+    def test_exact_fee_contract_still_refuses_rounding_mode(self):
+        p = policy(commission_bps=Decimal("3"), commission_rounding=CommissionRounding.HALF_EVEN_MINOR_UNIT)
+        with self.assertRaisesRegex(ValueError, "reference mode"):
+            simulate_only(dataset(quote(bid="49.90", ask="50.00")), p, DETERMINISTIC_FEES_CONTRACT)
+
+    def latency_data(self):
+        return dataset(
+            quote(at=SUBMIT, sequence=1, ask="100.01", bid="99.99"),
+            quote(at=SUBMIT + 5 * MS, sequence=2, ask="100.02", bid="100.00"),
+            quote(at=SUBMIT + 10 * MS, sequence=3, ask="100.03", bid="100.01"),
+        )
+
+    def test_next_arrival_latency_matches_between_quotes(self):
+        p = policy(order_latency_ms=7, order_activation=OrderActivationMode.NEXT_QUOTE_ARRIVAL)
+        for tif in (TimeInForce.GTC, TimeInForce.IOC):
+            with self.subTest(tif=tif):
+                reference, result, diff = compare(self.latency_data(), p, NEXT_ARRIVAL_LATENCY_CONTRACT, time_in_force=tif)
+                self.assertMatch(diff)
+                self.assertEqual(result.volume_weighted_average_price, Decimal("100.03"))
+                self.assertEqual(reference.active_at, SUBMIT + 10 * MS)
+
+    def test_next_arrival_without_later_quote_is_refused(self):
+        p = policy(order_latency_ms=12, order_activation=OrderActivationMode.NEXT_QUOTE_ARRIVAL)
+        with self.assertRaisesRegex(ValueError, "at or after activation"):
+            simulate_only(self.latency_data(), p, NEXT_ARRIVAL_LATENCY_CONTRACT)
+
+    def test_market_sweep_fills_residual_one_tick_through(self):
+        p = policy(market_order_residual=MarketOrderResidual.ONE_TICK_THROUGH)
+        for side, prices in ((ExecutionSide.BUY, (Decimal("100.01"), Decimal("100.02"))),
+                             (ExecutionSide.SELL, (Decimal("99.99"), Decimal("99.98")))):
+            with self.subTest(side=side):
+                _, result, diff = compare(dataset(quote(size="60")), p, MARKET_L1_SWEEP_CONTRACT, side=side, quantity="250")
+                self.assertMatch(diff)
+                self.assertEqual(result.fill_prices, prices)
+                self.assertEqual(result.fill_quantities, (Decimal("60"), Decimal("190")))
+
+    def test_ioc_always_partial(self):
+        p = policy(immediate_partial_fills=ImmediatePartialFills.ALWAYS_ALLOW)
+        _, result, diff = compare(dataset(quote(size="60")), p, IOC_ALWAYS_PARTIAL_CONTRACT, time_in_force=TimeInForce.IOC)
+        self.assertMatch(diff)
+        self.assertEqual(result.filled_quantity, Decimal("60"))
+        self.assertEqual(result.final_state, SimulationOrderState.EXPIRED)
+
+    def test_resting_limit_accumulation_documented_cases(self):
+        cases = {
+            "refresh-on-change": [("100.01", "60"), ("100.01", "60"), ("100.01", "30"), ("100.01", "30"), ("100.01", "25")],
+            "cross-through-at-limit": [("100.02", "60"), ("100.00", "30"), ("100.00", "30"), ("99.99", "30")],
+            "horizon-expiry": [("100.01", "20"), ("100.03", "500"), ("100.01", "20")],
+        }
+        for name, book in cases.items():
+            with self.subTest(case=name):
+                quotes = tuple(
+                    quote(at=SUBMIT + i * MS, sequence=i + 1, ask=ask, bid=str(Decimal(ask) - Decimal("0.02")), size=size)
+                    for i, (ask, size) in enumerate(book)
+                )
+                _, result, diff = compare(
+                    dataset(*quotes), policy(**ACCUMULATE), RESTING_LIMIT_ACCUMULATION_CONTRACT,
+                    order_type=ExecutionOrderType.LIMIT, limit_price="100.01",
+                )
+                self.assertMatch(diff)
+
+    def test_resting_limit_accumulation_randomized_differential(self):
+        import random
+
+        rng = random.Random(1210)
+        for trial in range(120):
+            side = rng.choice((ExecutionSide.BUY, ExecutionSide.SELL))
+            quotes = []
+            previous = None
+            for i in range(rng.randint(3, 8)):
+                if previous is not None and rng.random() < 0.3:
+                    ask, size = previous
+                else:
+                    ask = Decimal("100.01") + Decimal("0.01") * rng.randint(-2, 2)
+                    size = str(rng.choice((10, 20, 30, 40, 60, 80)))
+                previous = (ask, size)
+                bid = ask - Decimal("0.02")
+                if side is ExecutionSide.SELL:
+                    bid, ask = ask - Decimal("0.02") + Decimal("0.02"), ask + Decimal("0.02")
+                quotes.append(quote(at=SUBMIT + i * MS, sequence=i + 1, bid=str(bid), ask=str(ask), size=size))
+            first_touch = quotes[0].ask_price if side is ExecutionSide.BUY else quotes[0].bid_price
+            if first_touch == Decimal("100.01") and quotes[0].ask_quantity >= 100:
+                continue
+            try:
+                _, _, diff = compare(
+                    dataset(*quotes), policy(**ACCUMULATE), RESTING_LIMIT_ACCUMULATION_CONTRACT,
+                    side=side, order_type=ExecutionOrderType.LIMIT, limit_price="100.01",
+                )
+            except ValueError as exc:
+                if "fills completely" in str(exc):
+                    continue
+                raise
+            with self.subTest(trial=trial):
+                self.assertMatch(diff)
 
 
 class NautilusEnvironmentTests(unittest.TestCase):

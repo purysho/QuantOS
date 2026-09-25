@@ -8,6 +8,7 @@ from decimal import (
     Decimal,
     ROUND_CEILING,
     ROUND_FLOOR,
+    ROUND_HALF_EVEN,
 )
 from pathlib import Path
 
@@ -26,6 +27,13 @@ from .execution_contracts import (
     SimulationOrderIntent,
     SimulationOrderLedger,
     SimulationOrderState,
+    CURRENCY_MINOR_UNITS,
+    CommissionRounding,
+    ImmediatePartialFills,
+    LiquidityRefresh,
+    MarketOrderResidual,
+    OrderActivationMode,
+    RestingLimitFillPrice,
     TimeInForce,
     TopOfBookQuote,
     execution_simulation_run_identity,
@@ -62,7 +70,7 @@ class FirstCurrentReferenceFillEngine:
     """Deterministic top-of-book historical replay oracle."""
 
     ENGINE_NAME = "FIRST_CURRENT_REFERENCE"
-    ENGINE_VERSION = "12.2"
+    ENGINE_VERSION = "12.10"
 
     def simulate(
         self,
@@ -83,41 +91,10 @@ class FirstCurrentReferenceFillEngine:
         )
         ledger.add_intent(intent)
 
+        immediate = intent.time_in_force in {TimeInForce.IOC, TimeInForce.FOK}
         active_at = intent.submitted_at + timedelta(
             milliseconds=policy.order_latency_ms
         )
-        if active_at > dataset.end_time:
-            transition = ledger.transition(
-                intent=intent,
-                new_state=SimulationOrderState.REJECTED,
-                occurred_at=intent.submitted_at,
-                reason=(
-                    "order latency places simulated order outside replay horizon"
-                ),
-            )
-            return self._result(
-                run=run,
-                intent=intent,
-                active_at=active_at,
-                final_state=SimulationOrderState.REJECTED,
-                transitions=(transition.transition_id,),
-                fills=(),
-                instrument=instrument,
-                touch_prices=(),
-                market_event_ids=(),
-            )
-
-        accepted = ledger.transition(
-            intent=intent,
-            new_state=SimulationOrderState.ACCEPTED,
-            occurred_at=active_at,
-            reason="historical replay order became active",
-        )
-        transition_ids: list[str] = [accepted.transition_id]
-        fills: list[SimulatedFill] = []
-        touch_prices: list[Decimal] = []
-        market_event_ids: list[str] = []
-
         quotes = tuple(
             event
             for event in dataset.events
@@ -139,50 +116,218 @@ class FirstCurrentReferenceFillEngine:
             <= dataset.end_time
         )
 
-        current_quote: TopOfBookQuote | None = None
-        later_quotes: list[tuple[TopOfBookQuote, object]] = []
-        for quote, available_at in quoted_arrivals:
-            if available_at <= active_at:
-                current_quote = quote
-            else:
-                later_quotes.append((quote, available_at))
-
         candidate_events: list[tuple[TopOfBookQuote, object]] = []
-        if current_quote is not None:
-            candidate_events.append((current_quote, active_at))
-        if intent.time_in_force not in {
-            TimeInForce.IOC,
-            TimeInForce.FOK,
-        }:
+        effective_at = active_at
+        if policy.order_activation is OrderActivationMode.NEXT_QUOTE_ARRIVAL:
+            # The order starts matching only when the next book arrives at or
+            # after activation, and matches against that book.
+            candidate_events = [
+                (quote, available_at)
+                for quote, available_at in quoted_arrivals
+                if available_at >= active_at
+            ]
+            if candidate_events:
+                effective_at = candidate_events[0][1]
+        else:
+            current_quote: TopOfBookQuote | None = None
+            later_quotes: list[tuple[TopOfBookQuote, object]] = []
+            for quote, available_at in quoted_arrivals:
+                if available_at <= active_at:
+                    current_quote = quote
+                else:
+                    later_quotes.append((quote, available_at))
+            if current_quote is not None:
+                candidate_events.append((current_quote, active_at))
             candidate_events.extend(later_quotes)
 
+        no_arrival = (
+            policy.order_activation is OrderActivationMode.NEXT_QUOTE_ARRIVAL
+            and not candidate_events
+        )
+        if active_at > dataset.end_time or no_arrival:
+            transition = ledger.transition(
+                intent=intent,
+                new_state=SimulationOrderState.REJECTED,
+                occurred_at=intent.submitted_at,
+                reason=(
+                    "no market data arrives after activation within replay horizon"
+                    if no_arrival and active_at <= dataset.end_time
+                    else "order latency places simulated order outside replay horizon"
+                ),
+            )
+            return self._result(
+                run=run,
+                intent=intent,
+                active_at=active_at,
+                final_state=SimulationOrderState.REJECTED,
+                transitions=(transition.transition_id,),
+                fills=(),
+                instrument=instrument,
+                touch_prices=(),
+                market_event_ids=(),
+            )
+
+        accepted = ledger.transition(
+            intent=intent,
+            new_state=SimulationOrderState.ACCEPTED,
+            occurred_at=effective_at,
+            reason="historical replay order became active",
+        )
+        transition_ids: list[str] = [accepted.transition_id]
+        fills: list[SimulatedFill] = []
+        touch_prices: list[Decimal] = []
+        market_event_ids: list[str] = []
+        if immediate:
+            candidate_events = candidate_events[:1]
+
+        allow_partial = policy.allow_partial_fills or (
+            intent.time_in_force is TimeInForce.IOC
+            and policy.immediate_partial_fills is ImmediatePartialFills.ALWAYS_ALLOW
+        )
+        refresh_on_change = (
+            policy.liquidity_refresh is LiquidityRefresh.ON_LEVEL_SIZE_CHANGE
+        )
+        # Per price level: (last displayed size, quantity this order took).
+        level_state: dict[Decimal, tuple[Decimal, Decimal]] = {}
         prior_filled = Decimal("0")
         remaining = intent.quantity
-        for quote, fill_time in candidate_events:
+
+        def record(quote, fill_time, quantity, price, touch, liquidity):
+            nonlocal prior_filled, remaining
+            fee = _commission(
+                quantity=quantity,
+                price=price,
+                multiplier=instrument.contract_multiplier,
+                commission_bps=policy.commission_bps,
+                rounding=policy.commission_rounding,
+                currency=instrument.quote_currency,
+            )
+            fill = SimulatedFillBuilder().build(
+                run=run,
+                intent=intent,
+                market_event=quote,
+                fill_time=fill_time,
+                quantity=quantity,
+                price=price,
+                fee=fee,
+                liquidity=liquidity,
+                prior_filled_quantity=prior_filled,
+            )
+            next_state = (
+                SimulationOrderState.FILLED
+                if fill.remaining_quantity == 0
+                else SimulationOrderState.PARTIALLY_FILLED
+            )
+            transition = ledger.transition(
+                intent=intent,
+                new_state=next_state,
+                occurred_at=fill.fill_time,
+                reason="deterministic top-of-book historical replay fill",
+                fill=fill,
+            )
+            transition_ids.append(transition.transition_id)
+            fills.append(fill)
+            touch_prices.append(touch)
+            market_event_ids.append(quote.event_id)
+            prior_filled = fill.cumulative_filled_quantity
+            remaining = fill.remaining_quantity
+
+        for index, (quote, fill_time) in enumerate(candidate_events):
             if remaining <= 0:
                 break
-            if not _is_marketable(intent, quote):
-                if intent.time_in_force in {
-                    TimeInForce.IOC,
-                    TimeInForce.FOK,
-                }:
-                    break
-                continue
-
             touch_price, displayed_quantity = _contra_touch(
                 intent.side,
                 quote,
             )
+            available = displayed_quantity
+            if refresh_on_change:
+                seen_size, taken = level_state.get(touch_price, (None, Decimal("0")))
+                if seen_size == displayed_quantity:
+                    available = displayed_quantity - taken
+                else:
+                    taken = Decimal("0")
+                level_state[touch_price] = (displayed_quantity, taken)
+
+            def take(quantity: Decimal) -> None:
+                if refresh_on_change:
+                    size, taken_so_far = level_state[touch_price]
+                    level_state[touch_price] = (size, taken_so_far + quantity)
+            if not _is_marketable(intent, quote):
+                if immediate:
+                    break
+                continue
+
             capacity = _aligned_capacity(
-                displayed_quantity=displayed_quantity,
+                displayed_quantity=available,
                 participation_rate=policy.maximum_participation_rate,
                 quantity_increment=instrument.quantity_increment,
             )
+            resting = (
+                index > 0
+                and intent.order_type is ExecutionOrderType.LIMIT
+                and policy.resting_limit_fill_price
+                is RestingLimitFillPrice.LIMIT_PRICE
+            )
+            base_price = intent.limit_price if resting else touch_price
+            liquidity = (
+                FillLiquidity.MAKER
+                if resting
+                else FillLiquidity.TAKER
+                if intent.order_type is ExecutionOrderType.MARKET
+                else FillLiquidity.UNKNOWN
+            )
+            sweep = (
+                intent.order_type is ExecutionOrderType.MARKET
+                and not immediate
+                and policy.market_order_residual
+                is MarketOrderResidual.ONE_TICK_THROUGH
+                and capacity < remaining
+            )
+            if sweep:
+                # Synthetic L1 depth: displayed size at the touch, the whole
+                # residual one tick through it, at the same instant.
+                if capacity > 0:
+                    record(
+                        quote,
+                        fill_time,
+                        capacity,
+                        _execution_price(
+                            side=intent.side,
+                            touch_price=touch_price,
+                            fill_quantity=capacity,
+                            displayed_quantity=displayed_quantity,
+                            policy=policy,
+                            price_increment=instrument.price_increment,
+                        ),
+                        touch_price,
+                        liquidity,
+                    )
+                through = (
+                    touch_price + instrument.price_increment
+                    if intent.side is ExecutionSide.BUY
+                    else touch_price - instrument.price_increment
+                )
+                residual = remaining
+                record(
+                    quote,
+                    fill_time,
+                    residual,
+                    _execution_price(
+                        side=intent.side,
+                        touch_price=through,
+                        fill_quantity=residual,
+                        displayed_quantity=residual,
+                        policy=policy,
+                        price_increment=instrument.price_increment,
+                    ),
+                    touch_price,
+                    liquidity,
+                )
+                take(capacity)
+                break
+
             if capacity <= 0:
-                if intent.time_in_force in {
-                    TimeInForce.IOC,
-                    TimeInForce.FOK,
-                }:
+                if immediate:
                     break
                 continue
 
@@ -190,7 +335,7 @@ class FirstCurrentReferenceFillEngine:
                 if capacity < remaining:
                     break
                 fill_quantity = remaining
-            elif not policy.allow_partial_fills:
+            elif not allow_partial:
                 if capacity < remaining:
                     if intent.time_in_force is TimeInForce.IOC:
                         break
@@ -201,7 +346,7 @@ class FirstCurrentReferenceFillEngine:
 
             execution_price = _execution_price(
                 side=intent.side,
-                touch_price=touch_price,
+                touch_price=base_price,
                 fill_quantity=fill_quantity,
                 displayed_quantity=displayed_quantity,
                 policy=policy,
@@ -216,71 +361,18 @@ class FirstCurrentReferenceFillEngine:
                     limit_price=intent.limit_price,
                 )
             ):
-                if intent.time_in_force in {
-                    TimeInForce.IOC,
-                    TimeInForce.FOK,
-                }:
+                if immediate:
                     break
                 continue
 
-            fee = _commission(
-                quantity=fill_quantity,
-                price=execution_price,
-                multiplier=instrument.contract_multiplier,
-                commission_bps=policy.commission_bps,
-            )
-            fill = SimulatedFillBuilder().build(
-                run=run,
-                intent=intent,
-                market_event=quote,
-                fill_time=fill_time,
-                quantity=fill_quantity,
-                price=execution_price,
-                fee=fee,
-                liquidity=(
-                    FillLiquidity.TAKER
-                    if intent.order_type is ExecutionOrderType.MARKET
-                    else FillLiquidity.UNKNOWN
-                ),
-                prior_filled_quantity=prior_filled,
-            )
-            next_state = (
-                SimulationOrderState.FILLED
-                if fill.remaining_quantity == 0
-                else SimulationOrderState.PARTIALLY_FILLED
-            )
-            transition = ledger.transition(
-                intent=intent,
-                new_state=next_state,
-                occurred_at=fill.fill_time,
-                reason=(
-                    "deterministic top-of-book historical replay fill"
-                ),
-                fill=fill,
-            )
-            transition_ids.append(transition.transition_id)
-            fills.append(fill)
-            touch_prices.append(touch_price)
-            market_event_ids.append(quote.event_id)
-            prior_filled = fill.cumulative_filled_quantity
-            remaining = fill.remaining_quantity
-
-            if intent.time_in_force in {
-                TimeInForce.IOC,
-                TimeInForce.FOK,
-            }:
+            record(quote, fill_time, fill_quantity, execution_price, touch_price, liquidity)
+            take(fill_quantity)
+            if immediate:
                 break
 
         final_state = ledger.state(intent.intent_id)
         if final_state is not SimulationOrderState.FILLED:
-            expire_time = (
-                active_at
-                if intent.time_in_force in {
-                    TimeInForce.IOC,
-                    TimeInForce.FOK,
-                }
-                else dataset.end_time
-            )
+            expire_time = effective_at if immediate else dataset.end_time
             transition = ledger.transition(
                 intent=intent,
                 new_state=SimulationOrderState.EXPIRED,
@@ -299,7 +391,7 @@ class FirstCurrentReferenceFillEngine:
         return self._result(
             run=run,
             intent=intent,
-            active_at=active_at,
+            active_at=effective_at,
             final_state=final_state,
             transitions=tuple(transition_ids),
             fills=tuple(fills),
@@ -704,13 +796,21 @@ def _commission(
     price: Decimal,
     multiplier: Decimal,
     commission_bps: Decimal,
+    rounding: CommissionRounding = CommissionRounding.EXACT,
+    currency=None,
 ) -> Decimal:
     notional = quantity * price * multiplier
-    return (
+    exact = (
         notional
         * commission_bps
         / Decimal("10000")
     )
+    if rounding is CommissionRounding.EXACT:
+        return exact
+    units = CURRENCY_MINOR_UNITS.get(currency)
+    if units is None:
+        raise ValueError("commission rounding needs a currency with known minor units")
+    return exact.quantize(Decimal(1).scaleb(-units), rounding=ROUND_HALF_EVEN)
 
 
 def _content_id(prefix: str, payload: object) -> str:
