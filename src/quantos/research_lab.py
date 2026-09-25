@@ -42,6 +42,11 @@ from .portfolio_construction import (
     PortfolioWeight,
     SkfolioBaselineAllocator,
 )
+from .portfolio_optimization import (
+    MinimumVariancePolicy,
+    OptimizedPortfolioSolution,
+    SkfolioMinimumVarianceOptimizer,
+)
 from .prospective_review import (
     ProspectiveBehaviorExpectation,
     ProspectiveComparison,
@@ -84,6 +89,7 @@ class ResearchLabService:
         self._portfolio_datasets = PortfolioDatasetBuilder()
         self._baseline_allocator = SkfolioBaselineAllocator()
         self._covariance = SkfolioCovarianceEstimator()
+        self._minimum_variance = SkfolioMinimumVarianceOptimizer()
 
     def build_universe(
         self,
@@ -241,6 +247,25 @@ class ResearchLabService:
         return self._covariance.estimate(
             dataset=dataset,
             policy=policy,
+        )
+
+    def optimize_minimum_variance(
+        self,
+        *,
+        dataset: PortfolioDataset,
+        covariance: CovarianceArtifact,
+        constraints: PortfolioConstraintPolicy,
+        policy: MinimumVariancePolicy,
+        baselines: tuple[PortfolioSolution, ...],
+        previous_weights: tuple[PortfolioWeight, ...] = (),
+    ) -> OptimizedPortfolioSolution:
+        return self._minimum_variance.optimize(
+            dataset=dataset,
+            covariance=covariance,
+            constraints=constraints,
+            policy=policy,
+            baselines=baselines,
+            previous_weights=previous_weights,
         )
 
     def freeze_expectation(
