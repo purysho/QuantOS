@@ -132,6 +132,11 @@ class FirstCurrentReferenceFillEngine:
                 + timedelta(milliseconds=policy.market_latency_ms),
             )
             for quote in quotes
+            if (
+                quote.knowledge_time
+                + timedelta(milliseconds=policy.market_latency_ms)
+            )
+            <= dataset.end_time
         )
 
         current_quote: TopOfBookQuote | None = None

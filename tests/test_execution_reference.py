@@ -413,6 +413,40 @@ class ReferenceFillEngineTests(unittest.TestCase):
             )
             ledger.close()
 
+    def test_market_data_arriving_after_replay_end_cannot_fill(self):
+        p = policy(market_latency_ms=2000)
+        data = replay(
+            (
+                book(
+                    seconds=19,
+                    sequence=1,
+                    ask_qty="1000",
+                ),
+            )
+        )
+        order = intent(
+            data=data,
+            simulation_policy=p,
+            submitted_seconds=18,
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            result, ledger = simulate(
+                tmp,
+                data=data,
+                simulation_policy=p,
+                order=order,
+            )
+            self.assertEqual(
+                result.final_state,
+                SimulationOrderState.EXPIRED,
+            )
+            self.assertEqual(
+                result.filled_quantity,
+                Decimal("0"),
+            )
+            self.assertEqual(ledger.fills(order.intent_id), ())
+            ledger.close()
+
     def test_run_policy_mismatch_fails_closed(self):
         data = replay()
         run_policy = policy()
