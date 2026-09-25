@@ -48,6 +48,12 @@ from .portfolio_construction import (
     PortfolioWeight,
     SkfolioBaselineAllocator,
 )
+from .portfolio_decision import (
+    MethodAssessment,
+    PortfolioDecisionDisposition,
+    PortfolioResearchDecision,
+    PortfolioResearchDecisionEngine,
+)
 from .portfolio_hierarchical import (
     HierarchicalAllocationPolicy,
     HierarchicalAllocator,
@@ -111,6 +117,7 @@ class ResearchLabService:
         self._hierarchical = SkfolioHierarchicalAllocator()
         self._portfolio_comparison = PortfolioComparisonEngine()
         self._portfolio_robustness = PortfolioRobustnessEngine()
+        self._portfolio_decision = PortfolioResearchDecisionEngine()
 
     def build_universe(
         self,
@@ -336,6 +343,37 @@ class ResearchLabService:
             constraints=constraints,
             policy=policy,
             covariance_sensitivity=covariance_sensitivity,
+        )
+
+    def make_portfolio_research_decision(
+        self,
+        *,
+        comparison: PortfolioComparisonDossier,
+        robustness: PortfolioRobustnessDossier,
+        reviewed_at,
+        reviewer: str,
+        independent_challenger: str,
+        disposition: PortfolioDecisionDisposition,
+        method_assessments: tuple[MethodAssessment, ...],
+        tradeoffs: tuple[str, ...],
+        challenger_objections: tuple[str, ...],
+        unresolved_objections: tuple[str, ...],
+        rationale: str,
+        evidence_references: tuple[str, ...],
+    ) -> PortfolioResearchDecision:
+        return self._portfolio_decision.decide(
+            comparison=comparison,
+            robustness=robustness,
+            reviewed_at=reviewed_at,
+            reviewer=reviewer,
+            independent_challenger=independent_challenger,
+            disposition=disposition,
+            method_assessments=method_assessments,
+            tradeoffs=tradeoffs,
+            challenger_objections=challenger_objections,
+            unresolved_objections=unresolved_objections,
+            rationale=rationale,
+            evidence_references=evidence_references,
         )
 
     def freeze_expectation(

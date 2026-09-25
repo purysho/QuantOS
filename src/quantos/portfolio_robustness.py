@@ -633,6 +633,88 @@ class PortfolioRobustnessEngine:
         )
 
 
+def portfolio_robustness_dossier_identity(
+    dossier: PortfolioRobustnessDossier,
+) -> str:
+    if (
+        dossier.state is PortfolioRobustnessState.INSUFFICIENT_EVIDENCE
+        and not dossier.method_weight_stability
+    ):
+        payload = {
+            "model_id": dossier.model_id,
+            "manifest_id": dossier.manifest_id,
+            "comparison_dossier_id": dossier.comparison_dossier_id,
+            "constraint_policy_id": dossier.constraint_policy_id,
+            "robustness_policy_id": dossier.robustness_policy_id,
+            "state": dossier.state.value,
+            "reason": dossier.reasons[0],
+            "selection_authority": dossier.selection_authority,
+            "capital_authority": dossier.capital_authority,
+        }
+        return _content_id("portfolio-robustness-dossier", payload)
+
+    payload = {
+        "model_id": dossier.model_id,
+        "manifest_id": dossier.manifest_id,
+        "comparison_dossier_id": dossier.comparison_dossier_id,
+        "constraint_policy_id": dossier.constraint_policy_id,
+        "robustness_policy_id": dossier.robustness_policy_id,
+        "state": dossier.state.value,
+        "method_weight_stability": [
+            {
+                "method": item.method.value,
+                "adjacent_turnovers": [
+                    str(value) for value in item.adjacent_turnovers
+                ],
+                "average_adjacent_turnover": str(
+                    item.average_adjacent_turnover
+                ),
+                "maximum_adjacent_turnover": str(
+                    item.maximum_adjacent_turnover
+                ),
+            }
+            for item in dossier.method_weight_stability
+        ],
+        "cluster_stability": [
+            {
+                "method": item.method.value,
+                "adjacent_pair_agreements": [
+                    str(value)
+                    for value in item.adjacent_pair_agreements
+                ],
+                "minimum_pair_agreement": str(
+                    item.minimum_pair_agreement
+                ),
+                "average_pair_agreement": str(
+                    item.average_pair_agreement
+                ),
+            }
+            for item in dossier.cluster_stability
+        ],
+        "covariance_sensitivity_ids": [
+            item.observation_id for item in dossier.covariance_sensitivity
+        ],
+        "constraint_fragility": {
+            "minimum_upper_weight_headroom": str(
+                dossier.constraint_fragility.minimum_upper_weight_headroom
+            ),
+            "minimum_turnover_headroom": (
+                str(dossier.constraint_fragility.minimum_turnover_headroom)
+                if dossier.constraint_fragility.minimum_turnover_headroom
+                is not None
+                else None
+            ),
+            "optimal_inaccurate_count": (
+                dossier.constraint_fragility.optimal_inaccurate_count
+            ),
+        },
+        "reasons": list(dossier.reasons),
+        "selection_authority": dossier.selection_authority,
+        "capital_authority": dossier.capital_authority,
+    }
+    return _content_id("portfolio-robustness-dossier", payload)
+
+
 class PortfolioRobustnessStore:
     def __init__(self, path: str | Path) -> None:
         Path(path).parent.mkdir(parents=True, exist_ok=True)
@@ -653,6 +735,13 @@ class PortfolioRobustnessStore:
         )
 
     def add(self, dossier: PortfolioRobustnessDossier) -> bool:
+        if (
+            dossier.dossier_id
+            != portfolio_robustness_dossier_identity(dossier)
+        ):
+            raise ValueError(
+                "portfolio robustness dossier content does not match dossier_id"
+            )
         payload = json.dumps(
             _jsonable(dossier),
             sort_keys=True,

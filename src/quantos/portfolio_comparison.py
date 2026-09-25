@@ -640,6 +640,52 @@ class PortfolioComparisonEngine:
         )
 
 
+def portfolio_comparison_dossier_identity(
+    dossier: PortfolioComparisonDossier,
+) -> str:
+    payload = {
+        "model_id": dossier.model_id,
+        "manifest_id": dossier.manifest_id,
+        "constraint_policy_id": dossier.constraint_policy_id,
+        "comparison_policy_id": dossier.comparison_policy_id,
+        "fold_ids": list(dossier.fold_ids),
+        "benchmark_id": dossier.benchmark_id,
+        "evaluation_summaries": [
+            {
+                "method": item.method.value,
+                "solution_ids": list(item.solution_ids),
+                "cumulative_net_return": str(item.cumulative_net_return),
+                "realized_period_volatility": str(
+                    item.realized_period_volatility
+                ),
+                "maximum_drawdown": str(item.maximum_drawdown),
+                "expected_shortfall_return": str(
+                    item.expected_shortfall_return
+                ),
+                "total_implementation_cost_rate": str(
+                    item.total_implementation_cost_rate
+                ),
+                "average_one_way_turnover": str(
+                    item.average_one_way_turnover
+                ),
+                "average_effective_number_of_assets": str(
+                    item.average_effective_number_of_assets
+                ),
+                "maximum_absolute_weight": str(
+                    item.maximum_absolute_weight
+                ),
+                "market_relative_wealth_return": str(
+                    item.market_relative_wealth_return
+                ),
+            }
+            for item in dossier.evaluations
+        ],
+        "selection_authority": dossier.selection_authority,
+        "capital_authority": dossier.capital_authority,
+    }
+    return _content_id("portfolio-comparison-dossier", payload)
+
+
 class PortfolioComparisonDossierStore:
     """Immutable persistence for OOS portfolio comparison dossiers."""
 
@@ -661,6 +707,13 @@ class PortfolioComparisonDossierStore:
         )
 
     def add(self, dossier: PortfolioComparisonDossier) -> bool:
+        if (
+            dossier.dossier_id
+            != portfolio_comparison_dossier_identity(dossier)
+        ):
+            raise ValueError(
+                "portfolio comparison dossier content does not match dossier_id"
+            )
         payload = json.dumps(
             _jsonable_dossier(dossier),
             sort_keys=True,
