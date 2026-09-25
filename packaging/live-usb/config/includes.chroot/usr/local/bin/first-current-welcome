@@ -1,0 +1,15 @@
+#!/bin/sh
+# First login: run setup if needed, start the terminal, open the browser.
+export QUANTOS_HOME="${QUANTOS_HOME:-$HOME/FirstCurrent}"
+export QUANTOS_VENDOR_DIR=/opt/quantos/vendor
+mkdir -p "$QUANTOS_HOME"
+if [ ! -f "$QUANTOS_HOME/quantos.toml" ]; then
+  xfce4-terminal --title "First Current setup" --hold -e "sh -c 'cat /usr/share/doc/first-current-quant-os/WELCOME.txt; echo; quantos setup && quantos daily; echo; echo Close this window to continue.'"
+fi
+if ! grep -qs " persistence" /proc/mounts && ! mount | grep -q "/home.*luks\|persistence"; then
+  notify-send "First Current" "Running without persistence: data will be lost at shutdown. See WELCOME.txt." 2>/dev/null || true
+fi
+[ -f "$QUANTOS_HOME/data/terminal/terminal_manifest.json" ] || quantos terminal export >/dev/null 2>&1 || true
+systemctl --user start first-current-terminal.service 2>/dev/null || (quantos terminal serve >/dev/null 2>&1 &)
+sleep 2
+exec firefox-esr --new-window http://127.0.0.1:8765/

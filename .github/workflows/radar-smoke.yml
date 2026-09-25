@@ -6,7 +6,9 @@ on:
     paths:
       - ".github/workflows/radar-smoke.yml"
       - "src/quantos/adapters/arxiv_radar.py"
+      - "src/quantos/adapters/feed_radar.py"
       - "src/quantos/radar_cli.py"
+      - "requirements.lock"
 
 permissions:
   contents: read
@@ -20,8 +22,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Install prototype
-        run: python -m pip install -e .
+      - name: Install prototype from hashed lock
+        run: |
+          python -m pip install --require-hashes -r requirements.lock
+          python -m pip install --no-deps -e .
       - name: Run one live arXiv metadata scan
         run: |
           quantos-radar scan-arxiv \
@@ -32,6 +36,10 @@ jobs:
             --artifact-root data/artifacts \
             --artifact-db data/artifacts.duckdb \
             --triage-db data/radar-triage.duckdb
+      - name: Parse every registered NBER / central-bank / regulator feed
+        env:
+          QUANTOS_LIVE_FEEDS: "1"
+        run: python -m unittest tests.test_feed_radar.LiveFeedSmokeTests -v
       - name: Upload disposable radar state
         if: always()
         uses: actions/upload-artifact@v4

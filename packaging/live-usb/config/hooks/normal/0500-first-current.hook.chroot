@@ -1,0 +1,33 @@
+#!/bin/sh
+# Installs First Current Quant OS into /opt/quantos from the source tree that
+# build.sh placed in /opt/quantos/src, with exactly the locked dependencies.
+set -eu
+SRC=/opt/quantos/src
+TOOLS=/opt/quantos/tools
+export UV_PROJECT_ENVIRONMENT=/opt/quantos/venv UV_COMPILE_BYTECODE=1 UV_PYTHON_DOWNLOADS=never UV_LINK_MODE=copy
+# Trust the image's Debian-maintained CA store (also works behind corporate proxies).
+export UV_NATIVE_TLS=1 REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
+
+python3 -m venv "$TOOLS"
+# uv itself, pinned by version and hash.
+cat > /tmp/uv-requirement.txt <<'REQ'
+uv==0.8.17 --hash=sha256:b6d30d02fb65193309fc12a20f9e1a9fab67f469d3e487a254ca1145fd06788f
+REQ
+"$TOOLS/bin/pip" install --no-cache-dir --require-hashes -r /tmp/uv-requirement.txt
+
+cd "$SRC"
+"$TOOLS/bin/uv" sync --locked --no-dev --no-editable --extra ore --python /usr/bin/python3
+ln -sf /opt/quantos/venv/bin/quantos /usr/local/bin/quantos
+ln -sf /opt/quantos/venv/bin/quantos-radar /usr/local/bin/quantos-radar
+ln -sf /opt/quantos/venv/bin/quantos-lab /usr/local/bin/quantos-lab
+
+# Offline terminal assets (integrity-verified), shared read-only by all users.
+QUANTOS_HOME=/tmp/fc-vendor QUANTOS_VENDOR_DIR=/opt/quantos/vendor /opt/quantos/venv/bin/quantos terminal vendor
+rm -rf /tmp/fc-vendor
+
+# Self-test at build time: the image must pass its own license gate and tests.
+cd "$SRC" && /opt/quantos/venv/bin/python -m unittest tests.test_license_policy tests.test_keyless tests.test_home_runbook
+
+install -d /usr/share/doc/first-current-quant-os
+cp "$SRC/LICENSE" "$SRC/NOTICE" "$SRC/THIRD_PARTY_NOTICES.md" "$SRC/requirements.lock" /usr/share/doc/first-current-quant-os/
+rm -rf "$TOOLS" /root/.cache

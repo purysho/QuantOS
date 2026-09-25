@@ -1,0 +1,48 @@
+:root { --bg: #f6f7f9; --card: #fff; --ink: #1b1f24; --muted: #5f6b7a; --line: #e2e6eb; --accent: #1f6feb; --accent-ink: #fff;
+        --ok: #1a7f37; --warn: #9a6700; --bad: #cf222e; --navy: #0f2a44; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #0d1117; --card: #161b22; --ink: #e6edf3; --muted: #9da7b3; --line: #30363d; --accent: #4493f8;
+          --ok: #3fb950; --warn: #d29922; --bad: #f85149; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+.top { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 14px 24px; background: var(--navy); color: #fff; flex-wrap: wrap; }
+.brand { display: flex; align-items: center; gap: 12px; }
+.brand strong { font-size: 18px; display: block; }
+.brand .muted { color: #a9c3dc; font-size: 12px; }
+nav { display: flex; gap: 8px; }
+main { max-width: 1200px; margin: 0 auto; padding: 24px; }
+.grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+@media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 20px 22px; margin-bottom: 20px; }
+.grid .card { margin: 0; }
+h2 { margin: 0 0 8px; font-size: 17px; }
+.muted { color: var(--muted); }
+.req { color: var(--bad); font-size: 12px; font-weight: 600; }
+label { display: block; margin: 12px 0; font-weight: 600; }
+label.inline { display: inline-flex; gap: 6px; align-items: center; margin: 0; font-weight: 400; }
+input[type=email], input:not([type]), input[type=password], input[type=text] { display: block; width: 100%; margin-top: 4px; padding: 9px 11px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--ink); font: inherit; }
+.row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
+.row input { flex: 1; min-width: 140px; margin: 0; }
+.row input[type=checkbox] { flex: none; min-width: 0; }
+.button { display: inline-block; border: 1px solid var(--line); border-radius: 8px; padding: 8px 16px; background: var(--card); color: var(--ink); font: inherit; font-weight: 600; cursor: pointer; text-decoration: none; }
+.button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.top .button.ghost { background: transparent; color: #fff; border-color: #3b5673; }
+.button:disabled, .button.disabled { opacity: .55; cursor: default; pointer-events: none; }
+.wide { grid-column: 1 / -1; }
+.notice { background: #fff4d6; color: #5c4400; border: 1px solid #f0d58a; border-radius: 10px; padding: 10px 14px; }
+.notice.error { background: #ffe9ea; color: #7a1219; border-color: #f5b3b8; }
+details { margin: 12px 0; } summary { cursor: pointer; font-weight: 600; }
+.steps, .checks { list-style: none; padding: 0; margin: 12px 0 0; }
+.steps li, .checks li { display: grid; grid-template-columns: 22px 120px 1fr; gap: 8px; padding: 6px 0; border-top: 1px solid var(--line); font-size: 14px; }
+.checks li { grid-template-columns: 22px 190px 1fr; }
+.steps li > *, .checks li > * { min-width: 0; overflow-wrap: anywhere; }
+.state-OK, .status-OK { color: var(--ok); } .state-FAILED, .status-FAIL { color: var(--bad); } .state-RUNNING, .status-WARN { color: var(--warn); }
+.config { display: grid; grid-template-columns: 140px 1fr; gap: 6px 12px; margin: 0; }
+.config dt { color: var(--muted); } .config dd { margin: 0; overflow-wrap: anywhere; }
+.table-wrap { overflow-x: auto; margin-top: 10px; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; font-variant-numeric: tabular-nums; }
+th, td { padding: 5px 8px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+footer { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; max-width: 1200px; margin: 0 auto; padding: 8px 24px 32px; color: var(--muted); font-size: 13px; }
+@media (max-width: 600px) { main { padding: 16px; } .top { padding: 12px 16px; } }

@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import argparse
 import os
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Protocol
 
 from .adapters.arxiv_radar import ARXIV_FINANCE_CATEGORIES, ArxivRadarAdapter, ArxivRadarFetch
+from .adapters.crossref_radar import FINANCE_JOURNAL_ISSNS, CrossrefRadarAdapter
+from .adapters.feed_radar import FEEDS_BY_ID, WORKING_PAPER_FEEDS, FeedRadarAdapter
 from .artifacts import SourceArtifactStore
+from .observability import span
 from .radar_triage import RadarTriageEngine, RadarTriageStore, TriageResult
 from .research_catalog import ResearchCatalog
 from .research_radar import DiscoveryItem, ResearchRadarStore
@@ -45,6 +48,195 @@ def scan_arxiv(
     print_limit: int = 10,
     adapter: RadarAdapter | None = None,
 ) -> tuple[TriageResult, ...]:
+    def fetch(artifacts: SourceArtifactStore):
+        client = adapter or ArxivRadarAdapter(
+            user_agent=os.environ.get("ARXIV_USER_AGENT", DEFAULT_USER_AGENT)
+        )
+        return client.fetch(
+            categories=categories,
+            max_results=max_results,
+            start=0,
+            artifact_store=artifacts,
+        )
+
+    return _scan(
+        provider="arxiv",
+        label="ARXIV_RADAR",
+        fetch=fetch,
+        radar_db=radar_db,
+        artifact_root=artifact_root,
+        artifact_db=artifact_db,
+        triage_db=triage_db,
+        review_db=review_db,
+        queue_threshold=queue_threshold,
+        print_limit=print_limit,
+    )
+
+
+def scan_crossref(
+    *,
+    issns: tuple[str, ...],
+    from_index_date: date,
+    query: str | None,
+    max_results: int,
+    radar_db: str,
+    artifact_root: str,
+    artifact_db: str,
+    triage_db: str,
+    review_db: str,
+    queue_threshold: float = 0.50,
+    print_limit: int = 10,
+    adapter: CrossrefRadarAdapter | None = None,
+) -> tuple[TriageResult, ...]:
+    def fetch(artifacts: SourceArtifactStore):
+        if adapter is not None:
+            client = adapter
+        else:
+            mailto = os.environ.get("CROSSREF_MAILTO", "")
+            if not mailto:
+                raise SystemExit(
+                    "set CROSSREF_MAILTO to a contact address (Crossref etiquette)"
+                )
+            client = CrossrefRadarAdapter(
+                mailto=mailto,
+                user_agent=os.environ.get("CROSSREF_USER_AGENT", DEFAULT_USER_AGENT),
+            )
+        return client.fetch(
+            issns=issns,
+            from_index_date=from_index_date,
+            query=query,
+            max_results=max_results,
+            artifact_store=artifacts,
+        )
+
+    return _scan(
+        provider="crossref",
+        label="CROSSREF_RADAR",
+        fetch=fetch,
+        radar_db=radar_db,
+        artifact_root=artifact_root,
+        artifact_db=artifact_db,
+        triage_db=triage_db,
+        review_db=review_db,
+        queue_threshold=queue_threshold,
+        print_limit=print_limit,
+    )
+
+
+def scan_ssrn(
+    *,
+    from_posted_date: date,
+    query: str,
+    max_results: int,
+    radar_db: str,
+    artifact_root: str,
+    artifact_db: str,
+    triage_db: str,
+    review_db: str,
+    queue_threshold: float = 0.50,
+    print_limit: int = 10,
+    adapter: CrossrefRadarAdapter | None = None,
+) -> tuple[TriageResult, ...]:
+    def fetch(artifacts: SourceArtifactStore):
+        client = adapter or _crossref_client()
+        return client.fetch_ssrn(
+            from_posted_date=from_posted_date,
+            query=query,
+            max_results=max_results,
+            artifact_store=artifacts,
+        )
+
+    return _scan(
+        provider="crossref",
+        label="SSRN_RADAR",
+        fetch=fetch,
+        radar_db=radar_db,
+        artifact_root=artifact_root,
+        artifact_db=artifact_db,
+        triage_db=triage_db,
+        review_db=review_db,
+        queue_threshold=queue_threshold,
+        print_limit=print_limit,
+    )
+
+
+def scan_feeds(
+    *,
+    source_ids: tuple[str, ...],
+    max_items: int,
+    radar_db: str,
+    artifact_root: str,
+    artifact_db: str,
+    triage_db: str,
+    review_db: str,
+    queue_threshold: float = 0.50,
+    print_limit: int = 10,
+    adapter: FeedRadarAdapter | None = None,
+) -> dict[str, tuple[TriageResult, ...]]:
+    unknown = [s for s in source_ids if s not in FEEDS_BY_ID]
+    if unknown:
+        raise ValueError("unregistered feeds: " + ", ".join(unknown))
+    client = adapter or FeedRadarAdapter(
+        user_agent=os.environ.get("FEED_USER_AGENT", DEFAULT_USER_AGENT)
+    )
+    results: dict[str, tuple[TriageResult, ...]] = {}
+    for source_id in source_ids:
+        first_seen: dict[str, datetime] = {}
+        if Path(radar_db).exists():
+            store = ResearchRadarStore(radar_db)
+            try:
+                for item in store.latest(provider=source_id, limit=1000):
+                    if "published-precision:first-seen" in item.categories:
+                        first_seen.setdefault(item.canonical_id, item.published_at)
+            finally:
+                store.close()
+
+        def fetch(artifacts: SourceArtifactStore, source_id=source_id, first_seen=first_seen):
+            return client.fetch(
+                source_id=source_id,
+                max_items=max_items,
+                first_seen=first_seen,
+                artifact_store=artifacts,
+            )
+
+        results[source_id] = _scan(
+            provider=source_id,
+            label=f"FEED_RADAR[{source_id}]",
+            fetch=fetch,
+            radar_db=radar_db,
+            artifact_root=artifact_root,
+            artifact_db=artifact_db,
+            triage_db=triage_db,
+            review_db=review_db,
+            queue_threshold=queue_threshold,
+            print_limit=print_limit,
+        )
+    return results
+
+
+def _crossref_client() -> CrossrefRadarAdapter:
+    mailto = os.environ.get("CROSSREF_MAILTO", "")
+    if not mailto:
+        raise SystemExit("set CROSSREF_MAILTO to a contact address (Crossref etiquette)")
+    return CrossrefRadarAdapter(
+        mailto=mailto,
+        user_agent=os.environ.get("CROSSREF_USER_AGENT", DEFAULT_USER_AGENT),
+    )
+
+
+def _scan(
+    *,
+    provider: str,
+    label: str,
+    fetch,
+    radar_db: str,
+    artifact_root: str,
+    artifact_db: str,
+    triage_db: str,
+    review_db: str,
+    queue_threshold: float,
+    print_limit: int,
+) -> tuple[TriageResult, ...]:
     if not 1 <= print_limit <= 100:
         raise ValueError("print_limit must be between 1 and 100")
     if not 0.0 <= queue_threshold <= 1.0:
@@ -56,23 +248,19 @@ def scan_arxiv(
     triage = RadarTriageStore(triage_db)
     review = ResearchReviewQueue(review_db)
     try:
-        prior = list(radar.latest(provider="arxiv", limit=1000))
-        client = adapter or ArxivRadarAdapter(
-            user_agent=os.environ.get("ARXIV_USER_AGENT", DEFAULT_USER_AGENT)
-        )
-        fetched = client.fetch(
-            categories=categories,
-            max_results=max_results,
-            start=0,
-            artifact_store=artifacts,
-        )
+        prior = list(radar.latest(provider=provider, limit=1000))
+        with span("radar", f"{provider}-fetch"):
+            fetched = fetch(artifacts)
         ingest = radar.ingest(fetched.items)
+        # Continue with the stored items so triage and review see each item's
+        # first sighting (and its first feed snapshot) on every rescan.
+        items = tuple(radar.get(item.discovery_id) or item for item in fetched.items)
 
         engine = RadarTriageEngine()
         scored: list[TriageResult] = []
         context = list(prior)
         triaged_at = datetime.now(timezone.utc)
-        for item in fetched.items:
+        for item in items:
             result = engine.score(
                 item,
                 triaged_at=triaged_at,
@@ -98,13 +286,13 @@ def scan_arxiv(
             else "none"
         )
         print(
-            "ARXIV_RADAR",
+            label,
             f"fetched={len(fetched.items)}",
             f"inserted={ingest.inserted}",
             f"skipped={ingest.skipped_identical}",
             f"feed_artifact={artifact_id}",
         )
-        by_id = {item.discovery_id: item for item in fetched.items}
+        by_id = {item.discovery_id: item for item in items}
         queued = 0
         queued_at = datetime.now(timezone.utc)
         for result in ranked:
@@ -280,7 +468,7 @@ def verify_catalog_file(
         catalog.close()
 
 
-def main() -> int:
+def _main() -> int:
     parser = argparse.ArgumentParser(
         prog="quantos-radar",
         description="Research discovery radar; never promotes claims automatically.",
@@ -303,6 +491,54 @@ def main() -> int:
     scan.add_argument("--queue-threshold", type=float, default=0.50)
     scan.add_argument("--print-limit", type=int, default=10)
 
+
+    crossref = sub.add_parser(
+        "scan-crossref",
+        help="scan Crossref DOI metadata for journal articles (needs CROSSREF_MAILTO)",
+    )
+    crossref.add_argument(
+        "--issn",
+        action="append",
+        dest="issns",
+        help="explicit journal ISSN; repeat for multiple journals",
+    )
+    crossref.add_argument(
+        "--from-index-date",
+        required=True,
+        help="only works (re)indexed by Crossref on or after this date (YYYY-MM-DD)",
+    )
+    crossref.add_argument("--query", default=None)
+    crossref.add_argument("--max-results", type=int, default=50)
+    crossref.add_argument("--radar-db", default="data/research-radar.duckdb")
+    crossref.add_argument("--artifact-root", default="data/artifacts")
+    crossref.add_argument("--artifact-db", default="data/artifacts.duckdb")
+    crossref.add_argument("--triage-db", default="data/radar-triage.duckdb")
+    crossref.add_argument("--review-db", default="data/research-review.duckdb")
+    crossref.add_argument("--queue-threshold", type=float, default=0.50)
+    crossref.add_argument("--print-limit", type=int, default=10)
+
+    ssrn = sub.add_parser("scan-ssrn", help="scan SSRN working papers via Crossref (prefix 10.2139)")
+    ssrn.add_argument("--query", required=True)
+    ssrn.add_argument("--from-posted-date", required=True)
+    feeds = sub.add_parser("scan-feeds", help="scan registered NBER / central-bank / regulator feeds")
+    feeds.add_argument(
+        "--source",
+        dest="sources",
+        action="append",
+        choices=sorted(FEEDS_BY_ID),
+        help="repeatable; default: all working-paper feeds",
+    )
+    feeds.add_argument("--max-items", type=int, default=50)
+    for extra in (ssrn, feeds):
+        if extra is ssrn:
+            extra.add_argument("--max-results", type=int, default=50)
+        extra.add_argument("--radar-db", default="data/research-radar.duckdb")
+        extra.add_argument("--artifact-root", default="data/artifacts")
+        extra.add_argument("--artifact-db", default="data/artifacts.duckdb")
+        extra.add_argument("--triage-db", default="data/radar-triage.duckdb")
+        extra.add_argument("--review-db", default="data/research-review.duckdb")
+        extra.add_argument("--queue-threshold", type=float, default=0.50)
+        extra.add_argument("--print-limit", type=int, default=10)
 
     review_list = sub.add_parser("review-list", help="list research review queue items")
     review_list.add_argument("--review-db", default="data/research-review.duckdb")
@@ -352,6 +588,9 @@ def main() -> int:
     catalog_verify.add_argument("--notes", required=True)
 
     args = parser.parse_args()
+    from .home import activate
+
+    activate()
 
     if args.command == "review-list":
         return list_reviews(
@@ -399,6 +638,45 @@ def main() -> int:
             verifier=args.verifier,
             notes=args.notes,
         )
+    if args.command in {"scan-ssrn", "scan-feeds"}:
+        common = dict(
+            radar_db=args.radar_db,
+            artifact_root=args.artifact_root,
+            artifact_db=args.artifact_db,
+            triage_db=args.triage_db,
+            review_db=args.review_db,
+            queue_threshold=args.queue_threshold,
+            print_limit=args.print_limit,
+        )
+        if args.command == "scan-ssrn":
+            scan_ssrn(
+                from_posted_date=date.fromisoformat(args.from_posted_date),
+                query=args.query,
+                max_results=args.max_results,
+                **common,
+            )
+        else:
+            scan_feeds(
+                source_ids=tuple(args.sources) if args.sources else WORKING_PAPER_FEEDS,
+                max_items=args.max_items,
+                **common,
+            )
+        return 0
+    if args.command == "scan-crossref":
+        scan_crossref(
+            issns=tuple(args.issns) if args.issns else FINANCE_JOURNAL_ISSNS,
+            from_index_date=date.fromisoformat(args.from_index_date),
+            query=args.query,
+            max_results=args.max_results,
+            radar_db=args.radar_db,
+            artifact_root=args.artifact_root,
+            artifact_db=args.artifact_db,
+            triage_db=args.triage_db,
+            review_db=args.review_db,
+            queue_threshold=args.queue_threshold,
+            print_limit=args.print_limit,
+        )
+        return 0
     if args.command == "scan-arxiv":
         categories = (
             tuple(args.categories)
@@ -418,6 +696,12 @@ def main() -> int:
         )
         return 0
     return 2
+
+
+def main() -> int:
+    from .cli_support import friendly
+
+    return friendly(_main, "quantos-radar")
 
 
 if __name__ == "__main__":

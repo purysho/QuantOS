@@ -17,7 +17,10 @@ from .claims import (
     EvidenceRetriever,
     make_claim_id,
 )
+from .environment_manifest import capture_environment_manifest
 from .gates import CapitalFirewall, LiveTradingDisabled
+from .observability import ops_report
+from .security import AuditLog, KillSwitch
 from .ingestion import IngestionEngine
 from .models import EpistemicState, Event, OrderProposal
 from .persistent import DuckDBEventStore
@@ -221,7 +224,14 @@ def capture_sec_document(
 def ingest_fred(*, series_id: str, vintage_date: str, db: str) -> int:
     api_key = os.environ.get("FRED_API_KEY")
     if not api_key:
-        raise SystemExit("FRED_API_KEY is required for FRED/ALFRED API ingestion")
+        from .security import SecretProvider, SecretUnavailable
+
+        try:
+            api_key = SecretProvider().get("FRED_API_KEY").reveal()
+        except SecretUnavailable:
+            raise SystemExit(
+                "a free FRED API key is required for ALFRED vintages: add it with `quantos setup`"
+            ) from None
     store = _store(db)
     try:
         events = FREDVintageAdapter(api_key=api_key).fetch_series_as_of(
@@ -293,9 +303,117 @@ def show_state(*, db: str, entity_id: str, as_of: str) -> int:
         store.close()
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser(prog="quantos")
+def kill_switch_command(*, action: str, actor: str, reason: str, audit_db: str) -> int:
+    switch = KillSwitch()
+    if action == "status":
+        status = switch.status()
+        print("KILL_SWITCH", "ENGAGED" if status.engaged else "RELEASED", status.reason)
+        return 0
+    log = AuditLog(audit_db)
+    try:
+        if action == "engage":
+            switch.engage(reason=reason, actor=actor, audit=log)
+        else:
+            switch.release(actor=actor, audit=log)
+    finally:
+        log.close()
+    print("KILL_SWITCH", switch.status().reason)
+    return 0
+
+
+def audit_verify(*, db: str) -> int:
+    log = AuditLog(db)
+    try:
+        result = log.verify()
+    finally:
+        log.close()
+    print("AUDIT", "VALID" if result.valid else "INVALID", result.records, result.reason)
+    return 0 if result.valid else 1
+
+
+def capture_market_data(
+    *,
+    provider: str,
+    symbol: str,
+    security_id: str,
+    start: str,
+    end: str,
+    db: str,
+    artifact_root: str,
+    artifact_db: str,
+) -> int:
+    from datetime import date
+
+    from .market_data import BarStore, PolygonDailyAdapter, TiingoEodAdapter
+    from .observability import span
+
+    adapter = {"tiingo": TiingoEodAdapter, "polygon": PolygonDailyAdapter}[provider]()
+    artifacts = SourceArtifactStore(artifact_root, artifact_db)
+    store = BarStore(db)
+    try:
+        with span("market-data", f"{provider}-capture", symbol=symbol):
+            capture = adapter.capture(
+                symbol=symbol,
+                security_id=security_id,
+                start=date.fromisoformat(start),
+                end=date.fromisoformat(end),
+                artifacts=artifacts,
+            )
+        counts = store.add(capture)
+    finally:
+        store.close()
+    print(f"capture_id={capture.capture_id}")
+    print(f"raw_artifact_id={capture.raw_artifact_id}")
+    print(f"bars={len(capture.bars)} " + " ".join(f"{k}={v}" for k, v in counts.items()))
+    return 0
+
+
+def _main() -> int:
+    from . import __version__
+    from .home import activate
+
+    parser = argparse.ArgumentParser(
+        prog="quantos",
+        description="First Current Quant OS: point-in-time investment research. "
+        "Start with `quantos setup`, then `quantos doctor` and `quantos daily`.",
+    )
+    parser.add_argument("--version", action="version", version=f"First Current Quant OS {__version__}")
     sub = parser.add_subparsers(dest="command", required=True)
+
+    setup = sub.add_parser("setup", help="first-run setup: contact email, universe, optional free API keys")
+    setup.add_argument("--email", default=None)
+    setup.add_argument("--organization", default=None)
+    setup.add_argument("--universe", default=None, help="comma-separated tickers")
+    setup.add_argument("--non-interactive", action="store_true", help="use flags and existing values only")
+    setup.add_argument(
+        "--key-file",
+        action="append",
+        default=[],
+        metavar="NAME=PATH",
+        help="read an optional key from a file, e.g. TIINGO_API_KEY=/path/to/file (repeatable)",
+    )
+
+    analyze = sub.add_parser("analyze", help="standardized point-in-time statements and metrics for a company")
+    analyze.add_argument("ticker")
+    analyze.add_argument("--as-of", default=None, help="knowledge time (ISO date or datetime, UTC); default now")
+    analyze.add_argument("--years", type=int, default=10)
+
+    app = sub.add_parser("app", help="open the First Current control center in your browser")
+    app.add_argument("--port", type=int, default=0, help="loopback port (default: any free port)")
+    app.add_argument("--no-browser", action="store_true", help="print the link instead of opening a browser")
+    app.add_argument("--smoke-test", action="store_true", help="headless self-test (used by release builds)")
+
+    doctor = sub.add_parser("doctor", help="check this installation and explain what works")
+    doctor.add_argument("--online", action="store_true", help="also probe each keyless public source")
+
+    daily = sub.add_parser("daily", help="run the daily pipeline: universe, fundamentals, rates, prices, research, terminal")
+    daily.add_argument(
+        "--only",
+        default=None,
+        help="comma-separated subset of: universe,fundamentals,analysis,rates,factors,prices,research,terminal",
+    )
+    daily.add_argument("--backfill-from", type=int, default=None, help="first year of Treasury/ECB history to load")
+    daily.add_argument("--price-days", type=int, default=10, help="calendar days of prices to (re)capture")
 
     sub.add_parser("demo", help="run the fail-closed synthetic intelligence demo")
     sub.add_parser("edge-demo", help="run the provenance-to-shadow edge demo")
@@ -335,7 +453,134 @@ def main() -> int:
     state.add_argument("--entity", required=True)
     state.add_argument("--as-of", required=True)
 
+    env_manifest = sub.add_parser(
+        "env-manifest",
+        help="print the content-addressed runtime environment manifest",
+    )
+    env_manifest.add_argument(
+        "--db",
+        default=None,
+        help="optionally persist the manifest to this DuckDB store",
+    )
+
+    kill = sub.add_parser("kill-switch", help="inspect, engage or release the outbound kill switch")
+    kill.add_argument("action", choices=("status", "engage", "release"))
+    kill.add_argument("--actor", default="")
+    kill.add_argument("--reason", default="")
+    kill.add_argument("--audit-db", default="data/audit.duckdb")
+
+    ops = sub.add_parser("ops-report", help="summarize recorded spans and error categories")
+    ops.add_argument("--db", default="data/observability.duckdb")
+
+    audit = sub.add_parser("audit-verify", help="verify the hash chain of the audit log")
+    audit.add_argument("--db", default="data/audit.duckdb")
+
+    market = sub.add_parser(
+        "market-data", help="capture raw daily bars from a licensed provider"
+    )
+    market.add_argument("--provider", choices=("tiingo", "polygon"), required=True)
+    market.add_argument("--symbol", required=True)
+    market.add_argument("--security-id", required=True)
+    market.add_argument("--start", required=True)
+    market.add_argument("--end", required=True)
+    market.add_argument("--db", default="data/market_data.duckdb")
+    market.add_argument("--artifact-root", default="data/artifacts")
+    market.add_argument("--artifact-db", default="data/artifacts.duckdb")
+
+    terminal = sub.add_parser("terminal", help="export or serve the read-only Perspective terminal")
+    terminal.add_argument("action", choices=("export", "serve", "vendor"))
+    terminal.add_argument("--data-dir", default="data")
+    terminal.add_argument("--out", default="data/terminal")
+    terminal.add_argument("--host", default="127.0.0.1")
+    terminal.add_argument("--port", type=int, default=8765)
+    terminal.add_argument("--row-limit", type=int, default=200_000)
+
     args = parser.parse_args()
+    if args.command == "app":
+        from .app import app_command
+
+        return app_command(port=args.port, open_browser=not args.no_browser, smoke_test=args.smoke_test)
+    activate()
+    if args.command == "setup":
+        from .home import HomeError, run_setup
+
+        keys = {}
+        for item in args.key_file:
+            name, _, path = item.partition("=")
+            if not path:
+                raise SystemExit("--key-file expects NAME=PATH")
+            keys[name.strip()] = Path(path).expanduser().read_text().strip()
+        try:
+            run_setup(
+                email=args.email,
+                organization=args.organization,
+                universe=tuple(t.strip().upper() for t in args.universe.split(",") if t.strip())
+                if args.universe is not None
+                else None,
+                keys=keys,
+                interactive=not args.non_interactive,
+            )
+        except HomeError as exc:
+            raise SystemExit(f"quantos setup: {exc}") from None
+        return 0
+    if args.command == "analyze":
+        from .company_analysis import render
+        from .home import load_config
+        from .runbook import analyze_ticker
+
+        config = load_config()
+        if not config.contact_email:
+            raise SystemExit("quantos: no contact email configured. Run `quantos setup` first.")
+        known_at = None
+        if args.as_of:
+            known_at = datetime.fromisoformat(args.as_of)
+            known_at = known_at if known_at.tzinfo else known_at.replace(tzinfo=timezone.utc)
+        print(render(analyze_ticker(config, args.ticker, known_at=known_at, years=args.years)))
+        return 0
+    if args.command == "doctor":
+        from .doctor import doctor_command
+
+        return doctor_command(online=args.online)
+    if args.command == "daily":
+        from .runbook import daily_command
+
+        steps = tuple(s.strip() for s in args.only.split(",")) if args.only else None
+        from .runbook import STEPS
+
+        valid = set(STEPS)
+        if steps and set(steps) - valid:
+            raise SystemExit("unknown step(s): " + ", ".join(sorted(set(steps) - valid)))
+        return daily_command(steps=steps, backfill_from=args.backfill_from, price_days=args.price_days)
+    if args.command == "terminal":
+        from .terminal import terminal_command
+
+        return terminal_command(
+            action=args.action,
+            data_dir=args.data_dir,
+            out_dir=args.out,
+            host=args.host,
+            port=args.port,
+            row_limit=args.row_limit,
+        )
+    if args.command == "market-data":
+        return capture_market_data(
+            provider=args.provider,
+            symbol=args.symbol,
+            security_id=args.security_id,
+            start=args.start,
+            end=args.end,
+            db=args.db,
+            artifact_root=args.artifact_root,
+            artifact_db=args.artifact_db,
+        )
+    if args.command == "kill-switch":
+        return kill_switch_command(action=args.action, actor=args.actor, reason=args.reason, audit_db=args.audit_db)
+    if args.command == "ops-report":
+        return ops_report(db=args.db)
+    if args.command == "audit-verify":
+        return audit_verify(db=args.db)
+    if args.command == "env-manifest":
+        return capture_environment_manifest(db=args.db)
     if args.command == "demo":
         return demo()
     if args.command == "edge-demo":
@@ -366,6 +611,12 @@ def main() -> int:
     if args.command == "asof":
         return show_state(db=args.db, entity_id=args.entity, as_of=args.as_of)
     return 2
+
+
+def main() -> int:
+    from .cli_support import friendly
+
+    return friendly(_main, "quantos")
 
 
 if __name__ == "__main__":

@@ -1,22 +1,50 @@
 [build-system]
-requires = ["setuptools>=69"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "first-current-quant-os"
-version = "0.12.3"
-description = "High-assurance point-in-time professional research intelligence prototype"
+version = "0.20.0"
+description = "Free, open-source, point-in-time investment research operating system: evidence, fundamentals, valuation, portfolio, risk and execution research with no live-capital path"
 requires-python = ">=3.11"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE", "THIRD_PARTY_NOTICES.md"]
+authors = [{ name = "purysho and the First Current Quant OS contributors" }]
+readme = "README.md"
+keywords = ["quantitative finance", "investment research", "point-in-time", "valuation", "portfolio", "risk"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Financial and Insurance Industry",
+  "Intended Audience :: Science/Research",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Office/Business :: Financial :: Investment",
+]
 dependencies = [
   "cvxpy>=1.6,<2",
   "duckdb>=1.4,<2",
+  "exchange_calendars>=4.5,<5",
   "numpy>=2,<3",
+  "packaging>=24",
   "nautilus_trader==2.0.0rc5; python_version >= '3.12'",
   "QuantLib>=1.43,<2",
   "pytz>=2025.2",
   "requests>=2.32,<3",
   "skfolio>=1.0,<2",
 ]
+
+[project.optional-dependencies]
+# OpenSourceRisk/Engine publishes wheels for x86-64 Linux and Windows only.
+ore = [
+  "open-source-risk-engine==1.8.17.0; (sys_platform == 'linux' and platform_machine == 'x86_64') or (sys_platform == 'win32' and platform_machine == 'AMD64')",
+]
+
+[project.urls]
+Homepage = "https://github.com/purysho/First-Current-Quant-OS-prototype"
+Documentation = "https://github.com/purysho/First-Current-Quant-OS-prototype/tree/main/docs"
+Issues = "https://github.com/purysho/First-Current-Quant-OS-prototype/issues"
 
 [project.scripts]
 quantos = "quantos.cli:main"
@@ -25,3 +53,11 @@ quantos-lab = "quantos.research_lab_cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+[tool.setuptools.package-data]
+quantos = ["terminal_static/*", "app_static/*"]
+
+[dependency-groups]
+# Build-only: packages the desktop app. Not a runtime dependency (the license
+# gate covers the runtime closure). PyInstaller's GPL carries a bootloader
+# exception that permits distributing the bundled app under any license.
+desktop = ["pyinstaller==6.22.3"]

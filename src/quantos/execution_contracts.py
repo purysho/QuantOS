@@ -300,6 +300,65 @@ class HistoricalReplayDatasetBuilder:
         )
 
 
+class OrderActivationMode(str, Enum):
+    """When a latency-delayed order starts matching (Stage 12.10)."""
+
+    IMMEDIATE_LATEST_BOOK = "IMMEDIATE_LATEST_BOOK"
+    NEXT_QUOTE_ARRIVAL = "NEXT_QUOTE_ARRIVAL"
+
+
+class MarketOrderResidual(str, Enum):
+    WAIT_FOR_LIQUIDITY = "WAIT_FOR_LIQUIDITY"
+    ONE_TICK_THROUGH = "ONE_TICK_THROUGH"
+
+
+class RestingLimitFillPrice(str, Enum):
+    CONTRA_TOUCH = "CONTRA_TOUCH"
+    LIMIT_PRICE = "LIMIT_PRICE"
+
+
+class LiquidityRefresh(str, Enum):
+    """EVERY_QUOTE: each book offers its full displayed size again.
+    ON_LEVEL_SIZE_CHANGE: quantity this order took at a price level stays
+    consumed until that level is shown with a different size."""
+
+    EVERY_QUOTE = "EVERY_QUOTE"
+    ON_LEVEL_SIZE_CHANGE = "ON_LEVEL_SIZE_CHANGE"
+
+
+class CommissionRounding(str, Enum):
+    EXACT = "EXACT"
+    HALF_EVEN_MINOR_UNIT = "HALF_EVEN_MINOR_UNIT"
+
+
+class ImmediatePartialFills(str, Enum):
+    FOLLOW_POLICY = "FOLLOW_POLICY"
+    ALWAYS_ALLOW = "ALWAYS_ALLOW"
+
+
+# ISO 4217 minor units for supported quote currencies.
+CURRENCY_MINOR_UNITS: dict[Currency, int] = {
+    Currency.USD: 2,
+    Currency.GBP: 2,
+    Currency.EUR: 2,
+    Currency.CNY: 2,
+    Currency.JPY: 0,
+    Currency.CHF: 2,
+    Currency.CAD: 2,
+    Currency.AUD: 2,
+    Currency.HKD: 2,
+}
+
+_MODE_DEFAULTS = {
+    "order_activation": OrderActivationMode.IMMEDIATE_LATEST_BOOK,
+    "market_order_residual": MarketOrderResidual.WAIT_FOR_LIQUIDITY,
+    "resting_limit_fill_price": RestingLimitFillPrice.CONTRA_TOUCH,
+    "liquidity_refresh": LiquidityRefresh.EVERY_QUOTE,
+    "commission_rounding": CommissionRounding.EXACT,
+    "immediate_partial_fills": ImmediatePartialFills.FOLLOW_POLICY,
+}
+
+
 @dataclass(frozen=True)
 class ExecutionSimulationPolicy:
     market_latency_ms: int
@@ -311,6 +370,22 @@ class ExecutionSimulationPolicy:
     allow_partial_fills: bool
     rationale: str
     evidence_references: tuple[str, ...]
+    # Stage 12.10 explicit semantics modes. Defaults reproduce Stage 12.2
+    # exactly and are omitted from the policy identity, so existing policy
+    # IDs are unchanged.
+    order_activation: OrderActivationMode = OrderActivationMode.IMMEDIATE_LATEST_BOOK
+    market_order_residual: MarketOrderResidual = MarketOrderResidual.WAIT_FOR_LIQUIDITY
+    resting_limit_fill_price: RestingLimitFillPrice = RestingLimitFillPrice.CONTRA_TOUCH
+    liquidity_refresh: LiquidityRefresh = LiquidityRefresh.EVERY_QUOTE
+    commission_rounding: CommissionRounding = CommissionRounding.EXACT
+    immediate_partial_fills: ImmediatePartialFills = ImmediatePartialFills.FOLLOW_POLICY
+
+    def non_default_modes(self) -> dict[str, str]:
+        return {
+            name: getattr(self, name).value
+            for name, default in _MODE_DEFAULTS.items()
+            if getattr(self, name) is not default
+        }
 
     def __post_init__(self) -> None:
         if self.market_latency_ms < 0 or self.order_latency_ms < 0:
@@ -333,6 +408,9 @@ class ExecutionSimulationPolicy:
             raise ValueError(
                 "maximum_participation_rate must be in (0, 1]"
             )
+        for name, default in _MODE_DEFAULTS.items():
+            if not isinstance(getattr(self, name), type(default)):
+                raise ValueError(f"{name} must be a {type(default).__name__}")
         if not self.rationale.strip():
             raise ValueError(
                 "execution simulation policy rationale is required"
@@ -362,6 +440,7 @@ class ExecutionSimulationPolicy:
                 "evidence_references": sorted(
                     self.evidence_references
                 ),
+                **self.non_default_modes(),
             },
         )
 

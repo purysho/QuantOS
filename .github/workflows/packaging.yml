@@ -1,0 +1,28 @@
+name: Packaging
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  container:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -t first-current:ci -f Containerfile .
+      - name: Smoke test (locked-down runtime)
+        run: |
+          run="docker run --rm --read-only --tmpfs /tmp --cap-drop ALL --security-opt no-new-privileges:true -v fc-ci:/quantos first-current:ci"
+          $run --version
+          $run setup --non-interactive --email ci@example.org --organization CI --universe AAPL
+          $run doctor --online
+          $run daily --only universe,fundamentals,rates,terminal
+          # The terminal must refuse a non-loopback bind outside the container flag.
+          ! docker run --rm -e QUANTOS_CONTAINER=0 -v fc-ci:/quantos:ro first-current:ci terminal serve --host 0.0.0.0

@@ -11,6 +11,7 @@ import requests
 
 from quantos.artifacts import ArtifactRef, SourceArtifactStore
 from quantos.research_radar import DiscoveryItem, make_discovery_id
+from quantos.security import guarded
 
 
 ARXIV_FINANCE_CATEGORIES = (
@@ -48,6 +49,7 @@ def _default_transport(
     headers: dict[str, str],
     timeout_seconds: float,
 ) -> tuple[bytes, str]:
+    guarded(url, "arxiv-radar")
     try:
         response = requests.get(
             url,

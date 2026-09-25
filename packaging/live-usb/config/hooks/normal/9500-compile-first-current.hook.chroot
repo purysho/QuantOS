@@ -1,0 +1,5 @@
+#!/bin/sh
+# live-build's 9010-remove-python-pyc deletes all bytecode. The live root is
+# read-only, so without this every `quantos` start would recompile in memory.
+set -eu
+/opt/quantos/venv/bin/python -m compileall -q -j 0 /opt/quantos/venv/lib >/dev/null

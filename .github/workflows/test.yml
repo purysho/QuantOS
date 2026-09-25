@@ -9,8 +9,28 @@ permissions:
   contents: read
 
 jobs:
+  lock:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.8.17"
+      - name: Verify uv.lock matches pyproject.toml
+        run: uv lock --check
+      - name: Verify requirements.lock matches uv.lock
+        run: |
+          uv export --frozen --no-emit-project --no-dev -o requirements.lock
+          git diff --exit-code requirements.lock
+
   test:
     runs-on: ubuntu-latest
+    env:
+      # NautilusTrader v2 installs only on Python 3.12+; there its runtime
+      # differential tests must execute rather than skip.
+      QUANTOS_REQUIRE_NAUTILUS: ${{ matrix.python-version != '3.11' && '1' || '0' }}
+      # The optional ORE extra has x86-64 Linux wheels for every CI Python.
+      QUANTOS_REQUIRE_ORE: "1"
     strategy:
       matrix:
         python-version: ["3.11", "3.12", "3.13"]
@@ -19,11 +39,16 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Install prototype
-        run: python -m pip install --upgrade pip && python -m pip install -e .
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.8.17"
+      - name: Install exact locked environment
+        run: uv sync --locked --extra ore --python ${{ matrix.python-version }}
+      - name: Record environment manifest
+        run: uv run --no-sync quantos env-manifest
       - name: Run unit tests
-        run: python -m unittest discover -s tests -v
+        run: uv run --no-sync python -m unittest discover -s tests -v
       - name: Run fail-closed demo
-        run: python -m quantos.cli demo
+        run: uv run --no-sync python -m quantos.cli demo
       - name: Run edge-discovery demo
-        run: python -m quantos.cli edge-demo
+        run: uv run --no-sync python -m quantos.cli edge-demo

@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="480" viewBox="0 0 1280 480" role="img" aria-label="First Current: point-in-time investment research. Free, open source, runs on your own computer.">
+  <defs>
+    <radialGradient id="glow" cx="0.74" cy="0.42" r="0.55">
+      <stop offset="0" stop-color="#c9a44c" stop-opacity="0.22"/>
+      <stop offset="0.45" stop-color="#6b5320" stop-opacity="0.08"/>
+      <stop offset="1" stop-color="#06080b" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="silver" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.55" stop-color="#e3e5ea"/>
+      <stop offset="1" stop-color="#9ea3ad"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fbe7a6"/>
+      <stop offset="0.5" stop-color="#e2b95a"/>
+      <stop offset="1" stop-color="#a87a26"/>
+    </linearGradient>
+    <linearGradient id="glass" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.05"/>
+      <stop offset="0.5" stop-color="#f4f6fa" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#c7ccd6" stop-opacity="0.75"/>
+    </linearGradient>
+    <radialGradient id="orb" cx="0.38" cy="0.35" r="0.7">
+      <stop offset="0" stop-color="#fff3c4"/>
+      <stop offset="0.45" stop-color="#e2b95a"/>
+      <stop offset="1" stop-color="#8a611b"/>
+    </radialGradient>
+    <filter id="soft" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="10"/>
+    </filter>
+  </defs>
+
+  <rect width="1280" height="480" rx="24" fill="#06080b"/>
+  <rect width="1280" height="480" rx="24" fill="url(#glow)"/>
+  <rect x="0.5" y="0.5" width="1279" height="479" rx="23.5" fill="none" stroke="#1d222b"/>
+
+  <!-- text -->
+  <text x="72" y="150" fill="#8b919c" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="15" letter-spacing="5">POINT-IN-TIME INVESTMENT RESEARCH</text>
+  <text x="68" y="252" fill="url(#silver)" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="92" font-weight="800" letter-spacing="-2">FIRST CURRENT</text>
+  <text x="72" y="314" font-family="Georgia, 'Times New Roman', serif" font-size="36">
+    <tspan fill="#e9c874">Research what was known.</tspan><tspan fill="#f3e3b3"> Never trade.</tspan>
+  </text>
+  <text x="72" y="364" fill="#a3a9b3" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="19">Free, open-source research workstation for SEC filings, rates, FX,</text>
+  <text x="72" y="392" fill="#a3a9b3" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="19">factors and papers. No API keys. No account. Runs on your own computer.</text>
+
+  <!-- emblem: two currents meeting a gold point -->
+  <g transform="translate(1070 240)">
+    <circle r="150" fill="none" stroke="#2a2f38" stroke-width="1"/>
+    <ellipse rx="170" ry="62" fill="none" stroke="#6b5a33" stroke-opacity="0.55" stroke-width="1.2" transform="rotate(-18)"/>
+    <path d="M-150 70 C -95 70, -70 5, -10 5 S 70 -60, 120 -60" fill="none" stroke="#ffffff" stroke-opacity="0.25" stroke-width="30" stroke-linecap="round" filter="url(#soft)"/>
+    <path d="M-150 70 C -95 70, -70 5, -10 5 S 70 -60, 120 -60" fill="none" stroke="url(#glass)" stroke-width="24" stroke-linecap="round"/>
+    <path d="M-140 118 C -88 118, -60 58, 0 58 S 78 8, 120 8" fill="none" stroke="url(#glass)" stroke-width="12" stroke-linecap="round" opacity="0.7"/>
+    <circle cx="120" cy="-60" r="46" fill="#e2b95a" opacity="0.35" filter="url(#soft)"/>
+    <circle cx="120" cy="-60" r="30" fill="url(#orb)"/>
+    <circle cx="111" cy="-70" r="8" fill="#ffffff" opacity="0.55"/>
+  </g>
+</svg>
