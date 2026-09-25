@@ -1,5 +1,6 @@
 import tempfile
 import unittest
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
@@ -370,6 +371,44 @@ class PortfolioRobustnessTests(unittest.TestCase):
             result.state,
             PortfolioRobustnessState.INSUFFICIENT_EVIDENCE,
         )
+
+
+    def test_tampered_covariance_sensitivity_identity_fails_closed(self):
+        fold_set = folds()
+        dossier = comparison(fold_set)
+        decision = AT + timedelta(days=1, hours=23)
+        data, baselines, ledoit, ledoit_solution, _, min_policy = (
+            solution_bundle(decision)
+        )
+        empirical = covariance(data, CovarianceEstimatorKind.EMPIRICAL)
+        empirical_solution = SkfolioMinimumVarianceOptimizer().optimize(
+            dataset=data,
+            covariance=empirical,
+            constraints=constraints(),
+            policy=min_policy,
+            baselines=baselines,
+        )
+        engine = PortfolioRobustnessEngine()
+        sensitivity = engine.covariance_sensitivity(
+            reference_covariance=ledoit,
+            alternate_covariance=empirical,
+            reference_solution=ledoit_solution,
+            alternate_solution=empirical_solution,
+        )
+        tampered = replace(
+            sensitivity,
+            weight_turnover_distance=(
+                sensitivity.weight_turnover_distance + Decimal("0.01")
+            ),
+        )
+        with self.assertRaises(ValueError):
+            engine.assess(
+                comparison=dossier,
+                folds=fold_set,
+                constraints=constraints(),
+                policy=robustness_policy(),
+                covariance_sensitivity=(tampered,),
+            )
 
     def test_store_is_idempotent(self):
         fold_set = folds()

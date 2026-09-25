@@ -1,5 +1,6 @@
 import tempfile
 import unittest
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
@@ -341,6 +342,39 @@ class PortfolioComparisonTests(unittest.TestCase):
                 folds=(folds()[0],),
                 policy=comparison_policy(),
             )
+
+
+    def test_nested_fold_outcome_tampering_invalidates_dossier_identity(self):
+        dossier = PortfolioComparisonEngine().evaluate(
+            folds=folds(),
+            policy=comparison_policy(),
+        )
+        first = dossier.evaluations[0]
+        altered_outcome = replace(
+            first.fold_outcomes[0],
+            net_return=first.fold_outcomes[0].net_return + Decimal("0.01"),
+        )
+        altered_evaluation = replace(
+            first,
+            fold_outcomes=(
+                altered_outcome,
+                *first.fold_outcomes[1:],
+            ),
+        )
+        tampered = replace(
+            dossier,
+            evaluations=(
+                altered_evaluation,
+                *dossier.evaluations[1:],
+            ),
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            store = PortfolioComparisonDossierStore(
+                Path(tmp) / "comparison.duckdb"
+            )
+            with self.assertRaises(ValueError):
+                store.add(tampered)
+            store.close()
 
     def test_store_is_idempotent(self):
         dossier = PortfolioComparisonEngine().evaluate(
