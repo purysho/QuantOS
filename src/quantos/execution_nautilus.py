@@ -72,6 +72,7 @@ class NautilusDifferentialBehavior(str, Enum):
     MARKET_DATA_LATENCY = "MARKET_DATA_LATENCY"
     IMMEDIATE_TIME_IN_FORCE = "IMMEDIATE_TIME_IN_FORCE"
     LIMIT_TRANSITION = "LIMIT_TRANSITION"
+    MULTI_INSTRUMENT_SCHEDULE = "MULTI_INSTRUMENT_SCHEDULE"
 
 
 class NautilusRawTerminalState(str, Enum):
@@ -271,6 +272,29 @@ LIMIT_TRANSITION_CONTRACT = NautilusEquivalenceContract(
     ),
 )
 
+MULTI_INSTRUMENT_SCHEDULE_CONTRACT = NautilusEquivalenceContract(
+    behavior=NautilusDifferentialBehavior.MULTI_INSTRUMENT_SCHEDULE,
+    stage="12.6",
+    scope=_BASELINE_SCOPE
+    + (
+        "at least two orders run in one backtest",
+        "exactly one order per instrument",
+        "all instruments share one venue and quote currency",
+        "every order individually satisfies the zero-friction scope",
+    ),
+    mapping=(
+        "one Nautilus Equity per execution instrument on one venue",
+        "quotes from every instrument interleaved by ts_init",
+        "fills attributed to orders by client_order_id",
+    ),
+    compared_fields=COMPARED_FIELDS,
+    known_divergences=(
+        "Two working orders on one instrument would share displayed "
+        "liquidity; the reference has no shared-liquidity semantics, so "
+        "such schedules are refused.",
+    ),
+)
+
 NAUTILUS_EQUIVALENCE_CONTRACTS: dict[
     NautilusDifferentialBehavior,
     NautilusEquivalenceContract,
@@ -283,6 +307,7 @@ NAUTILUS_EQUIVALENCE_CONTRACTS: dict[
         MARKET_DATA_LATENCY_CONTRACT,
         IMMEDIATE_TIME_IN_FORCE_CONTRACT,
         LIMIT_TRANSITION_CONTRACT,
+        MULTI_INSTRUMENT_SCHEDULE_CONTRACT,
     )
 }
 
@@ -358,10 +383,33 @@ class NautilusDifferentialResult:
 
 
 @dataclass(frozen=True)
+class NautilusScheduleDifferentialResult:
+    schedule_differential_id: str
+    replay_dataset_id: str
+    simulation_policy_id: str
+    contract_id: str
+    order_differential_ids: tuple[str, ...]
+    execution_instrument_ids: tuple[str, ...]
+    state: DifferentialState
+    mismatched_differential_ids: tuple[str, ...]
+    trust_authority: str
+    network_authority: str
+    external_order_authority: str
+    capital_authority: str
+
+
+@dataclass(frozen=True)
 class _ScopedFixture:
     submission_quote: TopOfBookQuote
     activation_quote: TopOfBookQuote
     arrivals: tuple[tuple[TopOfBookQuote, datetime], ...]
+
+
+@dataclass(frozen=True)
+class _OrderPlan:
+    intent: SimulationOrderIntent
+    instrument: ExecutionInstrument
+    fixture: _ScopedFixture
 
 
 def nautilus_is_available() -> bool:
@@ -402,6 +450,13 @@ class NautilusHistoricalBacktestAdapter:
         intent: SimulationOrderIntent,
         contract: NautilusEquivalenceContract = ZERO_FRICTION_CONTRACT,
     ) -> NautilusExecutionResult:
+        if (
+            contract.behavior
+            is NautilusDifferentialBehavior.MULTI_INSTRUMENT_SCHEDULE
+        ):
+            raise ValueError(
+                "MULTI_INSTRUMENT_SCHEDULE contract requires simulate_schedule"
+            )
         fixture = self._validate_scope(
             run=run,
             dataset=dataset,
@@ -410,7 +465,92 @@ class NautilusHistoricalBacktestAdapter:
             intent=intent,
             contract=contract,
         )
+        return self._run_backtest(
+            run=run,
+            policy=policy,
+            contract=contract,
+            plans=(_OrderPlan(intent, instrument, fixture),),
+        )[0]
 
+    def simulate_schedule(
+        self,
+        *,
+        run: ExecutionSimulationRunManifest,
+        dataset: HistoricalReplayDataset,
+        policy: ExecutionSimulationPolicy,
+        instruments: tuple[ExecutionInstrument, ...],
+        intents: tuple[SimulationOrderIntent, ...],
+        contract: NautilusEquivalenceContract = (
+            MULTI_INSTRUMENT_SCHEDULE_CONTRACT
+        ),
+    ) -> tuple[NautilusExecutionResult, ...]:
+        """Run several single-instrument orders in one Nautilus backtest."""
+
+        if (
+            contract.behavior
+            is not NautilusDifferentialBehavior.MULTI_INSTRUMENT_SCHEDULE
+        ):
+            raise ValueError(
+                "simulate_schedule requires the MULTI_INSTRUMENT_SCHEDULE "
+                "contract"
+            )
+        if len(intents) < 2:
+            raise ValueError(
+                "MULTI_INSTRUMENT_SCHEDULE requires at least two orders"
+            )
+        by_instrument = {
+            item.execution_instrument_id: item for item in instruments
+        }
+        if len(by_instrument) != len(instruments):
+            raise ValueError("duplicate execution instruments supplied")
+        order_instruments = [
+            item.execution_instrument_id for item in intents
+        ]
+        if len(order_instruments) != len(set(order_instruments)):
+            raise ValueError(
+                "MULTI_INSTRUMENT_SCHEDULE allows one order per instrument; "
+                "orders sharing a book are outside every frozen contract"
+            )
+        plans: list[_OrderPlan] = []
+        for intent in sorted(
+            intents,
+            key=lambda item: (item.submitted_at, item.intent_id),
+        ):
+            instrument = by_instrument.get(intent.execution_instrument_id)
+            if instrument is None:
+                raise ValueError(
+                    "schedule order instrument is not supplied"
+                )
+            fixture = self._validate_scope(
+                run=run,
+                dataset=dataset,
+                policy=policy,
+                instrument=instrument,
+                intent=intent,
+                contract=contract,
+            )
+            plans.append(_OrderPlan(intent, instrument, fixture))
+        venues = {plan.instrument.venue_id for plan in plans}
+        currencies = {plan.instrument.quote_currency for plan in plans}
+        if len(venues) != 1 or len(currencies) != 1:
+            raise ValueError(
+                "MULTI_INSTRUMENT_SCHEDULE requires one venue and currency"
+            )
+        return self._run_backtest(
+            run=run,
+            policy=policy,
+            contract=contract,
+            plans=tuple(plans),
+        )
+
+    def _run_backtest(
+        self,
+        *,
+        run: ExecutionSimulationRunManifest,
+        policy: ExecutionSimulationPolicy,
+        contract: NautilusEquivalenceContract,
+        plans: tuple["_OrderPlan", ...],
+    ) -> tuple[NautilusExecutionResult, ...]:
         from nautilus_trader.backtest import BacktestEngine
         from nautilus_trader.common import LogLevel
         from nautilus_trader.config import (
@@ -440,174 +580,200 @@ class NautilusHistoricalBacktestAdapter:
         )
         from nautilus_trader.trading import Strategy
 
-        nt_id = InstrumentId.from_str(
-            f"{instrument.venue_symbol}.{instrument.venue_id}"
-        )
-        nt_currency = NTCurrency.from_str(
-            instrument.quote_currency.value
-        )
-        if nt_currency.precision != CURRENCY_PRECISION[
-            instrument.quote_currency
-        ]:
+        first = plans[0].instrument
+        nt_currency = NTCurrency.from_str(first.quote_currency.value)
+        if nt_currency.precision != CURRENCY_PRECISION[first.quote_currency]:
             raise ValueError(
                 "Nautilus currency precision differs from frozen fee table"
             )
-        price_precision = _decimal_precision(
-            instrument.price_increment
-        )
         fee_rate = policy.commission_bps / Decimal("10000")
-        nt_instrument = Equity(
-            instrument_id=nt_id,
-            raw_symbol=Symbol(instrument.venue_symbol),
-            currency=nt_currency,
-            price_precision=price_precision,
-            price_increment=Price.from_str(
-                _plain_decimal(instrument.price_increment)
-            ),
-            ts_event=0,
-            ts_init=0,
-            lot_size=Quantity.from_int(1),
-            min_quantity=Quantity.from_int(
-                int(instrument.minimum_quantity)
-            ),
-            maker_fee=fee_rate,
-            taker_fee=fee_rate,
-        )
-
-        nt_quotes = [
-            QuoteTick(
-                instrument_id=nt_id,
-                bid_price=Price.from_str(
-                    _plain_decimal(event.bid_price)
-                ),
-                ask_price=Price.from_str(
-                    _plain_decimal(event.ask_price)
-                ),
-                bid_size=Quantity.from_int(int(event.bid_quantity)),
-                ask_size=Quantity.from_int(int(event.ask_quantity)),
-                ts_event=_unix_nanos(event.event_time),
-                ts_init=_unix_nanos(available_at),
-            )
-            for event, available_at in fixture.arrivals
-        ]
-
-        target_ns = _unix_nanos(intent.submitted_at)
         order_latency_ns = policy.order_latency_ms * 1_000_000
-        nt_side = (
-            OrderSide.BUY
-            if intent.side is ExecutionSide.BUY
-            else OrderSide.SELL
-        )
-        nt_tif = {
+        nt_tifs = {
             TimeInForce.DAY: NTTimeInForce.DAY,
             TimeInForce.GTC: NTTimeInForce.GTC,
             TimeInForce.IOC: NTTimeInForce.IOC,
             TimeInForce.FOK: NTTimeInForce.FOK,
-        }[intent.time_in_force]
+        }
 
-        class _SingleOrderConfig(StrategyConfig):
-            def __init__(self, **_kwargs: object) -> None:
-                super().__init__()
-                self.instrument_id = nt_id
-                self.quantity = intent.quantity
-                self.limit_price = intent.limit_price
-                self.order_type = intent.order_type
-                self.order_side = nt_side
-                self.time_in_force = nt_tif
-                self.submit_ns = target_ns
+        nt_instruments = []
+        nt_quotes = []
+        specs: list[dict[str, object]] = []
+        for plan in plans:
+            instrument = plan.instrument
+            nt_id = InstrumentId.from_str(
+                f"{instrument.venue_symbol}.{instrument.venue_id}"
+            )
+            nt_instruments.append(
+                Equity(
+                    instrument_id=nt_id,
+                    raw_symbol=Symbol(instrument.venue_symbol),
+                    currency=nt_currency,
+                    price_precision=_decimal_precision(
+                        instrument.price_increment
+                    ),
+                    price_increment=Price.from_str(
+                        _plain_decimal(instrument.price_increment)
+                    ),
+                    ts_event=0,
+                    ts_init=0,
+                    lot_size=Quantity.from_int(1),
+                    min_quantity=Quantity.from_int(
+                        int(instrument.minimum_quantity)
+                    ),
+                    maker_fee=fee_rate,
+                    taker_fee=fee_rate,
+                )
+            )
+            nt_quotes.extend(
+                QuoteTick(
+                    instrument_id=nt_id,
+                    bid_price=Price.from_str(
+                        _plain_decimal(event.bid_price)
+                    ),
+                    ask_price=Price.from_str(
+                        _plain_decimal(event.ask_price)
+                    ),
+                    bid_size=Quantity.from_int(int(event.bid_quantity)),
+                    ask_size=Quantity.from_int(int(event.ask_quantity)),
+                    ts_event=_unix_nanos(event.event_time),
+                    ts_init=_unix_nanos(available_at),
+                )
+                for event, available_at in plan.fixture.arrivals
+            )
+            specs.append(
+                {
+                    "instrument_id": nt_id,
+                    "instrument_key": str(nt_id),
+                    "quantity": plan.intent.quantity,
+                    "limit_price": plan.intent.limit_price,
+                    "order_type": plan.intent.order_type,
+                    "order_side": (
+                        OrderSide.BUY
+                        if plan.intent.side is ExecutionSide.BUY
+                        else OrderSide.SELL
+                    ),
+                    "time_in_force": nt_tifs[plan.intent.time_in_force],
+                    "submit_ns": _unix_nanos(plan.intent.submitted_at),
+                }
+            )
+        nt_quotes.sort(key=lambda tick: int(tick.ts_init))
 
-        class _SingleOrderStrategy(Strategy):
+        class _OrderRecord:
             def __init__(self) -> None:
-                super().__init__(_SingleOrderConfig())
                 self.submitted = False
                 self.accepted = False
+                self.submission_tick_ns: int | None = None
                 self.fill_times_ns: list[int] = []
                 self.fill_prices: list[Decimal] = []
                 self.fill_quantities: list[Decimal] = []
                 self.fill_fees: list[Decimal] = []
                 self.fill_liquidity_sides: list[str] = []
                 self.terminal_state: NautilusRawTerminalState | None = None
-                self.submission_tick_ns: int | None = None
+
+        class _ScheduleConfig(StrategyConfig):
+            def __init__(self, **_kwargs: object) -> None:
+                super().__init__()
+
+        class _OrderScheduleStrategy(Strategy):
+            def __init__(self) -> None:
+                super().__init__(_ScheduleConfig())
+                self.records = [_OrderRecord() for _ in specs]
+                self.by_client_order_id: dict[str, int] = {}
 
             def on_start(self) -> None:
-                self.subscribe_quotes(self.config.instrument_id)
+                for spec in specs:
+                    self.subscribe_quotes(spec["instrument_id"])
 
             def on_quote(self, tick) -> None:
-                if self.submitted:
-                    return
                 tick_ns = int(tick.ts_init)
-                if tick_ns != self.config.submit_ns:
-                    return
+                key = str(tick.instrument_id)
+                for index, spec in enumerate(specs):
+                    record = self.records[index]
+                    if (
+                        record.submitted
+                        or spec["instrument_key"] != key
+                        or spec["submit_ns"] != tick_ns
+                    ):
+                        continue
+                    self._submit(index, spec, record, tick_ns)
+
+            def _submit(self, index, spec, record, tick_ns) -> None:
                 instrument_obj = self.cache.instrument(
-                    self.config.instrument_id
+                    spec["instrument_id"]
                 )
                 if instrument_obj is None:
                     raise RuntimeError(
                         "Nautilus cache missing mapped equity instrument"
                     )
-                quantity = instrument_obj.make_qty(
-                    self.config.quantity
-                )
-                if self.config.order_type is ExecutionOrderType.MARKET:
+                quantity = instrument_obj.make_qty(spec["quantity"])
+                if spec["order_type"] is ExecutionOrderType.MARKET:
                     order = self.order_factory.market(
-                        self.config.instrument_id,
-                        self.config.order_side,
+                        spec["instrument_id"],
+                        spec["order_side"],
                         quantity,
-                        time_in_force=self.config.time_in_force,
+                        time_in_force=spec["time_in_force"],
                     )
                 else:
-                    assert self.config.limit_price is not None
                     order = self.order_factory.limit(
-                        self.config.instrument_id,
-                        self.config.order_side,
+                        spec["instrument_id"],
+                        spec["order_side"],
                         quantity,
-                        instrument_obj.make_price(
-                            self.config.limit_price
-                        ),
-                        time_in_force=self.config.time_in_force,
+                        instrument_obj.make_price(spec["limit_price"]),
+                        time_in_force=spec["time_in_force"],
                     )
-                self.submitted = True
-                self.submission_tick_ns = tick_ns
+                record.submitted = True
+                record.submission_tick_ns = tick_ns
+                self.by_client_order_id[str(order.client_order_id)] = index
                 self.submit_order(order)
 
+            def _record(self, event) -> _OrderRecord:
+                return self.records[
+                    self.by_client_order_id[str(event.client_order_id)]
+                ]
+
             def on_order_accepted(self, event) -> None:
-                self.accepted = True
+                self._record(event).accepted = True
 
             def on_order_filled(self, event) -> None:
-                self.fill_times_ns.append(int(event.ts_event))
-                self.fill_quantities.append(
-                    Decimal(str(event.last_qty))
-                )
-                self.fill_prices.append(
-                    Decimal(str(event.last_px))
-                )
-                self.fill_fees.append(
+                record = self._record(event)
+                record.fill_times_ns.append(int(event.ts_event))
+                record.fill_quantities.append(Decimal(str(event.last_qty)))
+                record.fill_prices.append(Decimal(str(event.last_px)))
+                record.fill_fees.append(
                     Decimal(str(event.commission.as_decimal()))
                 )
-                self.fill_liquidity_sides.append(
-                    str(event.liquidity_side)
-                )
+                record.fill_liquidity_sides.append(str(event.liquidity_side))
 
             def on_order_rejected(self, event) -> None:
-                self.terminal_state = NautilusRawTerminalState.REJECTED
+                self._record(event).terminal_state = (
+                    NautilusRawTerminalState.REJECTED
+                )
 
             def on_order_canceled(self, event) -> None:
-                self.terminal_state = NautilusRawTerminalState.CANCELED
+                self._record(event).terminal_state = (
+                    NautilusRawTerminalState.CANCELED
+                )
 
             def on_order_expired(self, event) -> None:
-                self.terminal_state = NautilusRawTerminalState.EXPIRED
+                self._record(event).terminal_state = (
+                    NautilusRawTerminalState.EXPIRED
+                )
 
-        strategy = _SingleOrderStrategy()
+        strategy = _OrderScheduleStrategy()
         config_fingerprint = _content_id(
             "nautilus-backtest-config",
             {
                 "adapter_version": ADAPTER_VERSION,
                 "nautilus_version": self.engine_version,
                 "contract_id": contract.contract_id,
-                "venue_id": instrument.venue_id,
+                "venue_id": first.venue_id,
+                "instruments": sorted(
+                    plan.instrument.execution_instrument_id
+                    for plan in plans
+                ),
                 "oms_type": "NETTING",
                 "account_type": "MARGIN",
-                "base_currency": instrument.quote_currency.value,
+                "base_currency": first.quote_currency.value,
                 "starting_balance": "1000000",
                 "book_type": "L1_MBP",
                 "trade_execution": False,
@@ -641,7 +807,7 @@ class NautilusHistoricalBacktestAdapter:
         )
         try:
             engine.add_venue(
-                venue=Venue(instrument.venue_id),
+                venue=Venue(first.venue_id),
                 oms_type=OmsType.NETTING,
                 account_type=AccountType.MARGIN,
                 base_currency=nt_currency,
@@ -656,7 +822,8 @@ class NautilusHistoricalBacktestAdapter:
                 queue_position=False,
                 **venue_options,
             )
-            engine.add_instrument(nt_instrument)
+            for nt_instrument in nt_instruments:
+                engine.add_instrument(nt_instrument)
             engine.add_data(nt_quotes)
             engine.add_strategy(strategy)
             engine.run()
@@ -667,26 +834,52 @@ class NautilusHistoricalBacktestAdapter:
         finally:
             engine.dispose()
 
-        if not strategy.submitted:
+        return tuple(
+            self._result(
+                run=run,
+                policy=policy,
+                contract=contract,
+                plan=plan,
+                record=record,
+                submit_ns=spec["submit_ns"],
+                fee_rate=fee_rate,
+                config_fingerprint=config_fingerprint,
+            )
+            for plan, record, spec in zip(plans, strategy.records, specs)
+        )
+
+    def _result(
+        self,
+        *,
+        run: ExecutionSimulationRunManifest,
+        policy: ExecutionSimulationPolicy,
+        contract: NautilusEquivalenceContract,
+        plan: "_OrderPlan",
+        record,
+        submit_ns: int,
+        fee_rate: Decimal,
+        config_fingerprint: str,
+    ) -> NautilusExecutionResult:
+        intent = plan.intent
+        instrument = plan.instrument
+        fixture = plan.fixture
+        if not record.submitted:
             raise ValueError(
                 "Nautilus strategy did not observe the exact submission quote"
             )
-        if strategy.submission_tick_ns != target_ns:
+        if record.submission_tick_ns != submit_ns:
             raise ValueError(
                 "Nautilus order was not submitted on exact PIT trigger"
             )
 
-        filled = sum(
-            strategy.fill_quantities,
-            Decimal("0"),
-        )
+        filled = sum(record.fill_quantities, Decimal("0"))
         remaining = intent.quantity - filled
         mapping_notes: list[str] = []
         if filled == intent.quantity:
             raw_state = NautilusRawTerminalState.FILLED
             final_state = SimulationOrderState.FILLED
-        elif strategy.terminal_state is not None:
-            raw_state = strategy.terminal_state
+        elif record.terminal_state is not None:
+            raw_state = record.terminal_state
             if (
                 raw_state is NautilusRawTerminalState.CANCELED
                 and intent.time_in_force in _IMMEDIATE_TIME_IN_FORCE
@@ -706,14 +899,14 @@ class NautilusHistoricalBacktestAdapter:
                 )
             if (
                 intent.order_type is ExecutionOrderType.LIMIT
-                and not strategy.accepted
+                and not record.accepted
             ):
                 raise ValueError(
                     "Nautilus limit order was never accepted by the venue"
                 )
             if (
                 intent.order_type is ExecutionOrderType.MARKET
-                and not strategy.fill_quantities
+                and not record.fill_quantities
             ):
                 raise ValueError(
                     "Nautilus market order neither filled nor terminated"
@@ -730,8 +923,8 @@ class NautilusHistoricalBacktestAdapter:
                 (
                     quantity * price
                     for quantity, price in zip(
-                        strategy.fill_quantities,
-                        strategy.fill_prices,
+                        record.fill_quantities,
+                        record.fill_prices,
                     )
                 ),
                 Decimal("0"),
@@ -740,9 +933,9 @@ class NautilusHistoricalBacktestAdapter:
             if filled > 0
             else None
         )
-        total_fees = sum(strategy.fill_fees, Decimal("0"))
+        total_fees = sum(record.fill_fees, Decimal("0"))
         fill_times = tuple(
-            _from_unix_nanos(item) for item in strategy.fill_times_ns
+            _from_unix_nanos(item) for item in record.fill_times_ns
         )
         source_quote_event_ids = tuple(
             dict.fromkeys(
@@ -785,16 +978,16 @@ class NautilusHistoricalBacktestAdapter:
             config_fingerprint=config_fingerprint,
             final_state=final_state,
             raw_terminal_state=raw_state,
-            fill_count=len(strategy.fill_prices),
+            fill_count=len(record.fill_prices),
             filled_quantity=filled,
             remaining_quantity=remaining,
             volume_weighted_average_price=vwap,
             total_fees=total_fees,
             fill_times=fill_times,
-            fill_prices=tuple(strategy.fill_prices),
-            fill_quantities=tuple(strategy.fill_quantities),
-            fill_fees=tuple(strategy.fill_fees),
-            fill_liquidity_sides=tuple(strategy.fill_liquidity_sides),
+            fill_prices=tuple(record.fill_prices),
+            fill_quantities=tuple(record.fill_quantities),
+            fill_fees=tuple(record.fill_fees),
+            fill_liquidity_sides=tuple(record.fill_liquidity_sides),
             source_quote_event_ids=source_quote_event_ids,
             diagnostics=diagnostics,
             network_authority="NONE",
@@ -1309,6 +1502,134 @@ class NautilusDifferentialEngine:
             capital_authority="NONE",
         )
         return _with_differential_identity(result)
+
+
+    def compare_schedule(
+        self,
+        *,
+        order_differentials: tuple[NautilusDifferentialResult, ...],
+        nautilus_results: tuple[NautilusExecutionResult, ...],
+    ) -> NautilusScheduleDifferentialResult:
+        """Aggregate per-order differentials from one schedule backtest.
+
+        The schedule matches only if every order matches; one mismatch keeps
+        the whole schedule at MISMATCH with no trust authority.
+        """
+
+        if len(order_differentials) < 2:
+            raise ValueError(
+                "schedule differential requires at least two orders"
+            )
+        if len(order_differentials) != len(nautilus_results):
+            raise ValueError(
+                "schedule differential needs one Nautilus result per order"
+            )
+        results_by_id = {
+            item.result_id: item for item in nautilus_results
+        }
+        for result in nautilus_results:
+            if result.result_id != nautilus_execution_result_identity(result):
+                raise ValueError(
+                    "Nautilus execution result identity mismatch"
+                )
+        for item in order_differentials:
+            if item.differential_id != nautilus_differential_result_identity(
+                item
+            ):
+                raise ValueError(
+                    "Nautilus differential result identity mismatch"
+                )
+            if (
+                item.behavior
+                is not NautilusDifferentialBehavior.MULTI_INSTRUMENT_SCHEDULE
+                or item.contract_id
+                != MULTI_INSTRUMENT_SCHEDULE_CONTRACT.contract_id
+            ):
+                raise ValueError(
+                    "order differential is not bound to the schedule contract"
+                )
+            if item.nautilus_result_id not in results_by_id:
+                raise ValueError(
+                    "order differential references an unknown Nautilus result"
+                )
+        if len({item.nautilus_result_id for item in order_differentials}) != len(
+            order_differentials
+        ):
+            raise ValueError("schedule differential repeats an order")
+        if (
+            len({item.replay_dataset_id for item in order_differentials}) != 1
+            or len({item.simulation_policy_id for item in order_differentials})
+            != 1
+            or len({item.nautilus_run_id for item in order_differentials}) != 1
+            or len(
+                {
+                    results_by_id[item.nautilus_result_id].config_fingerprint
+                    for item in order_differentials
+                }
+            )
+            != 1
+        ):
+            raise ValueError(
+                "schedule order differentials come from different backtests"
+            )
+        instruments = tuple(
+            sorted(
+                results_by_id[item.nautilus_result_id].execution_instrument_id
+                for item in order_differentials
+            )
+        )
+        if len(set(instruments)) != len(instruments):
+            raise ValueError(
+                "schedule differential repeats an instrument"
+            )
+        ordered = tuple(
+            sorted(item.differential_id for item in order_differentials)
+        )
+        mismatched = tuple(
+            sorted(
+                item.differential_id
+                for item in order_differentials
+                if item.state is not DifferentialState.MATCH
+            )
+        )
+        state = (
+            DifferentialState.MISMATCH
+            if mismatched
+            else DifferentialState.MATCH
+        )
+        first = order_differentials[0]
+        payload = {
+            "replay_dataset_id": first.replay_dataset_id,
+            "simulation_policy_id": first.simulation_policy_id,
+            "contract_id": first.contract_id,
+            "order_differential_ids": list(ordered),
+            "execution_instrument_ids": list(instruments),
+            "state": state.value,
+            "mismatched_differential_ids": list(mismatched),
+            "trust_authority": (
+                "REFERENCE_MATCH_ONLY" if not mismatched else "NONE"
+            ),
+            "network_authority": "NONE",
+            "external_order_authority": "NONE",
+            "capital_authority": "NONE",
+        }
+        return NautilusScheduleDifferentialResult(
+            schedule_differential_id=_content_id(
+                "nautilus-schedule-differential",
+                payload,
+            ),
+            replay_dataset_id=first.replay_dataset_id,
+            simulation_policy_id=first.simulation_policy_id,
+            contract_id=first.contract_id,
+            order_differential_ids=ordered,
+            execution_instrument_ids=instruments,
+            state=state,
+            mismatched_differential_ids=mismatched,
+            trust_authority=payload["trust_authority"],
+            network_authority="NONE",
+            external_order_authority="NONE",
+            capital_authority="NONE",
+        )
 
 
 class NautilusDifferentialStore:

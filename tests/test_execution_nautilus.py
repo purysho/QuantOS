@@ -26,6 +26,7 @@ from quantos.execution_nautilus import (
     IMMEDIATE_TIME_IN_FORCE_CONTRACT,
     LIMIT_TRANSITION_CONTRACT,
     MARKET_DATA_LATENCY_CONTRACT,
+    MULTI_INSTRUMENT_SCHEDULE_CONTRACT,
     NAUTILUS_EQUIVALENCE_CONTRACTS,
     ORDER_LATENCY_CONTRACT,
     ZERO_FRICTION_CONTRACT,
@@ -729,6 +730,173 @@ class NautilusScopeTests(unittest.TestCase):
             simulate_only(dataset(quote(size="50")), policy())
 
 
+def other_instrument():
+    return ExecutionInstrument(
+        canonical_instrument_id="SEC:B",
+        venue_id="XTEST",
+        venue_symbol="B",
+        asset_class=ExecutionAssetClass.EQUITY,
+        quote_currency=Currency.USD,
+        price_increment=Decimal("0.01"),
+        quantity_increment=Decimal("1"),
+        minimum_quantity=Decimal("1"),
+        contract_multiplier=Decimal("1"),
+    )
+
+
+def other_quote(*, at, sequence, bid, ask, size="1000"):
+    return TopOfBookQuote(
+        execution_instrument_id=other_instrument().execution_instrument_id,
+        event_time=at,
+        knowledge_time=at,
+        sequence=sequence,
+        bid_price=Decimal(bid),
+        bid_quantity=Decimal(size),
+        ask_price=Decimal(ask),
+        ask_quantity=Decimal(size),
+        source_fact_ids=(f"quote:B:{sequence}",),
+    )
+
+
+@requires_nautilus
+class MultiInstrumentScheduleContractTests(DifferentialAssertions):
+    def schedule_data(self):
+        return dataset(
+            quote(at=SUBMIT, sequence=1, ask="100.01", bid="99.99"),
+            other_quote(at=SUBMIT + 1 * MS, sequence=1, bid="49.99", ask="50.01"),
+            quote(at=SUBMIT + 2 * MS, sequence=2, ask="100.05", bid="100.03"),
+            other_quote(at=SUBMIT + 3 * MS, sequence=2, bid="49.95", ask="49.97"),
+        )
+
+    def run_schedule(self, data, p, orders):
+        adapter = NautilusHistoricalBacktestAdapter()
+        nautilus_run = run("NAUTILUS_TRADER", adapter.engine_version, data, p)
+        reference_run = run("FIRST_CURRENT_REFERENCE", "12.2", data, p)
+        instruments = (instrument(), other_instrument())
+        by_id = {i.execution_instrument_id: i for i in instruments}
+        nautilus_intents = tuple(
+            SimulationOrderIntentBuilder().build(run=nautilus_run, **o)
+            for o in orders
+        )
+        results = adapter.simulate_schedule(
+            run=nautilus_run,
+            dataset=data,
+            policy=p,
+            instruments=instruments,
+            intents=nautilus_intents,
+        )
+        results_by_intent = {r.intent_id: r for r in results}
+        engine = NautilusDifferentialEngine()
+        differentials = []
+        with tempfile.TemporaryDirectory() as tmp:
+            ledger = SimulationOrderLedger(Path(tmp) / "reference.duckdb")
+            try:
+                for o, nautilus_intent in zip(orders, nautilus_intents):
+                    reference_intent = SimulationOrderIntentBuilder().build(
+                        run=reference_run, **o
+                    )
+                    reference_result = FirstCurrentReferenceFillEngine().simulate(
+                        run=reference_run,
+                        dataset=data,
+                        policy=p,
+                        instrument=by_id[reference_intent.execution_instrument_id],
+                        intent=reference_intent,
+                        ledger=ledger,
+                    )
+                    differentials.append(
+                        engine.compare(
+                            reference_run=reference_run,
+                            reference_intent=reference_intent,
+                            reference_result=reference_result,
+                            reference_fills=ledger.fills(reference_intent.intent_id),
+                            nautilus_run=nautilus_run,
+                            nautilus_intent=nautilus_intent,
+                            nautilus_result=results_by_intent[nautilus_intent.intent_id],
+                        )
+                    )
+            finally:
+                ledger.close()
+        return results, tuple(differentials)
+
+    def orders(self):
+        return (
+            {
+                "instrument": instrument(),
+                "side": ExecutionSide.BUY,
+                "order_type": ExecutionOrderType.MARKET,
+                "quantity": Decimal("100"),
+                "time_in_force": TimeInForce.GTC,
+                "submitted_at": SUBMIT,
+                "source_target_id": "portfolio-target:SEC:A",
+            },
+            {
+                "instrument": other_instrument(),
+                "side": ExecutionSide.SELL,
+                "order_type": ExecutionOrderType.LIMIT,
+                "limit_price": Decimal("49.95"),
+                "quantity": Decimal("200"),
+                "time_in_force": TimeInForce.IOC,
+                "submitted_at": SUBMIT + 3 * MS,
+                "source_target_id": "portfolio-target:SEC:B",
+            },
+        )
+
+    def test_interleaved_instruments_match_reference_per_order(self):
+        results, differentials = self.run_schedule(
+            self.schedule_data(), policy(), self.orders()
+        )
+        for diff in differentials:
+            self.assertMatch(diff)
+        prices = sorted(r.volume_weighted_average_price for r in results)
+        self.assertEqual(prices, [Decimal("49.95"), Decimal("100.01")])
+        schedule = NautilusDifferentialEngine().compare_schedule(
+            order_differentials=differentials,
+            nautilus_results=results,
+        )
+        self.assertEqual(schedule.state, DifferentialState.MATCH)
+        self.assertEqual(schedule.trust_authority, "REFERENCE_MATCH_ONLY")
+        self.assertEqual(schedule.capital_authority, "NONE")
+        self.assertEqual(len(schedule.execution_instrument_ids), 2)
+
+    def test_one_mismatching_order_keeps_schedule_mismatched(self):
+        results, differentials = self.run_schedule(
+            self.schedule_data(), policy(), self.orders()
+        )
+        target = differentials[0]
+        tampered = replace(target, state=DifferentialState.MISMATCH, trust_authority="NONE")
+        from quantos.execution_nautilus import nautilus_differential_result_identity
+
+        tampered = replace(
+            tampered,
+            differential_id=nautilus_differential_result_identity(tampered),
+        )
+        schedule = NautilusDifferentialEngine().compare_schedule(
+            order_differentials=(tampered, differentials[1]),
+            nautilus_results=results,
+        )
+        self.assertEqual(schedule.state, DifferentialState.MISMATCH)
+        self.assertEqual(schedule.trust_authority, "NONE")
+        self.assertEqual(schedule.mismatched_differential_ids, (tampered.differential_id,))
+
+    def test_two_orders_on_one_instrument_are_refused(self):
+        orders = self.orders()
+        same = dict(orders[1], instrument=instrument(), limit_price=Decimal("100.03"), quantity=Decimal("10"), submitted_at=SUBMIT + 2 * MS)
+        with self.assertRaisesRegex(ValueError, "one order per instrument"):
+            self.run_schedule(self.schedule_data(), policy(), (orders[0], same))
+
+    def test_schedule_contract_requires_schedule_entry_point(self):
+        with self.assertRaisesRegex(ValueError, "simulate_schedule"):
+            simulate_only(dataset(), policy(), MULTI_INSTRUMENT_SCHEDULE_CONTRACT)
+
+    def test_schedule_with_fees_is_outside_contract(self):
+        with self.assertRaisesRegex(ValueError, "DETERMINISTIC_FEES"):
+            self.run_schedule(
+                self.schedule_data(),
+                policy(commission_bps=Decimal("3")),
+                self.orders(),
+            )
+
+
 class NautilusEnvironmentTests(unittest.TestCase):
     def test_python_311_reports_nautilus_unavailable(self):
         if sys.version_info < (3, 12):
@@ -903,6 +1071,14 @@ class SyntheticDifferentialTests(unittest.TestCase):
                 self.nautilus_result(
                     contract_id=ZERO_FRICTION_CONTRACT.contract_id,
                 )
+            )
+
+    def test_schedule_aggregation_requires_schedule_contract(self):
+        diff = self.compare(self.nautilus_result())
+        with self.assertRaisesRegex(ValueError, "schedule contract"):
+            NautilusDifferentialEngine().compare_schedule(
+                order_differentials=(diff, diff),
+                nautilus_results=(self.nautilus_result(), self.nautilus_result()),
             )
 
     def test_reference_fills_must_match_reference_result(self):
