@@ -2,13 +2,29 @@ import unittest
 from datetime import datetime, timezone
 from decimal import Decimal
 
+from quantos.comparables import (
+    ComparableValuationResult,
+    ImpliedValuationPoint,
+    ImpliedValuationRange,
+    ImpliedValuationStatus,
+    MultipleKind,
+)
+from quantos.lbo import (
+    LBOResult,
+    LBOSourcesAndUses,
+    LBOStatus,
+)
+from quantos.sotp import SOTPResult
 from quantos.triangulation import (
+    TriangulationAdapter,
     TriangulationPolicy,
     TriangulationStatus,
     ValuationFamily,
     ValuationTriangulationEngine,
     build_observation,
 )
+from quantos.valuation import DCFResult
+from quantos.valuation_sensitivity import DCFSensitivityGrid
 
 UTC = timezone.utc
 AS_OF = datetime(2026, 9, 25, tzinfo=UTC)
@@ -167,6 +183,165 @@ class TriangulationTests(unittest.TestCase):
                 observations=(first, second),
                 policy=policy(),
             )
+
+    def test_dcf_adapter_requires_exact_sensitivity_lineage(self):
+        dcf = DCFResult(
+            valuation_id="dcf:test",
+            model_run_id="model-run:test",
+            config_id="dcf-config:test",
+            method_permit_id=PERMIT,
+            periods=(),
+            terminal_value=Decimal("0"),
+            present_value_terminal=Decimal("0"),
+            present_value_explicit_fcff=Decimal("0"),
+            enterprise_value=Decimal("100"),
+            equity_value=Decimal("100"),
+            value_per_diluted_share=Decimal("10"),
+            terminal_value_share_of_enterprise_value=Decimal("0.5"),
+        )
+        grid = DCFSensitivityGrid(
+            grid_id="dcf-sensitivity-grid:test",
+            base_valuation_id="dcf:other",
+            model_run_id=dcf.model_run_id,
+            method_permit_id=PERMIT,
+            policy_id="policy:test",
+            wacc_values=(Decimal("0.10"),),
+            terminal_growth_values=(Decimal("0.03"),),
+            cells=(),
+            min_valid_per_share=Decimal("8"),
+            max_valid_per_share=Decimal("12"),
+            per_share_span_ratio_to_base=Decimal("0.4"),
+            flags=(),
+        )
+        with self.assertRaises(ValueError):
+            TriangulationAdapter.from_dcf(
+                dcf=dcf,
+                sensitivity=grid,
+                as_of=AS_OF,
+                evidence_references=("evidence:dcf",),
+            )
+
+    def test_comps_adapter_preserves_each_metric_but_one_family(self):
+        result = ComparableValuationResult(
+            valuation_id="trading-comps:test",
+            selection_id="peer-selection:test",
+            method_permit_id=PERMIT,
+            policy_id="comps-policy:test",
+            distributions=(),
+            implied_ranges=(
+                ImpliedValuationRange(
+                    kind=MultipleKind.EV_EBITDA,
+                    status=ImpliedValuationStatus.AVAILABLE,
+                    points=(
+                        ImpliedValuationPoint(
+                            Decimal("0.25"), Decimal("5"), Decimal("90"),
+                            Decimal("80"), Decimal("8"),
+                        ),
+                        ImpliedValuationPoint(
+                            Decimal("0.50"), Decimal("6"), Decimal("110"),
+                            Decimal("100"), Decimal("10"),
+                        ),
+                        ImpliedValuationPoint(
+                            Decimal("0.75"), Decimal("7"), Decimal("130"),
+                            Decimal("120"), Decimal("12"),
+                        ),
+                    ),
+                    reason=None,
+                ),
+                ImpliedValuationRange(
+                    kind=MultipleKind.EV_REVENUE,
+                    status=ImpliedValuationStatus.AVAILABLE,
+                    points=(
+                        ImpliedValuationPoint(
+                            Decimal("0.25"), Decimal("2"), Decimal("95"),
+                            Decimal("85"), Decimal("8.5"),
+                        ),
+                        ImpliedValuationPoint(
+                            Decimal("0.50"), Decimal("2.5"), Decimal("115"),
+                            Decimal("105"), Decimal("10.5"),
+                        ),
+                        ImpliedValuationPoint(
+                            Decimal("0.75"), Decimal("3"), Decimal("135"),
+                            Decimal("125"), Decimal("12.5"),
+                        ),
+                    ),
+                    reason=None,
+                ),
+            ),
+        )
+        observations = TriangulationAdapter.from_comps(
+            result=result,
+            as_of=AS_OF,
+            evidence_references=("evidence:comps",),
+        )
+        self.assertEqual(len(observations), 2)
+        self.assertEqual(
+            {item.family for item in observations},
+            {ValuationFamily.TRADING_COMPS},
+        )
+
+    def test_sotp_adapter_is_a_point_observation(self):
+        result = SOTPResult(
+            valuation_id="sotp:test",
+            company_method_permit_id=PERMIT,
+            as_of=AS_OF,
+            contributions=(),
+            gross_attributable_segment_equity=Decimal("100"),
+            corporate_net_adjustment=Decimal("0"),
+            equity_value=Decimal("100"),
+            diluted_shares=Decimal("10"),
+            value_per_diluted_share=Decimal("10"),
+        )
+        observation = TriangulationAdapter.from_sotp(
+            result=result,
+            evidence_references=("evidence:sotp",),
+        )
+        self.assertEqual(observation.low_per_share, Decimal("10"))
+        self.assertEqual(observation.high_per_share, Decimal("10"))
+
+    def test_lbo_cross_check_remains_outside_per_share_family_count(self):
+        lbo = LBOResult(
+            valuation_id="lbo:test",
+            model_run_id="model-run:lbo",
+            method_permit_id=PERMIT,
+            status=LBOStatus.SOLVED,
+            sources_and_uses=LBOSourcesAndUses(
+                equity_purchase_price=Decimal("400"),
+                debt_refinancing=Decimal("100"),
+                transaction_fees=Decimal("10"),
+                financing_fees=Decimal("5"),
+                total_uses=Decimal("515"),
+                sponsor_debt=Decimal("280"),
+                target_cash_used=Decimal("20"),
+                sponsor_equity=Decimal("215"),
+                total_sources=Decimal("515"),
+            ),
+            periods=(),
+            exit_ebitda=Decimal("100"),
+            exit_multiple=Decimal("7"),
+            exit_enterprise_value=Decimal("700"),
+            exit_net_debt=Decimal("100"),
+            sponsor_exit_equity_value=Decimal("600"),
+            sponsor_moic=Decimal("2.79"),
+            sponsor_irr=Decimal("0.41"),
+        )
+        cross = TriangulationAdapter.from_lbo(
+            result=lbo,
+            evidence_references=("evidence:lbo",),
+        )
+        result = ValuationTriangulationEngine().build(
+            observations=(
+                obs(ValuationFamily.DCF, "DCF", "9", "10", "11"),
+                obs(ValuationFamily.SOTP, "SOTP", "9.5", "10", "10.5"),
+            ),
+            policy=policy(),
+            lbo_cross_checks=(cross,),
+        )
+        self.assertEqual(len(result.family_summaries), 2)
+        self.assertIn(
+            "LBO_SPONSOR_RETURN_CROSS_CHECK_PRESENT",
+            {flag.code for flag in result.flags},
+        )
 
 
 if __name__ == "__main__":
