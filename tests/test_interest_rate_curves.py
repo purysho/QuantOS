@@ -133,7 +133,7 @@ class InterestRateCurveTests(unittest.TestCase):
             target_t - Decimal("0")
         ) / two.year_fraction
         expected = math.exp(
-            weight * math.log(float(two.discount_factor))
+            float(weight) * math.log(float(two.discount_factor))
         )
         observed = float(curve.discount_factor(midpoint_days))
         self.assertAlmostEqual(observed, expected, places=12)
