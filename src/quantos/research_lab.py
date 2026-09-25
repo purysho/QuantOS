@@ -73,6 +73,19 @@ from .portfolio_paper_authorization import (
     PortfolioPaperMonitoringPolicy,
     SelectedPortfolioSolution,
 )
+from .portfolio_paper_review import (
+    PortfolioPaperBenchmarkObservation,
+    PortfolioPaperIterationDisposition,
+    PortfolioPaperPostmortem,
+    PortfolioPaperPostmortemEngine,
+    PortfolioPaperReviewDossier,
+    PortfolioPaperReviewEngine,
+    PortfolioPaperReviewPolicy,
+)
+from .portfolio_paper_monitoring import (
+    PortfolioPaperEnforcementEvent,
+    PortfolioPaperShadowObservation,
+)
 from .portfolio_robustness import (
     CovarianceSensitivityObservation,
     PortfolioRobustnessDossier,
@@ -128,6 +141,10 @@ class ResearchLabService:
         self._portfolio_decision = PortfolioResearchDecisionEngine()
         self._portfolio_paper_authorization = (
             PortfolioPaperAuthorizationEngine()
+        )
+        self._portfolio_paper_review = PortfolioPaperReviewEngine()
+        self._portfolio_paper_postmortem = (
+            PortfolioPaperPostmortemEngine()
         )
 
     def build_universe(
@@ -420,6 +437,50 @@ class ResearchLabService:
             expires_at=expires_at,
             portfolio_reviewer=portfolio_reviewer,
             independent_risk_reviewer=independent_risk_reviewer,
+            rationale=rationale,
+            evidence_references=evidence_references,
+        )
+
+    def review_portfolio_paper(
+        self,
+        *,
+        authorization: PortfolioPaperAuthorization,
+        comparison: PortfolioComparisonDossier,
+        observations: tuple[PortfolioPaperShadowObservation, ...],
+        benchmarks: tuple[PortfolioPaperBenchmarkObservation, ...],
+        events: tuple[PortfolioPaperEnforcementEvent, ...],
+        policy: PortfolioPaperReviewPolicy,
+    ) -> PortfolioPaperReviewDossier:
+        return self._portfolio_paper_review.evaluate(
+            authorization=authorization,
+            comparison=comparison,
+            observations=observations,
+            benchmarks=benchmarks,
+            events=events,
+            policy=policy,
+        )
+
+    def close_portfolio_paper_postmortem(
+        self,
+        *,
+        review: PortfolioPaperReviewDossier,
+        closed_at,
+        reviewer: str,
+        independent_challenger: str,
+        disposition: PortfolioPaperIterationDisposition,
+        lessons: tuple[str, ...],
+        limitations: tuple[str, ...],
+        rationale: str,
+        evidence_references: tuple[str, ...],
+    ) -> PortfolioPaperPostmortem:
+        return self._portfolio_paper_postmortem.close(
+            review=review,
+            closed_at=closed_at,
+            reviewer=reviewer,
+            independent_challenger=independent_challenger,
+            disposition=disposition,
+            lessons=lessons,
+            limitations=limitations,
             rationale=rationale,
             evidence_references=evidence_references,
         )
