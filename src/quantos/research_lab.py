@@ -32,6 +32,12 @@ from .performance_analytics import (
     PerformanceAnalyticsEngine,
     PerformancePolicy,
 )
+from .portfolio_comparison import (
+    PortfolioComparisonDossier,
+    PortfolioComparisonEngine,
+    PortfolioComparisonFold,
+    PortfolioComparisonPolicy,
+)
 from .portfolio_construction import (
     BaselineAllocator,
     PortfolioConstraintPolicy,
@@ -90,6 +96,7 @@ class ResearchLabService:
         self._baseline_allocator = SkfolioBaselineAllocator()
         self._covariance = SkfolioCovarianceEstimator()
         self._minimum_variance = SkfolioMinimumVarianceOptimizer()
+        self._portfolio_comparison = PortfolioComparisonEngine()
 
     def build_universe(
         self,
@@ -266,6 +273,17 @@ class ResearchLabService:
             policy=policy,
             baselines=baselines,
             previous_weights=previous_weights,
+        )
+
+    def compare_portfolio_methods(
+        self,
+        *,
+        folds: tuple[PortfolioComparisonFold, ...],
+        policy: PortfolioComparisonPolicy,
+    ) -> PortfolioComparisonDossier:
+        return self._portfolio_comparison.evaluate(
+            folds=folds,
+            policy=policy,
         )
 
     def freeze_expectation(
