@@ -160,6 +160,17 @@ class ComparableCompanyTests(unittest.TestCase):
         self.assertIn("KNOWLEDGE_AFTER_AS_OF", by_entity["P4"].exclusion_reasons)
         self.assertIn("REVENUE_ABOVE_POLICY_RANGE", by_entity["P5"].exclusion_reasons)
 
+    def test_candidate_universe_cannot_double_count_one_entity(self):
+        target = target_profile()
+        first = peer("P1", "80")
+        second = peer("P1", "90", ev="330")
+        with self.assertRaises(ValueError):
+            PeerSelector().select(
+                target=target,
+                candidates=(first, second),
+                policy=selection_policy(),
+            )
+
     def test_selection_identity_changes_with_candidate_snapshot(self):
         target = target_profile()
         first = PeerSelector().select(
