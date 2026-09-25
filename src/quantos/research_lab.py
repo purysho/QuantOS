@@ -59,6 +59,12 @@ from .portfolio_optimization import (
     OptimizedPortfolioSolution,
     SkfolioMinimumVarianceOptimizer,
 )
+from .portfolio_robustness import (
+    CovarianceSensitivityObservation,
+    PortfolioRobustnessDossier,
+    PortfolioRobustnessEngine,
+    PortfolioRobustnessPolicy,
+)
 from .prospective_review import (
     ProspectiveBehaviorExpectation,
     ProspectiveComparison,
@@ -104,6 +110,7 @@ class ResearchLabService:
         self._minimum_variance = SkfolioMinimumVarianceOptimizer()
         self._hierarchical = SkfolioHierarchicalAllocator()
         self._portfolio_comparison = PortfolioComparisonEngine()
+        self._portfolio_robustness = PortfolioRobustnessEngine()
 
     def build_universe(
         self,
@@ -310,6 +317,25 @@ class ResearchLabService:
         return self._portfolio_comparison.evaluate(
             folds=folds,
             policy=policy,
+        )
+
+    def assess_portfolio_robustness(
+        self,
+        *,
+        comparison: PortfolioComparisonDossier,
+        folds: tuple[PortfolioComparisonFold, ...],
+        constraints: PortfolioConstraintPolicy,
+        policy: PortfolioRobustnessPolicy,
+        covariance_sensitivity: tuple[
+            CovarianceSensitivityObservation, ...
+        ] = (),
+    ) -> PortfolioRobustnessDossier:
+        return self._portfolio_robustness.assess(
+            comparison=comparison,
+            folds=folds,
+            constraints=constraints,
+            policy=policy,
+            covariance_sensitivity=covariance_sensitivity,
         )
 
     def freeze_expectation(
