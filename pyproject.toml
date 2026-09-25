@@ -24,6 +24,12 @@ dependencies = [
   "skfolio>=1.0,<2",
 ]
 
+[project.optional-dependencies]
+# OpenSourceRisk/Engine publishes wheels for x86-64 Linux and Windows only.
+ore = [
+  "open-source-risk-engine==1.8.17.0; (sys_platform == 'linux' and platform_machine == 'x86_64') or (sys_platform == 'win32' and platform_machine == 'AMD64')",
+]
+
 [project.scripts]
 quantos = "quantos.cli:main"
 quantos-radar = "quantos.radar_cli:main"

@@ -332,6 +332,12 @@ def _native_builds() -> tuple[tuple[str, str], ...]:
             builds.append(("nautilus_trader", "UNAVAILABLE"))
     else:
         builds.append(("nautilus_trader", "UNSUPPORTED_PYTHON"))
+    try:
+        builds.append(
+            ("open-source-risk-engine", package_version("open-source-risk-engine"))
+        )
+    except PackageNotFoundError:
+        builds.append(("open-source-risk-engine", "NOT_INSTALLED"))
     return tuple(builds)
 
 

@@ -27,7 +27,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install newest allowed dependencies
-        run: python -m pip install --upgrade pip && python -m pip install --upgrade -e .
+        run: python -m pip install --upgrade pip && python -m pip install --upgrade -e '.[ore]'
       - name: Record environment manifest
         run: quantos env-manifest
       - name: Run unit tests

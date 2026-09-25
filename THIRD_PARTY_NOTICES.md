@@ -31,6 +31,7 @@ These are allowed only while unmodified, installed as separate packages and impo
 | markupsafe | BSD-3-Clause |  |
 | narwhals | MIT |  |
 | numpy | BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0 |  |
+| open-source-risk-engine | BSD-3-Clause | optional 'ore' extra; ORE-SWIG modified BSD; bundles QuantLib (BSD) |
 | osqp | Apache-2.0 |  |
 | packaging | Apache-2.0 OR BSD-2-Clause |  |
 | pandas | BSD-3-Clause |  |

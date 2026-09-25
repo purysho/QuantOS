@@ -29,6 +29,8 @@ jobs:
       # NautilusTrader v2 installs only on Python 3.12+; there its runtime
       # differential tests must execute rather than skip.
       QUANTOS_REQUIRE_NAUTILUS: ${{ matrix.python-version != '3.11' && '1' || '0' }}
+      # The optional ORE extra has x86-64 Linux wheels for every CI Python.
+      QUANTOS_REQUIRE_ORE: "1"
     strategy:
       matrix:
         python-version: ["3.11", "3.12", "3.13"]
@@ -41,7 +43,7 @@ jobs:
         with:
           version: "0.8.17"
       - name: Install exact locked environment
-        run: uv sync --locked --python ${{ matrix.python-version }}
+        run: uv sync --locked --extra ore --python ${{ matrix.python-version }}
       - name: Record environment manifest
         run: uv run --no-sync quantos env-manifest
       - name: Run unit tests

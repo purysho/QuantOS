@@ -85,6 +85,11 @@ REVIEWED_DEPENDENCY_LICENSES: dict[str, ReviewedDependencyLicense] = {
             "numpy",
             "BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0",
         ),
+        ReviewedDependencyLicense(
+            "open-source-risk-engine",
+            "BSD-3-Clause",
+            "optional 'ore' extra; ORE-SWIG modified BSD; bundles QuantLib (BSD)",
+        ),
         ReviewedDependencyLicense("osqp", "Apache-2.0"),
         ReviewedDependencyLicense("packaging", "Apache-2.0 OR BSD-2-Clause"),
         ReviewedDependencyLicense("pandas", "BSD-3-Clause"),
