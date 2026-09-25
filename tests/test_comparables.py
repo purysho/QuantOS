@@ -234,6 +234,35 @@ class ComparableCompanyTests(unittest.TestCase):
         )
         self.assertNotIn("FUTURE", selection.included_peer_ids)
 
+    def test_insufficient_selection_cannot_be_valued(self):
+        target = target_profile()
+        strict_policy = PeerSelectionPolicy(
+            require_same_industry=True,
+            allowed_geographies=("US",),
+            required_business_tags=("subscription",),
+            minimum_revenue_ratio=Decimal("0.50"),
+            maximum_revenue_ratio=Decimal("2.00"),
+            exclude_distressed=True,
+            minimum_included_peers=4,
+            rationale="Require four peers.",
+            evidence_references=("review:strict-peer-policy",),
+        )
+        selection = PeerSelector().select(
+            target=target,
+            candidates=(peer("P1", "80"), peer("P2", "100"), peer("P3", "120")),
+            policy=strict_policy,
+        )
+        self.assertFalse(selection.is_sufficient)
+        assessment, permit = method_gate(selection.selection_id)
+        with self.assertRaises(ValueError):
+            ComparableCompanyEngine().value(
+                selection=selection,
+                target=target_financials(target),
+                policy=valuation_policy(),
+                methodology_assessment=assessment,
+                method_permit=permit,
+            )
+
     def test_non_positive_target_denominator_is_not_applicable(self):
         target = target_profile()
         selection = PeerSelector().select(
