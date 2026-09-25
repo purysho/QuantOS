@@ -1,12 +1,12 @@
-# First Current Quant OS — Prototype v0.8.0
+# First Current Quant OS — Prototype v0.9.0
 
-A high-assurance quantitative research operating-system prototype built around one rule:
+A high-assurance quantitative research and valuation operating-system prototype built around one rule:
 
-> **Research may be aggressive; evidence, modeling, trust and capital authority must remain conservative and explicit.**
+> **Research may be aggressive; evidence, modeling, valuation, trust and capital authority must remain conservative and explicit.**
 
-The repository is research-only. It can ingest live information, discover research, construct reviewed evidence, build whole-case reasoning, create point-in-time financial models, and run prospective shadow evaluation controls, but **live order authorization is disabled by construction**.
+The repository is research-only. It can ingest live information, construct reviewed evidence, build professional research cases, create point-in-time financial models, value businesses through multiple controlled frameworks, and run prospective shadow evaluation controls, but **live order authorization is disabled by construction**.
 
-## What v0.8.0 proves
+## What v0.9.0 proves
 
 ### Point-in-time foundation
 - separate event time and knowledge time
@@ -16,116 +16,154 @@ The repository is research-only. It can ingest live information, discover resear
 - SEC submissions and primary-document capture
 - FRED/ALFRED vintage ingestion
 
-### Research intake
+### Research intake and claim trust
 - live arXiv metadata radar
 - immutable raw-feed provenance
-- deterministic attention triage
-- review quarantine
-- quarantined research catalog
+- deterministic attention triage and review quarantine
 - exact-source SHA-256 verification
-- publication/attention never imply trust
-
-### Claim trust
-- verified source required before drafting
+- verified source required before claim drafting
 - exact locator, scope, assumptions and limitations
 - drafter/reviewer separation
 - mandatory counter-evidence notes
 - approval separate from promotion
-- promotion rechecks exact source artifact
 
-### Evidence structure
+### Evidence and professional reasoning
 - SUPPORTS / LIMITS / CONTRADICTS / EXTENDS links
-- direct / conceptual / reanalysis replication records
-- successful / partial / failed / inconclusive outcomes
-- fail-visible evidence dossiers
+- replication records and fail-visible evidence dossiers
 - no opaque truth score
+- six durable professional roles:
+  1. Fundamental Analyst
+  2. Quant Researcher
+  3. Portfolio Manager
+  4. Risk Officer
+  5. Execution Trader
+  6. Red Team
+- blocking objections cannot be outvoted
+- immutable Research Cases, alternatives, falsifiers and scenario sets
+- case reviews bound to exact dossier fingerprints
+- prospective readiness permits remain `PROSPECTIVE_SHADOW_ONLY`
+- forecast calibration with Brier score and log loss
 
-### Professional reasoning
-Six durable professional roles:
-1. Fundamental Analyst
-2. Quant Researcher
-3. Portfolio Manager
-4. Risk Officer
-5. Execution Trader
-6. Red Team
-
-A blocking objection cannot be outvoted. Resolutions require the original reviewer plus evidence references, while the original objection remains immutable.
-
-### Whole-case reasoning
-- immutable point-in-time Research Cases
-- explicit thesis, mechanism, alternatives and falsifiers
-- trusted supporting / limiting / contradicting claims
-- probability-band scenario sets
-- explicit outcome ranges and probability rationale
-- Case Dossier fingerprint over:
-  - exact Research Case
-  - exact Scenario Set
-  - current Evidence Dossiers for every cited claim
-- case-level six-role reviews bound to that fingerprint
-- old reviews become stale automatically when evidence/scenarios change
-
-### Research readiness
-The only positive readiness state is:
-
-`READY_FOR_PROSPECTIVE_SHADOW`
-
-A resulting permit is:
-- bound to the exact Case Dossier fingerprint;
-- bound to the exact Scenario Set;
-- explicitly `PROSPECTIVE_SHADOW_ONLY`;
-- invalidated by a changed Case Dossier.
-
-The live-capital firewall remains unchanged.
-
-### Forecast calibration
-- scenario probabilities frozen prospectively
-- outcome classification only after the horizon
-- outcome adjudicator must differ from forecaster
-- outcome evidence references required
-- multiclass Brier score
-- log loss
-- calibration remains `INSUFFICIENT_EVIDENCE` below the configured sample threshold
-
-### Fundamental Engine
+### Fundamental Engine — v0.8.0 baseline
 Reported financials and modeled projections are deliberately separate.
 
-**Reported statement layer**
+**Reported statements**
 - balance sheet / income statement / cash-flow domain model
-- exact filing accession, acceptance time and system knowledge time
+- filing accession, acceptance time and system knowledge time
 - line-level artifact provenance and source locators
-- content-addressed statement identities
-- point-in-time statement storage
-- accounting identities and cross-statement cash tie-outs
+- point-in-time storage
+- accounting identities and cross-statement tie-outs
 
-**Linked projection layer**
-- explicit operating assumption sets with rationale and evidence references
+**Linked projections**
+- evidence-backed operating assumption sets
 - revenue / margin / working-capital / PP&E schedules
 - deterministic one-period and multi-period roll-forwards
 - parent-projection lineage
-- immutable model-run manifests and run comparison
-- all projected line items marked `ESTIMATED`
+- immutable model-run manifests
+- projected lines explicitly marked `ESTIMATED`
 
-**Advanced financing / tax / equity layer**
+**Advanced financing / tax / equity**
 - debt by tranche
 - fixed and floating rates
-- contractual maturities
-- mandatory repayments
-- NOL generation and utilization
+- maturities and mandatory repayment
+- NOL generation/utilization
 - minimum-cash debt sweeps
-- equity issuance and repurchases
-- treasury-stock-method option dilution
-- restricted units
-- diluted share count
-- explicit schedule fingerprints attached to projected line-item provenance
+- share issuance/repurchase and dilution
+- strict debt/NOL/share state continuity
+- unfunded maturities that breach minimum cash fail closed
 
-**Fail-closed financing state**
-- first-period tranche debt must reconcile to reported debt
-- later tranche openings must equal prior post-sweep balances
-- later NOL opening must equal prior ending NOL
-- later basic shares must equal prior ending shares
-- unfunded debt maturities that breach minimum cash are rejected
+### Valuation Engine — v0.9.0 baseline
 
-## Intelligence and modeling chain
+#### Methodology gate
+A mathematically correct model cannot run merely because it exists.
+
+Business profiles assess:
+- FCFF DCF
+- FCFE DCF
+- dividend discount
+- residual income
+- trading comps
+- transaction comps
+- SOTP
+- probability-weighted DCF
+- NAV
+- liquidation value
+- replacement value
+- LBO
+
+Each method is `APPROPRIATE`, `CONDITIONAL`, or `INAPPROPRIATE`. Conditional methods require evidence-backed conditions before a content-addressed MethodPermit is issued.
+
+Examples:
+- banks/insurers can block enterprise FCFF when funding/regulatory capital are operating constraints
+- pre-revenue biotech requires explicit binary-outcome treatment
+- conglomerate SOTP requires economically divergent disclosed segments
+- distress makes liquidation analysis explicit
+
+#### FCFF DCF + reverse DCF
+- exact validated model-run binding
+- explicit per-period unlevered cash tax
+- explicit discount timing
+- evidence-backed WACC and terminal growth
+- hard `terminal growth < WACC` gate
+- explicit enterprise-to-equity bridge
+- diluted per-share value
+- terminal-value contribution visibility
+- market-implied terminal-growth reverse DCF
+
+#### DCF sensitivity
+- explicit WACC × terminal-growth grids
+- invalid perpetuity cells remain visible
+- policy-bound terminal-value and dispersion diagnostics
+- no composite confidence score
+
+#### Comparable-company valuation
+- deterministic point-in-time candidate universe
+- explicit inclusion/exclusion reasons
+- one entity cannot be counted twice through multiple snapshots
+- future-known peer data excluded
+- minimum-peer gating
+- EV/Revenue, EV/EBITDA, EV/EBIT, P/E, P/Book and FCF-yield distributions
+- peer-level values + min + configured percentiles + max
+- percentile valuation ranges rather than one cherry-picked multiple
+
+#### Reviewed peer normalization
+- raw peer facts never mutate
+- signed normalization adjustments are separate artifacts
+- adjustment rationale, evidence, preparer and knowledge time are explicit
+- preparer/reviewer separation
+- future-known adjustments fail closed
+- industry-specific metric contracts restrict economically admissible multiples
+
+#### Sum-of-the-parts
+- company-level SOTP permit
+- independent method permit for every segment
+- EV- and equity-basis segments
+- ownership applied after EV-to-equity conversion
+- corporate costs and intercompany eliminations explicit
+- segment + corporate cash/debt must reconcile to reported group totals
+- common as-of timestamp required
+
+#### LBO
+- exact operating-model-run binding
+- separate sponsor acquisition financing
+- sources & uses must balance
+- evidence-backed debt tranches, rates, amortization and maturities
+- sponsor-interest tax shield and NOL handling
+- minimum-cash liquidity gate
+- debt sweep by explicit priority
+- exit multiple, MOIC and IRR
+- non-positive exit equity preserved without fake IRR
+- downside cases use separate model runs rather than hidden haircuts
+
+#### Non-averaging triangulation
+- DCF, trading comps and SOTP compared on a common per-share basis
+- multiple comps metrics count as **one method family**, not independent votes
+- common overlap / partial overlap / disjoint states
+- cross-method dispersion remains visible
+- no weighted synthetic fair value
+- LBO remains a sponsor-return cross-check and is never averaged into per-share value
+
+## Intelligence, modeling and valuation chain
 
 ```text
 external source
@@ -146,7 +184,7 @@ six professional reviews
     ↓
 PROSPECTIVE_SHADOW_ONLY controls
 
-SEC / other primary financial source
+primary financial sources
     ↓
 point-in-time reported statements
     ↓
@@ -160,7 +198,13 @@ balanced multi-period projected statements
     ↓
 immutable model-run lineage
     ↓
-valuation layer (next stage)
+valuation methodology assessment
+    ↓
+method-specific permit
+    ↓
+DCF / comps / SOTP / LBO
+    ↓
+non-averaging triangulation
 
     ╳
 no automatic live-capital path
@@ -185,19 +229,20 @@ quantos-radar scan-arxiv --max-results 20
 quantos-radar review-list --status QUEUED
 ```
 
-A separate live smoke workflow makes one small real arXiv metadata request and stores only disposable CI artifacts.
+A separate live smoke workflow makes a small real arXiv metadata request and stores only disposable CI artifacts.
 
 ## Safety semantics
 
 - `VERIFIED` source = source identity checked, not conclusions proven.
 - `APPROVED` claim = scoped claim passed review, not universal truth.
 - `REPLICATION_SUPPORTED` = evidence structure, not a probability.
-- `REVIEW_SET_COMPLETE` = workflow completeness, not an investment recommendation.
 - `READY_FOR_PROSPECTIVE_SHADOW` = permission to measure prospectively, not permission to trade.
 - `ESTIMATED` financial line = model output, not a filed fact.
 - balanced statements = accounting consistency, not forecast accuracy.
-- a model run = reproducible assumptions and mechanics, not fair value.
+- MethodPermit = permission to use a valuation framework for the stated profile, not proof the output is correct.
+- DCF/comps/SOTP/LBO output = valuation evidence, not an investment recommendation.
+- triangulation = preserved agreement/disagreement, not a synthetic fair value.
 - `MEASURED` = sample exists, not profitable.
 - `NO_TRADE`, `UNKNOWN`, `QUARANTINED`, `INCOMPLETE`, and `INSUFFICIENT_EVIDENCE` are valid outcomes.
 
-See `docs/STAGE_7_COMPLETE.md` for the v0.8.0 Fundamental Engine boundary.
+See `docs/STAGE_7_COMPLETE.md` for the Fundamental Engine baseline and `docs/STAGE_8_COMPLETE.md` for the Valuation Engine baseline.
