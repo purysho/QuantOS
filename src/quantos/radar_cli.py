@@ -9,6 +9,7 @@ from typing import Protocol
 from .adapters.arxiv_radar import ARXIV_FINANCE_CATEGORIES, ArxivRadarAdapter, ArxivRadarFetch
 from .adapters.crossref_radar import FINANCE_JOURNAL_ISSNS, CrossrefRadarAdapter
 from .artifacts import SourceArtifactStore
+from .observability import span
 from .radar_triage import RadarTriageEngine, RadarTriageStore, TriageResult
 from .research_catalog import ResearchCatalog
 from .research_radar import DiscoveryItem, ResearchRadarStore
@@ -146,7 +147,8 @@ def _scan(
     review = ResearchReviewQueue(review_db)
     try:
         prior = list(radar.latest(provider=provider, limit=1000))
-        fetched = fetch(artifacts)
+        with span("radar", f"{provider}-fetch"):
+            fetched = fetch(artifacts)
         ingest = radar.ingest(fetched.items)
 
         engine = RadarTriageEngine()

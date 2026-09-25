@@ -8,6 +8,7 @@ from urllib.request import Request, urlopen
 from quantos.artifacts import ArtifactRef, SourceArtifactStore
 from quantos.lineage import LineageStore
 from quantos.models import Event
+from quantos.security import guarded
 
 
 class SECFilingArtifactError(ValueError):
@@ -31,6 +32,7 @@ def _default_transport(
     timeout_seconds: float,
     max_bytes: int,
 ) -> tuple[bytes, str]:
+    guarded(url, "sec-filing-artifact")
     request = Request(url, headers=headers)
     with urlopen(request, timeout=timeout_seconds) as response:
         content = response.read(max_bytes + 1)

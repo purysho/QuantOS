@@ -440,26 +440,29 @@ class OREEngineRunner:
             "stress_sim_xml": bundle.stress_sim_xml,
             "stress_scenario_xml": bundle.stress_scenario_xml,
         }
-        with ORE_LOCK:
-            completed = subprocess.run(
-                [sys.executable, "-m", "quantos.ore_worker"],
-                input=json.dumps(request),
-                capture_output=True,
-                text=True,
-                timeout=self.TIMEOUT_SECONDS,
-                check=False,
-            )
-        if completed.returncode != 0:
-            raise ValueError(
-                "ORE worker failed with exit code "
-                f"{completed.returncode}: {completed.stderr[-2000:]}"
-            )
-        response = json.loads(completed.stdout)
-        if response.get("ore_version") != self.ore_version:
-            raise ValueError("ORE worker ran another ORE version")
-        if response.get("errors"):
-            raise ValueError(f"ORE reported errors: {response['errors']}")
-        return response["reports"]
+        from .observability import span
+
+        with span("ore", "worker", bundle_id=bundle.bundle_id, analytics=",".join(bundle.analytics)):
+            with ORE_LOCK:
+                completed = subprocess.run(
+                    [sys.executable, "-m", "quantos.ore_worker"],
+                    input=json.dumps(request),
+                    capture_output=True,
+                    text=True,
+                    timeout=self.TIMEOUT_SECONDS,
+                    check=False,
+                )
+            if completed.returncode != 0:
+                raise ValueError(
+                    "ORE worker failed with exit code "
+                    f"{completed.returncode}: {completed.stderr[-2000:]}"
+                )
+            response = json.loads(completed.stdout)
+            if response.get("ore_version") != self.ore_version:
+                raise ValueError("ORE worker ran another ORE version")
+            if response.get("errors"):
+                raise ValueError(f"ORE reported errors: {response['errors']}")
+            return response["reports"]
 
     def npv(self, bundle: OREInputBundle) -> Decimal:
         report = self.reports(bundle, ("npv",))["npv"]

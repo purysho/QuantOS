@@ -19,6 +19,8 @@ from .claims import (
 )
 from .environment_manifest import capture_environment_manifest
 from .gates import CapitalFirewall, LiveTradingDisabled
+from .observability import ops_report
+from .security import AuditLog, KillSwitch
 from .ingestion import IngestionEngine
 from .models import EpistemicState, Event, OrderProposal
 from .persistent import DuckDBEventStore
@@ -294,6 +296,34 @@ def show_state(*, db: str, entity_id: str, as_of: str) -> int:
         store.close()
 
 
+def kill_switch_command(*, action: str, actor: str, reason: str, audit_db: str) -> int:
+    switch = KillSwitch()
+    if action == "status":
+        status = switch.status()
+        print("KILL_SWITCH", "ENGAGED" if status.engaged else "RELEASED", status.reason)
+        return 0
+    log = AuditLog(audit_db)
+    try:
+        if action == "engage":
+            switch.engage(reason=reason, actor=actor, audit=log)
+        else:
+            switch.release(actor=actor, audit=log)
+    finally:
+        log.close()
+    print("KILL_SWITCH", switch.status().reason)
+    return 0
+
+
+def audit_verify(*, db: str) -> int:
+    log = AuditLog(db)
+    try:
+        result = log.verify()
+    finally:
+        log.close()
+    print("AUDIT", "VALID" if result.valid else "INVALID", result.records, result.reason)
+    return 0 if result.valid else 1
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(prog="quantos")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -346,7 +376,25 @@ def main() -> int:
         help="optionally persist the manifest to this DuckDB store",
     )
 
+    kill = sub.add_parser("kill-switch", help="inspect, engage or release the outbound kill switch")
+    kill.add_argument("action", choices=("status", "engage", "release"))
+    kill.add_argument("--actor", default="")
+    kill.add_argument("--reason", default="")
+    kill.add_argument("--audit-db", default="data/audit.duckdb")
+
+    ops = sub.add_parser("ops-report", help="summarize recorded spans and error categories")
+    ops.add_argument("--db", default="data/observability.duckdb")
+
+    audit = sub.add_parser("audit-verify", help="verify the hash chain of the audit log")
+    audit.add_argument("--db", default="data/audit.duckdb")
+
     args = parser.parse_args()
+    if args.command == "kill-switch":
+        return kill_switch_command(action=args.action, actor=args.actor, reason=args.reason, audit_db=args.audit_db)
+    if args.command == "ops-report":
+        return ops_report(db=args.db)
+    if args.command == "audit-verify":
+        return audit_verify(db=args.db)
     if args.command == "env-manifest":
         return capture_environment_manifest(db=args.db)
     if args.command == "demo":

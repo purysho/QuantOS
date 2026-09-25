@@ -7,6 +7,7 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 from quantos.models import Event
+from quantos.security import guarded
 
 
 class FREDAdapterError(ValueError):
@@ -50,6 +51,7 @@ class FREDVintageAdapter:
             f"{self.base_url}?{params}",
             headers={"Accept": "application/json"},
         )
+        guarded(request.full_url, "fred-vintage")
         with urlopen(request, timeout=self.timeout_seconds) as response:
             payload = json.load(response)
         return self.events_from_payload(payload, series_id=series_id)

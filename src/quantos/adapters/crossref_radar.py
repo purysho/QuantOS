@@ -26,6 +26,7 @@ import requests
 
 from quantos.artifacts import ArtifactRef, SourceArtifactStore
 from quantos.research_radar import DiscoveryItem, make_discovery_id
+from quantos.security import guarded
 
 # Core finance / portfolio journals by print ISSN. Extend deliberately.
 FINANCE_JOURNAL_ISSNS = (
@@ -61,6 +62,7 @@ def _default_transport(
     headers: dict[str, str],
     timeout_seconds: float,
 ) -> tuple[bytes, str]:
+    guarded(url, "crossref-radar")
     try:
         response = requests.get(url, headers=headers, timeout=timeout_seconds)
     except requests.RequestException as exc:

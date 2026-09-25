@@ -6,6 +6,7 @@ from typing import Any
 from urllib.request import Request, urlopen
 
 from quantos.models import Event
+from quantos.security import guarded
 
 
 class SECAdapterError(ValueError):
@@ -59,6 +60,7 @@ class SECSubmissionsAdapter:
             },
         )
         fetched_at = datetime.now(timezone.utc)
+        guarded(url, "sec-submissions")
         with urlopen(request, timeout=self.timeout_seconds) as response:
             payload = json.load(response)
         return self.events_from_payload(payload, fetched_at=fetched_at, cik=cik)
