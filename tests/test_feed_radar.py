@@ -165,6 +165,46 @@ class AdapterTests(unittest.TestCase):
         self.assertEqual(rows, [("nber-wp", "nber:w35758"), ("nber-wp", "nber:w35759")])
 
 
+    def test_rescan_of_a_republished_feed_keeps_the_first_sighting(self):
+        # BIS re-publishes its feed with new bytes while the item is unchanged.
+        bodies = [BIS, BIS.replace(b"<title>BIS</title>", b"<title>BIS working papers</title>")]
+
+        class Fake:
+            def fetch(self, *, source_id, max_items, first_seen, artifact_store):
+                from quantos.adapters.feed_radar import FeedRadarFetch
+
+                now = datetime.now(UTC)
+                body = bodies.pop(0)
+                artifact = artifact_store.put(source_uri=FEEDS_BY_ID[source_id].url, content=body,
+                                              fetched_at=now, media_type="application/xml")
+                items = parse_feed(body, source=FEEDS_BY_ID[source_id], fetched_at=now,
+                                   feed_artifact_id=artifact.artifact_id, first_seen=first_seen)
+                return FeedRadarFetch(FEEDS_BY_ID[source_id], FEEDS_BY_ID[source_id].url, now, items, artifact)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            kwargs = dict(
+                source_ids=("bis-wp",), max_items=10, radar_db=str(root / "radar.duckdb"),
+                artifact_root=str(root / "a"), artifact_db=str(root / "a.duckdb"),
+                triage_db=str(root / "t.duckdb"), review_db=str(root / "r.duckdb"),
+                queue_threshold=0.0, adapter=Fake(),
+            )
+            scan_feeds(**kwargs)
+            scan_feeds(**kwargs)
+            radar = duckdb.connect(str(root / "radar.duckdb"))
+            items = radar.execute("SELECT feed_artifact_id FROM radar_items").fetchall()
+            radar.close()
+            queue = duckdb.connect(str(root / "r.duckdb"))
+            queued = queue.execute("SELECT feed_artifact_id FROM research_review_queue").fetchall()
+            queue.close()
+            archive = duckdb.connect(str(root / "a.duckdb"))
+            archived = archive.execute("SELECT count(*) FROM source_artifacts").fetchone()[0]
+            archive.close()
+        self.assertEqual(len(items), 1)
+        self.assertEqual(queued, items, "the review queue keeps the first sighting too")
+        self.assertEqual(archived, 2, "every fetched feed version stays archived")
+
+
 class SSRNTests(unittest.TestCase):
     def test_ssrn_url_filters_prefix_type_and_posted_date_and_requires_query(self):
         url = CrossrefRadarAdapter.build_ssrn_url(

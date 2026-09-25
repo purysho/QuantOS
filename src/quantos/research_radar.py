@@ -102,8 +102,12 @@ class ResearchRadarStore:
                 [item.discovery_id],
             ).fetchone()
             if existing is not None:
+                # The feed snapshot is provenance of the first sighting, not
+                # identity: a feed re-published with new bytes (another item,
+                # a new build date) still carries the same item. Every fetch
+                # stays archived; the stored item keeps its first snapshot.
                 old = self._canonical_row(existing)
-                if old != canonical:
+                if old[:10] + old[11:] != canonical[:10] + canonical[11:]:
                     raise ValueError(
                         f"discovery identity conflict: {item.discovery_id}"
                     )

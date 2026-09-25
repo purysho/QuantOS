@@ -252,12 +252,15 @@ def _scan(
         with span("radar", f"{provider}-fetch"):
             fetched = fetch(artifacts)
         ingest = radar.ingest(fetched.items)
+        # Continue with the stored items so triage and review see each item's
+        # first sighting (and its first feed snapshot) on every rescan.
+        items = tuple(radar.get(item.discovery_id) or item for item in fetched.items)
 
         engine = RadarTriageEngine()
         scored: list[TriageResult] = []
         context = list(prior)
         triaged_at = datetime.now(timezone.utc)
-        for item in fetched.items:
+        for item in items:
             result = engine.score(
                 item,
                 triaged_at=triaged_at,
@@ -289,7 +292,7 @@ def _scan(
             f"skipped={ingest.skipped_identical}",
             f"feed_artifact={artifact_id}",
         )
-        by_id = {item.discovery_id: item for item in fetched.items}
+        by_id = {item.discovery_id: item for item in items}
         queued = 0
         queued_at = datetime.now(timezone.utc)
         for result in ranked:

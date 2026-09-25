@@ -9,6 +9,7 @@
 - **Fama-French factors.** Daily five factors and momentum from the Kenneth R. French Data Library, keyless, with revisions kept.
 - **Terminal.** Workspaces open on useful views (the Treasury curve chart, formatted company metrics). Exact-decimal values chart as numbers, and years and CIKs display as labels.
 - **Reliability.** The SEC ticker directory is cached for a day. The health check sends light, spaced probes and explains rate limiting.
+- **Research radar fix.** Rescanning a feed that was re-published with new bytes but unchanged items (as BIS does) no longer fails with an identity conflict. Each item keeps its first sighting, and every feed version stays archived.
 - **Licensing.** The build-only tools that make the desktop downloads (PyInstaller and its helpers) are reviewed in their own license table. A test keeps them out of the runtime.
 
 ## 0.19.0 — Open source and usable by anyone
