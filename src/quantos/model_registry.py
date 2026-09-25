@@ -612,7 +612,7 @@ class ModelRegistry:
         self._con.execute(
             """
             INSERT INTO research_model_transitions
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             [transition.transition_id, *expected],
         )
