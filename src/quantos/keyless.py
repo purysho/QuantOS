@@ -95,14 +95,34 @@ class KnowledgeTimePolicy(str, Enum):
     PUBLICATION_SCHEDULE = "PUBLICATION_SCHEDULE"
 
 
-def _default_transport(url: str, headers: dict[str, str], timeout: float) -> tuple[bytes, str]:
+def _default_transport(url: str, headers: dict[str, str], timeout: float, *,
+                       attempts: int = 3, sleeper: Callable[[float], None] | None = None) -> tuple[bytes, str]:
+    """GET with bounded retries for timeouts, connection errors, 429 and 5xx.
+
+    Public sources (treasury.gov in particular) are occasionally slow; a
+    client error other than 429 is final.
+    """
+
+    import time as _time
+
     import requests
 
+    sleeper = sleeper or _time.sleep
     guarded(url, "keyless-data")
-    try:
-        response = requests.get(url, headers=headers, timeout=timeout, allow_redirects=False)
-    except requests.RequestException as exc:
-        raise KeylessError("public data request failed") from exc
+    for attempt in range(1, attempts + 1):
+        try:
+            response = requests.get(url, headers=headers, timeout=timeout, allow_redirects=False)
+        except (requests.Timeout, requests.ConnectionError) as exc:
+            if attempt == attempts:
+                raise KeylessError(f"public data request failed after {attempts} attempts: {url}") from exc
+            sleeper(2 ** attempt)
+            continue
+        except requests.RequestException as exc:
+            raise KeylessError("public data request failed") from exc
+        if (response.status_code == 429 or response.status_code >= 500) and attempt < attempts:
+            sleeper(2 ** attempt)
+            continue
+        break
     if response.status_code == 404:
         raise NotFound(f"no document at {url}")
     if response.status_code != 200:

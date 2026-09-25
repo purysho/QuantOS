@@ -24,7 +24,7 @@ def demo(root: str | None) -> int:
     return 0
 
 
-def main() -> int:
+def _main() -> int:
     parser = argparse.ArgumentParser(prog="quantos-lab")
     sub = parser.add_subparsers(dest="command", required=True)
     demo_parser = sub.add_parser(
@@ -42,6 +42,12 @@ def main() -> int:
     if args.command == "demo":
         return demo(args.root)
     return 2
+
+
+def main() -> int:
+    from .cli_support import friendly
+
+    return friendly(_main, "quantos-lab")
 
 
 if __name__ == "__main__":

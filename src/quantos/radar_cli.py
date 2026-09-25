@@ -465,7 +465,7 @@ def verify_catalog_file(
         catalog.close()
 
 
-def main() -> int:
+def _main() -> int:
     parser = argparse.ArgumentParser(
         prog="quantos-radar",
         description="Research discovery radar; never promotes claims automatically.",
@@ -693,6 +693,12 @@ def main() -> int:
         )
         return 0
     return 2
+
+
+def main() -> int:
+    from .cli_support import friendly
+
+    return friendly(_main, "quantos-radar")
 
 
 if __name__ == "__main__":

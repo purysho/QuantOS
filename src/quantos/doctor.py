@@ -135,9 +135,15 @@ def _probe(url: str) -> int:
 
     guarded(url, "doctor")
     agent = os.environ.get("SEC_USER_AGENT", "First Current Quant OS doctor")
-    response = requests.get(url, headers={"User-Agent": agent}, timeout=20, stream=True)
-    response.close()
-    return response.status_code
+    for attempt in range(2):
+        try:
+            response = requests.get(url, headers={"User-Agent": agent}, timeout=30, stream=True)
+            response.close()
+            return response.status_code
+        except requests.Timeout:
+            if attempt:
+                raise
+    raise AssertionError("unreachable")
 
 
 def doctor_command(*, online: bool) -> int:

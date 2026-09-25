@@ -25,6 +25,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import os
 import re
 import shutil
 from dataclasses import dataclass
@@ -40,7 +41,7 @@ from .security import REDACTOR
 
 PERSPECTIVE_VERSION = "3.8.0"
 TERMINAL_VERSION = "18.1"
-DEFAULT_ROW_LIMIT = 50_000
+DEFAULT_ROW_LIMIT = 200_000
 MAX_FLATTENED_KEYS = 40
 
 WORKSPACES: dict[str, tuple[str, ...]] = {
@@ -194,8 +195,13 @@ class TerminalExporter:
         # When a table is truncated, the most recent rows are the ones kept.
         cursor = con.execute(f'SELECT * FROM "{name}"{order} LIMIT {self.row_limit}')
         raw_rows = cursor.fetchall()
-        schema: dict[str, str] = {col: _perspective_type(kind) for col, kind in columns}
-        rows = [{col: _value(v) for (col, _), v in zip(columns, row)} for row in raw_rows]
+        schema: dict[str, str] = {
+            col: "string" if _is_code(col) else _perspective_type(kind) for col, kind in columns
+        }
+        rows = [
+            {col: (str(v) if v is not None and _is_code(col) else _value(v)) for (col, _), v in zip(columns, row)}
+            for row in raw_rows
+        ]
         _flatten_payloads(schema, rows)
         document = {"table": name, "source": source, "schema": schema, "columns": _column_order(schema, rows), "rows": rows}
         body = REDACTOR.redact(json.dumps(document, sort_keys=True, separators=(",", ":"), allow_nan=False)).encode()
@@ -211,6 +217,13 @@ class TerminalExporter:
             truncated=total > len(rows),
             sha256=hashlib.sha256(body).hexdigest(),
         )
+
+
+def _is_code(column: str) -> bool:
+    """Numbers that are labels, not quantities (years, CIKs, sequence numbers):
+    shown as text so they are never formatted as "2,026" or summed."""
+
+    return column in {"cik", "sequence"} or column.endswith(("_year", "_cik")) or column == "year"
 
 
 def _column_order(schema: dict[str, str], rows: list[dict]) -> list[str]:
@@ -336,9 +349,18 @@ class _ReadOnlyHandler(SimpleHTTPRequestHandler):
 LOOPBACK_HOSTS = {"127.0.0.1", "::1", "localhost"}
 
 
+def _container_bind_allowed(host: str) -> bool:
+    """Inside the official container the server must listen on the container
+    interface; the image sets ``QUANTOS_CONTAINER=1`` and the compose file
+    publishes the port on the host's 127.0.0.1 only."""
+
+    in_container = Path("/.dockerenv").exists() or Path("/run/.containerenv").exists()
+    return host == "0.0.0.0" and os.environ.get("QUANTOS_CONTAINER") == "1" and in_container
+
+
 def make_server(*, directory: str | Path, host: str = "127.0.0.1", port: int = 8765) -> ThreadingHTTPServer:
     directory = Path(directory).resolve()
-    if host not in LOOPBACK_HOSTS:
+    if host not in LOOPBACK_HOSTS and not _container_bind_allowed(host):
         raise TerminalError("the terminal binds to loopback only")
     if not (directory / "terminal_manifest.json").is_file():
         raise TerminalError(f"{directory} is not a terminal export (run `quantos terminal export`)")
@@ -366,7 +388,8 @@ def terminal_command(*, action: str, data_dir: str, out_dir: str, host: str, por
         print("TERMINAL_AUTHORITY NONE read-only")
         return 0
     server = make_server(directory=out_dir, host=host, port=port)
-    print(f"TERMINAL http://{host}:{server.server_address[1]}/  (read-only, Ctrl+C to stop)")
+    shown = "127.0.0.1" if host == "0.0.0.0" else host
+    print(f"TERMINAL http://{shown}:{server.server_address[1]}/  (read-only, Ctrl+C to stop)")
     try:
         server.serve_forever()
     except KeyboardInterrupt:

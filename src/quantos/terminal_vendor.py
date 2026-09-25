@@ -46,6 +46,11 @@ class VendorError(ValueError):
 
 
 def vendor_root(home: Path | None = None) -> Path:
+    """``$QUANTOS_VENDOR_DIR`` (set by the container and live-USB images) or ``<home>/vendor``."""
+
+    configured = os.environ.get("QUANTOS_VENDOR_DIR")
+    if configured and home is None:
+        return Path(configured) / "npm" / "@finos"
     return (home or home_dir()) / VENDOR_DIR / "npm" / "@finos"
 
 

@@ -368,7 +368,7 @@ def capture_market_data(
     return 0
 
 
-def main() -> int:
+def _main() -> int:
     from . import __version__
     from .home import activate
 
@@ -483,7 +483,7 @@ def main() -> int:
     terminal.add_argument("--out", default="data/terminal")
     terminal.add_argument("--host", default="127.0.0.1")
     terminal.add_argument("--port", type=int, default=8765)
-    terminal.add_argument("--row-limit", type=int, default=50_000)
+    terminal.add_argument("--row-limit", type=int, default=200_000)
 
     args = parser.parse_args()
     activate()
@@ -581,6 +581,12 @@ def main() -> int:
     if args.command == "asof":
         return show_state(db=args.db, entity_id=args.entity, as_of=args.as_of)
     return 2
+
+
+def main() -> int:
+    from .cli_support import friendly
+
+    return friendly(_main, "quantos")
 
 
 if __name__ == "__main__":
