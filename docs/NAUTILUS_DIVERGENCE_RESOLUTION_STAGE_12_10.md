@@ -1,9 +1,9 @@
 # Stage 12.10 — Resolving the Stage 12.4 Nautilus Divergences
 
-Stage 12.4 recorded six places where NautilusTrader and the First Current reference engine disagree, and refused all of them. Stage 12.10 resolves five of them the only acceptable way. For each one:
+Stage 12.4 recorded six places where NautilusTrader and the QuantOS reference engine disagree, and refused all of them. Stage 12.10 resolves five of them the only acceptable way. For each one:
 
 1. the Nautilus behavior was pinned down by experiment;
-2. an explicit, opt-in **reference semantics mode** was added to First Current;
+2. an explicit, opt-in **reference semantics mode** was added to QuantOS;
 3. a new frozen equivalence contract was written that requires that mode;
 4. the two engines are compared exactly.
 

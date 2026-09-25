@@ -64,7 +64,7 @@ class HomeTests(unittest.TestCase):
 
     def test_user_agent_has_no_url(self):
         agent = QuantosConfig(contact_email="a@b.org", organization="Desk").user_agent
-        self.assertEqual(agent, "First Current Quant OS Desk a@b.org")
+        self.assertEqual(agent, "QuantOS Desk a@b.org")
         self.assertNotIn("http", agent)
 
     def test_setup_requires_email_and_stores_private_keys(self):
@@ -95,7 +95,7 @@ class HomeTests(unittest.TestCase):
         os.environ["CROSSREF_MAILTO"] = "explicit@example.org"
         activate()
         self.assertEqual(Path.cwd().resolve(), self.home.resolve())
-        self.assertEqual(os.environ["SEC_USER_AGENT"], "First Current Quant OS Desk a@b.org")
+        self.assertEqual(os.environ["SEC_USER_AGENT"], "QuantOS Desk a@b.org")
         self.assertEqual(os.environ["CROSSREF_MAILTO"], "explicit@example.org")
         self.assertEqual(os.environ["QUANTOS_SECRETS_DIR"], str(self.home / "secrets"))
         from quantos.security import SecretProvider

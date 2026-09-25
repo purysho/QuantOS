@@ -22,7 +22,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def project_installed():
     try:
-        distribution("first-current-quant-os")
+        distribution("quantos")
     except PackageNotFoundError:
         return False
     return True

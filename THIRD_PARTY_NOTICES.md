@@ -1,12 +1,12 @@
 # Third-Party Notices
 
-First Current Quant OS is licensed under Apache-2.0 (see LICENSE and NOTICE). The source repository does not vendor or modify the packages below; they are installed from their own distributions under their own licenses. Container and live-USB images do redistribute them unmodified, with their license files kept in place inside each installed package. The versions in use are pinned in `uv.lock` and `requirements.lock`.
+QuantOS is licensed under Apache-2.0 (see LICENSE and NOTICE). The source repository does not vendor or modify the packages below; they are installed from their own distributions under their own licenses. Container and live-USB images do redistribute them unmodified, with their license files kept in place inside each installed package. The versions in use are pinned in `uv.lock` and `requirements.lock`.
 
 This file is generated from `quantos.license_policy` (`python -m quantos.license_policy > THIRD_PARTY_NOTICES.md`), and a test keeps the two identical.
 
 ## Weak-copyleft components
 
-These are allowed only while unmodified, installed as separate packages and imported dynamically, so a user can replace them with another compatible version. If any of them is ever modified, vendored, statically linked or shipped inside a First Current distribution, the obligations of its license (source availability of the modified component, license text, replaceability) must be reviewed before release.
+These are allowed only while unmodified, installed as separate packages and imported dynamically, so a user can replace them with another compatible version. If any of them is ever modified, vendored, statically linked or shipped inside a QuantOS distribution, the obligations of its license (source availability of the modified component, license text, replaceability) must be reviewed before release.
 
 | Distribution | License | Note |
 | --- | --- | --- |
@@ -24,7 +24,7 @@ These are allowed only while unmodified, installed as separate packages and impo
 | cvxpy | Apache-2.0 |  |
 | cvxpy-base | Apache-2.0 |  |
 | duckdb | MIT |  |
-| exchange-calendars | Apache-2.0 | external calendar engine behind First Current rules |
+| exchange-calendars | Apache-2.0 | external calendar engine behind QuantOS rules |
 | highspy | MIT |  |
 | idna | BSD-3-Clause |  |
 | jinja2 | BSD-3-Clause |  |

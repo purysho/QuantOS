@@ -1,5 +1,0 @@
-[Desktop Entry]
-Type=Application
-Name=First Current welcome
-Exec=/usr/local/bin/first-current-welcome
-X-GNOME-Autostart-enabled=true

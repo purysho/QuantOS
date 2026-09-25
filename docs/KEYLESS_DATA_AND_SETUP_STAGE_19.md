@@ -12,7 +12,7 @@ CLI: `quantos setup | doctor | daily`, plus `quantos terminal vendor`.
 
 ## Goal
 
-Anyone can install First Current and get useful, point-in-time data **with no signup and no API key**. Optional free personal keys add stock prices and macro vintages.
+Anyone can install QuantOS and get useful, point-in-time data **with no signup and no API key**. Optional free personal keys add stock prices and macro vintages.
 
 ## Keyless sources
 

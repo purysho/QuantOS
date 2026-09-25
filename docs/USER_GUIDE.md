@@ -18,13 +18,13 @@ This guide takes you from nothing to a working research terminal. You can use no
 
 ### Desktop app (recommended)
 
-Download it from the [latest release](https://github.com/purysho/First-Current-Quant-OS-prototype/releases/latest), or use the buttons in the README.
+Download it from the [latest release](https://github.com/purysho/QuantOS/releases/latest), or use the buttons in the README.
 
 | System | File | How to start |
 |---|---|---|
-| Windows 10/11 (x64) | `FirstCurrent-Windows-x64.zip` | Right-click → **Extract All**, open `FirstCurrent`, double-click `FirstCurrent.exe` |
-| macOS 12+ (Apple Silicon) | `FirstCurrent-macOS-arm64.dmg` | Open it, drag **First Current** to Applications, start it from Applications |
-| Linux (x86-64) | `FirstCurrent-Linux-x86_64.AppImage` | `chmod +x FirstCurrent-Linux-x86_64.AppImage`, then run it (or double-click) |
+| Windows 10/11 (x64) | `QuantOS-Windows-x64.zip` | Right-click → **Extract All**, open `QuantOS`, double-click `QuantOS.exe` |
+| macOS 12+ (Apple Silicon) | `QuantOS-macOS-arm64.dmg` | Open it, drag **QuantOS** to Applications, start it from Applications |
+| Linux (x86-64) | `QuantOS-Linux-x86_64.AppImage` | `chmod +x QuantOS-Linux-x86_64.AppImage`, then run it (or double-click) |
 
 The app opens its **control center** in your web browser.
 - **Setup:** it asks for your contact email, your tickers and any optional keys.
@@ -33,13 +33,13 @@ The app opens its **control center** in your web browser.
 - **Open terminal:** explore everything in the terminal.
 - **Health check:** see what works on your computer.
 
-On Windows and Linux, a small status window stays open while the app runs; closing it, or pressing **Quit** in the control center, stops First Current. Starting the app again while it is running just reopens the control center.
+On Windows and Linux, a small status window stays open while the app runs; closing it, or pressing **Quit** in the control center, stops QuantOS. Starting the app again while it is running just reopens the control center.
 
 Where your data is kept:
-- **Windows:** `%LOCALAPPDATA%\FirstCurrent`.
-- **macOS:** `~/Library/Application Support/FirstCurrent`.
-- **Linux:** `~/.local/share/FirstCurrent`.
-- **Portable mode:** create a folder named `FirstCurrent-data` next to the program and the data lives there instead. This is handy on a USB stick.
+- **Windows:** `%LOCALAPPDATA%\QuantOS`.
+- **macOS:** `~/Library/Application Support/QuantOS`.
+- **Linux:** `~/.local/share/QuantOS`.
+- **Portable mode:** create a folder named `QuantOS-data` next to the program and the data lives there instead. This is handy on a USB stick.
 
 **First launch warnings.** The builds are not code-signed yet (signing certificates cost money):
 - **Windows SmartScreen:** click **More info → Run anyway**.
@@ -50,15 +50,15 @@ Where your data is kept:
 Every release lists SHA-256 checksums in `SHA256SUMS.txt`, and each file also has its own `.sha256` file.
 
 ```bash
-sha256sum -c FirstCurrent-Linux-x86_64.AppImage.sha256          # Linux
-shasum -a 256 -c FirstCurrent-macOS-arm64.dmg.sha256            # macOS
-Get-FileHash FirstCurrent-Windows-x64.zip -Algorithm SHA256     # Windows PowerShell (compare by eye)
+sha256sum -c QuantOS-Linux-x86_64.AppImage.sha256          # Linux
+shasum -a 256 -c QuantOS-macOS-arm64.dmg.sha256            # macOS
+Get-FileHash QuantOS-Windows-x64.zip -Algorithm SHA256     # Windows PowerShell (compare by eye)
 ```
 
 Every file also has a signed **build-provenance attestation**, which proves it was built by this repository's release workflow from a specific commit:
 
 ```bash
-gh attestation verify FirstCurrent-Linux-x86_64.AppImage --repo purysho/First-Current-Quant-OS-prototype
+gh attestation verify QuantOS-Linux-x86_64.AppImage --repo purysho/QuantOS
 ```
 
 ### Live USB
@@ -66,12 +66,12 @@ gh attestation verify FirstCurrent-Linux-x86_64.AppImage --repo purysho/First-Cu
 This option needs no installation. Boot any 64-bit PC from a USB stick.
 
 1. Get the ISO:
-   - download `first-current-quant-os-<version>-amd64.iso` and its `.sha256` file from the project's releases, **or**
+   - download `quantos-<version>-amd64.iso` and its `.sha256` file from the project's releases, **or**
    - build it yourself with `packaging/live-usb/build.sh` (see [packaging/live-usb/README.md](../packaging/live-usb/README.md)).
-2. Verify the ISO: `sha256sum -c first-current-quant-os-<version>-amd64.iso.sha256`.
+2. Verify the ISO: `sha256sum -c quantos-<version>-amd64.iso.sha256`.
 3. Write it to a USB stick of 16 GB or more, with an encrypted persistence partition:
    ```bash
-   sudo ./make-first-current-usb first-current-quant-os-<version>-amd64.iso /dev/sdX
+   sudo ./make-quantos-usb quantos-<version>-amd64.iso /dev/sdX
    ```
    This erases the stick. You choose a passphrase for the persistence partition.
 4. Boot from the stick. Choose the USB device in your PC's boot menu, often F12, F11, Esc or F2. Enter the passphrase when asked.
@@ -82,8 +82,8 @@ The live user is `quantos` with the standard Debian live password, `live`. Your 
 ### Container (Linux, macOS, Windows)
 
 ```bash
-git clone https://github.com/purysho/First-Current-Quant-OS-prototype.git first-current
-cd first-current
+git clone https://github.com/purysho/QuantOS.git quantos
+cd quantos
 docker compose build
 docker compose run --rm quantos setup
 docker compose run --rm quantos daily
@@ -98,7 +98,7 @@ On Linux with Python 3.11+ and [uv](https://docs.astral.sh/uv/):
 
 ```bash
 uv sync --locked                     # add --extra ore on x86-64 for the ORE engine
-export QUANTOS_HOME=~/FirstCurrent   # where configuration and data will live
+export QUANTOS_HOME=~/QuantOS   # where configuration and data will live
 uv run quantos setup
 ```
 
@@ -160,7 +160,7 @@ Every step is safe to repeat: identical data is not stored twice, and changed da
 
 **How knowledge time is recorded.**
 - SEC facts are known at the end of their filing day, New York time.
-- Everything else is known when First Current fetched it.
+- Everything else is known when QuantOS fetched it.
 - For Treasury and ECB history, a publication-schedule assumption can be chosen instead (Treasury 18:00 New York, ECB 16:00 Frankfurt). It is recorded on every row.
 - FRED CSV values are latest revisions, so they are always stamped with their fetch time; with a FRED key, use real vintages instead.
 
@@ -185,7 +185,7 @@ quantos analyze AAPL
 quantos analyze JPM --as-of 2024-06-30      # only what was known on that date
 ```
 
-First Current builds standardized annual statements from the company's SEC XBRL filings:
+QuantOS builds standardized annual statements from the company's SEC XBRL filings:
 - the **income statement**, **balance sheet** and **cash flow**, each as **originally filed** in that year's 10-K (later restatements are kept separately and never overwrite history);
 - every line records the XBRL concept and filing it came from;
 - the statements are checked against accounting identities:
@@ -198,7 +198,7 @@ Any check that doesn't tie is **reported, never forced**. For example, Apple's s
 
 The metrics are revenue growth, gross, operating and net margins, diluted EPS, free cash flow, return on equity and assets, debt/equity and the current ratio. They appear in the app, and in the terminal under **Company / Financials**.
 
-First Current deliberately does **not** produce an automatic valuation: a DCF needs reviewed, evidence-backed assumptions. These statements are where that work starts.
+QuantOS deliberately does **not** produce an automatic valuation: a DCF needs reviewed, evidence-backed assumptions. These statements are where that work starts.
 
 ## 6. Research radar
 
@@ -215,7 +215,7 @@ Radar items are *leads*, not facts. They enter triage and a human review queue a
 ## 7. Where your data lives
 
 ```
-$QUANTOS_HOME/              (live USB: ~/FirstCurrent; container: /quantos)
+$QUANTOS_HOME/              (live USB: ~/QuantOS; container: /quantos)
     quantos.toml            configuration — safe to share
     secrets/                API keys — private (0700/0600)
     data/                   DuckDB stores, archived source files, terminal export
@@ -226,7 +226,7 @@ Back up the whole folder to keep your history. Every archived source file is con
 ## 8. Keeping it updated automatically
 
 - **Live USB:** a systemd user timer runs `quantos daily` after the US close on weekdays. Check it with `systemctl --user list-timers`.
-- **Linux:** add a cron entry, e.g. `30 22 * * 1-5 QUANTOS_HOME=$HOME/FirstCurrent quantos daily`.
+- **Linux:** add a cron entry, e.g. `30 22 * * 1-5 QUANTOS_HOME=$HOME/QuantOS quantos daily`.
 - **Container:** schedule `docker compose run --rm quantos daily` with cron, launchd or Task Scheduler.
 
 ## 9. Troubleshooting

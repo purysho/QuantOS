@@ -1,5 +1,5 @@
 #!/bin/sh
-# Installs First Current Quant OS into /opt/quantos from the source tree that
+# Installs QuantOS into /opt/quantos from the source tree that
 # build.sh placed in /opt/quantos/src, with exactly the locked dependencies.
 set -eu
 SRC=/opt/quantos/src
@@ -28,6 +28,6 @@ rm -rf /tmp/fc-vendor
 # Self-test at build time: the image must pass its own license gate and tests.
 cd "$SRC" && /opt/quantos/venv/bin/python -m unittest tests.test_license_policy tests.test_keyless tests.test_home_runbook
 
-install -d /usr/share/doc/first-current-quant-os
-cp "$SRC/LICENSE" "$SRC/NOTICE" "$SRC/THIRD_PARTY_NOTICES.md" "$SRC/requirements.lock" /usr/share/doc/first-current-quant-os/
+install -d /usr/share/doc/quantos
+cp "$SRC/LICENSE" "$SRC/NOTICE" "$SRC/THIRD_PARTY_NOTICES.md" "$SRC/requirements.lock" /usr/share/doc/quantos/
 rm -rf "$TOOLS" /root/.cache

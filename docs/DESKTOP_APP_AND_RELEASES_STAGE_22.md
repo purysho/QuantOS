@@ -5,7 +5,7 @@ Packaging: `packaging/desktop/` (spec, entry point, `build.py`, icons) and `.git
 
 ## The app
 
-`quantos app`, or the packaged `FirstCurrent` executable, starts one **loopback-only** server and opens the user's own browser. No GUI toolkit is involved, so the same code runs on Windows, macOS and Linux.
+`quantos app`, or the packaged `QuantOS` executable, starts one **loopback-only** server and opens the user's own browser. No GUI toolkit is involved, so the same code runs on Windows, macOS and Linux.
 
 | Path | What |
 |---|---|
@@ -23,10 +23,10 @@ Packaging: `packaging/desktop/` (spec, entry point, `build.py`, icons) and `.git
 - The CSP is `default-src 'none'`, with only self-hosted scripts and styles.
 
 **Data home.**
-- Windows: `%LOCALAPPDATA%\FirstCurrent`.
-- macOS: `~/Library/Application Support/FirstCurrent`.
-- Linux: `$XDG_DATA_HOME/FirstCurrent`.
-- Portable mode: a `FirstCurrent-data` folder next to the executable.
+- Windows: `%LOCALAPPDATA%\QuantOS`.
+- macOS: `~/Library/Application Support/QuantOS`.
+- Linux: `$XDG_DATA_HOME/QuantOS`.
+- Portable mode: a `QuantOS-data` folder next to the executable.
 
 **Single instance.** A private (0600) `app_instance.json` lets a second launch reopen the running control center. Only loopback URLs are trusted.
 
@@ -37,7 +37,7 @@ Packaging: `packaging/desktop/` (spec, entry point, `build.py`, icons) and `.git
 1. Vendors Perspective, checking the npm integrity hashes.
 2. Builds with PyInstaller from the locked `desktop` dependency group.
    - NautilusTrader and ORE are left out: they are used only by the engine differential tests, and ORE has no macOS wheels.
-3. Runs `FirstCurrent --version` and `--smoke-test` from a clean profile. The smoke test covers:
+3. Runs `QuantOS --version` and `--smoke-test` from a clean profile. The smoke test covers:
    - every lazily imported module;
    - a DuckDB TIMESTAMPTZ round trip, which is how the missing `pytz` import was caught;
    - a terminal export;
@@ -49,13 +49,13 @@ Packaging: `packaging/desktop/` (spec, entry point, `build.py`, icons) and `.git
 
 | Platform | Artifact | Notes |
 |---|---|---|
-| Windows 10/11 x64 | `FirstCurrent-Windows-x64.zip` | Portable folder plus README; console status window |
-| macOS 12+ arm64 | `FirstCurrent-macOS-arm64.dmg` | `First Current.app`, ad-hoc signed by PyInstaller |
-| Linux x86-64 | `FirstCurrent-Linux-x86_64.AppImage` | Built on Ubuntu 22.04 (glibc 2.35); `appimagetool` 1.9.0 pinned by SHA-256 |
+| Windows 10/11 x64 | `QuantOS-Windows-x64.zip` | Portable folder plus README; console status window |
+| macOS 12+ arm64 | `QuantOS-macOS-arm64.dmg` | `QuantOS.app`, ad-hoc signed by PyInstaller |
+| Linux x86-64 | `QuantOS-Linux-x86_64.AppImage` | Built on Ubuntu 22.04 (glibc 2.35); `appimagetool` 1.9.0 pinned by SHA-256 |
 
 On a tag `vX.Y.Z` (which must equal `pyproject.toml`'s version), `release.yml` also builds:
 - the live-USB ISO plus its source image;
-- the container image `ghcr.io/purysho/first-current:{version,latest}`, with a provenance attestation;
+- the container image `ghcr.io/purysho/quantos:{version,latest}`, with a provenance attestation;
 - a CycloneDX SBOM and `SHA256SUMS.txt`;
 - build-provenance attestations for every file.
 

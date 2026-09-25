@@ -1,10 +1,10 @@
 # Stage 12.2 — Deterministic Reference Fill Engine
 
-Stage 12.2 adds a First Current-owned execution oracle before NautilusTrader is allowed into the stack.
+Stage 12.2 adds a QuantOS-owned execution oracle before NautilusTrader is allowed into the stack.
 
 ## Why a reference engine comes first
 
-The external execution engine must be testable against independently specified semantics. First Current therefore owns the simple top-of-book model and will later use it as a differential oracle for overlapping NautilusTrader fixtures.
+The external execution engine must be testable against independently specified semantics. QuantOS therefore owns the simple top-of-book model and will later use it as a differential oracle for overlapping NautilusTrader fixtures.
 
 ## Order activation and market-data availability
 
@@ -52,4 +52,4 @@ The engine operates only on HISTORICAL_REPLAY runs. It has no network authority,
 
 ## Next slice
 
-Stage 12.3 should integrate NautilusTrader in historical-backtest mode only. The adapter must map First Current instruments, market events and simulated intents explicitly, record the exact NautilusTrader version/configuration, disable live adapters, and run differential fixtures against this reference engine for supported market/limit cases before Nautilus results are accepted.
+Stage 12.3 should integrate NautilusTrader in historical-backtest mode only. The adapter must map QuantOS instruments, market events and simulated intents explicitly, record the exact NautilusTrader version/configuration, disable live adapters, and run differential fixtures against this reference engine for supported market/limit cases before Nautilus results are accepted.

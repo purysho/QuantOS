@@ -87,7 +87,7 @@ class NautilusDifferentialBehavior(str, Enum):
 
 
 class NautilusRawTerminalState(str, Enum):
-    """What Nautilus itself reported before First Current mapping."""
+    """What Nautilus itself reported before QuantOS mapping."""
 
     FILLED = "FILLED"
     CANCELED = "CANCELED"
@@ -183,7 +183,7 @@ DETERMINISTIC_FEES_CONTRACT = NautilusEquivalenceContract(
     compared_fields=COMPARED_FIELDS,
     known_divergences=(
         "Nautilus rounds commission half-even to currency precision; the "
-        "First Current reference keeps the exact decimal. Fixtures whose "
+        "QuantOS reference keeps the exact decimal. Fixtures whose "
         "exact commission needs rounding are refused.",
     ),
 )
@@ -1066,7 +1066,7 @@ class NautilusHistoricalBacktestAdapter:
             final_state = SimulationOrderState.EXPIRED
             mapping_notes.append(
                 "order working when replay data ended mapped to EXPIRED "
-                "by First Current horizon rule"
+                "by QuantOS horizon rule"
             )
 
         vwap = (
@@ -1555,9 +1555,9 @@ class NautilusDifferentialEngine:
             raise ValueError(
                 "Nautilus result belongs to another intent"
             )
-        if reference_run.engine_name != "FIRST_CURRENT_REFERENCE":
+        if reference_run.engine_name != "QUANTOS_REFERENCE":
             raise ValueError(
-                "differential reference run is not First Current reference"
+                "differential reference run is not QuantOS reference"
             )
         if nautilus_run.engine_name != "NAUTILUS_TRADER":
             raise ValueError(
@@ -1663,7 +1663,7 @@ class NautilusDifferentialEngine:
             + " (stage "
             + contract.stage
             + ")",
-            "First Current reference is independent differential oracle",
+            "QuantOS reference is independent differential oracle",
             "Nautilus live adapters are outside Stage 12 scope",
         ) + sequence_mismatches
         result = NautilusDifferentialResult(

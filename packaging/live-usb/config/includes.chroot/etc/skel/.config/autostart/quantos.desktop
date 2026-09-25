@@ -1,0 +1,5 @@
+[Desktop Entry]
+Type=Application
+Name=QuantOS welcome
+Exec=/usr/local/bin/quantos-welcome
+X-GNOME-Autostart-enabled=true

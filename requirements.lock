@@ -276,7 +276,7 @@ cvxpy==1.9.3 \
     --hash=sha256:e131172323be4f0a3fa35a79b03b1eb159b7c7c0d298e5755452e252c55b697f \
     --hash=sha256:e71a6d3c4742c5f425f79b6331856d8293c20dffcaa7e18888499d21514cd797 \
     --hash=sha256:e7d6c959cbe1922f2f4824bcb091567e6b43ce8e390447276abff5ab19db4341
-    # via first-current-quant-os
+    # via quantos
 cvxpy-base==1.9.3 \
     --hash=sha256:1f7040a77d51201498f7e212ab489a82250dc80cbcdf364b8b2e1b07bb8b591a \
     --hash=sha256:2ca938384f7172672b910f3892ee382e450f37abf10ab424cc8b2aca356c9147 \
@@ -334,11 +334,11 @@ duckdb==1.5.5 \
     --hash=sha256:f316eae2323d9a851883fdf2dee91c1f9efe251ab33e14a2272f82a913422ed6 \
     --hash=sha256:fbf0f2d48b43c6c304d00463b463c27ead6c4b01c3c1816b750f728decf71afe \
     --hash=sha256:feead93c56679b79592d437c62975d39cb67adedffa7592c763baf8160ac7366
-    # via first-current-quant-os
+    # via quantos
 exchange-calendars==4.13.2 \
     --hash=sha256:a9459425dd64142cd54fbc639847403c7e0c33d60fbc326c94fc1d6bd127f002 \
     --hash=sha256:fc5a2ad0d61b5c3a6539a3061cd4cbb55c59f4a903455cec7926e4b798919996
-    # via first-current-quant-os
+    # via quantos
 highspy==1.15.1 \
     --hash=sha256:00e1c13912501e96893136a1805b56b74cb4868fa04c1c2eacc5c0454304e08e \
     --hash=sha256:01c6585e83938ecf4139248b074b2ee736816d63716a20dc608b1d2fc9637b66 \
@@ -489,7 +489,7 @@ nautilus-trader==2.0.0rc5 ; python_full_version >= '3.12' \
     --hash=sha256:d566bade9e8dc6ad35de0e2566658fbd1ae75a89ee2c45c8e48de5fcc6929399 \
     --hash=sha256:d68fcd0938449c0b8cce412dc4ac806072272d627baa19ef87393f25077e5432 \
     --hash=sha256:eab45fafd2312deda1236554c49a9798bfc76bc8465af864878e2f70189ebebe
-    # via first-current-quant-os
+    # via quantos
 numpy==2.4.6 ; python_full_version < '3.12' \
     --hash=sha256:001fbb8e08d942dd57599e781f2472269ee7f2755fae407b4f67b2f0b17da3f1 \
     --hash=sha256:0280e0356c0829a18d9de1cb7eee50ec22ca639878d7240307ca0943d73cd2c4 \
@@ -568,11 +568,11 @@ numpy==2.4.6 ; python_full_version < '3.12' \
     #   cvxpy
     #   cvxpy-base
     #   exchange-calendars
-    #   first-current-quant-os
     #   highspy
     #   osqp
     #   pandas
     #   qdldl
+    #   quantos
     #   scikit-learn
     #   scipy
     #   scs
@@ -650,11 +650,11 @@ numpy==2.5.3 ; python_full_version >= '3.12' \
     #   cvxpy
     #   cvxpy-base
     #   exchange-calendars
-    #   first-current-quant-os
     #   highspy
     #   osqp
     #   pandas
     #   qdldl
+    #   quantos
     #   scikit-learn
     #   scipy
     #   scs
@@ -692,8 +692,8 @@ packaging==26.3 \
     --hash=sha256:94edc256424af38762eb31306eed28beb9f0efc50a8837492c9d6fd6004aed79 \
     --hash=sha256:d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c
     # via
-    #   first-current-quant-os
     #   plotly
+    #   quantos
 pandas==3.0.6 \
     --hash=sha256:0704044b676496b8350e023b09f174a26772456c974a2b11c36bebb558c9490d \
     --hash=sha256:085e3786ae6b2e82b406266bce36690f72b9dc1421903ba9296b2981a9fcf586 \
@@ -775,7 +775,7 @@ python-dateutil==2.9.0.post0 \
 pytz==2026.4 \
     --hash=sha256:464303645bafafd72418898368b2429458f709cf1eb6a15372fbcc396b64da63 \
     --hash=sha256:9d514388fbc89ca0833203464272ac485b8828568ab73532f5020f17e892a0ff
-    # via first-current-quant-os
+    # via quantos
 qdldl==0.1.9.post1 \
     --hash=sha256:00331a5e45cc60bf6f75f027ae2a2c137295de0b5e1a0af358a37aaa07427476 \
     --hash=sha256:0cb2e82b4f40cb18638da47adf491a016d76d0d82f25377c4c330453a8785f94 \
@@ -844,11 +844,11 @@ quantlib==1.43 \
     --hash=sha256:f21eaf656ea5bd26e023a402eda81a6b66338c7a3d1f3dfef3894f05312f7ac6 \
     --hash=sha256:f5e1a4f286187ca858aaf7b2bdd90941b436937955e02c72be69e7653f7619ca \
     --hash=sha256:f9c620de81c8bea76b7bd82a190fdf0393f18812a2c2529351fabc7338b6b3c1
-    # via first-current-quant-os
+    # via quantos
 requests==2.34.2 \
     --hash=sha256:2a0d60c172f83ac6ab31e4554906c0f3b3588d37b5cb939b1c061f4907e278e0 \
     --hash=sha256:f288924cae4e29463698d6d60bc6a4da69c89185ad1e0bcc4104f584e960b9ed
-    # via first-current-quant-os
+    # via quantos
 scikit-learn==1.9.1 \
     --hash=sha256:09f4d73049cd63575157f6b1060e06a8c83a4bd3488dbfaeedf35ccba7aad712 \
     --hash=sha256:0c0f8b5d09b44101cea2767f300680bada1ea27f976fe4b48b83950a4f55a49a \
@@ -1085,7 +1085,7 @@ six==1.17.0 \
 skfolio==1.3.2 \
     --hash=sha256:6234be22cfc7c8842a997239f1300fff09d88877f6537fc2fc79dfa5957b1edb \
     --hash=sha256:b072fe7f3f2e9bd67a46ed8b4e181753145303ade52f828655c105aa08fcd8bb
-    # via first-current-quant-os
+    # via quantos
 sparsediffpy==0.6.1 \
     --hash=sha256:00bcfbb4dd7ca6b9902da7e326b5f47c5bacd6824812421f2e3be97d9b073044 \
     --hash=sha256:193618b27958588983134827e1b2137caf8e80fd9346f0a98c38e1fb938b2c40 \

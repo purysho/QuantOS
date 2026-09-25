@@ -9,7 +9,7 @@ Every record is bitemporal:
 
 * ``valid_from`` / ``valid_to`` (dates, ``valid_to`` exclusive) say when the
   fact was true in the world;
-* ``knowledge_time`` says when First Current learned it.
+* ``knowledge_time`` says when QuantOS learned it.
 
 A record is identified by a logical ``record_key``. A later record with the
 same key supersedes an earlier one from its knowledge time onward, and a

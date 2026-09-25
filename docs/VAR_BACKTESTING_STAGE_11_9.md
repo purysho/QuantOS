@@ -55,4 +55,4 @@ Every observation and report records approval_authority = NONE, order_authority 
 
 ## Next slice
 
-Stage 11.10 should add exception-independence and clustering diagnostics plus a risk-review dossier that combines deterministic stress coverage, historical-simulation calibration, concentration and model limitations. Only after First Current's independent risk layer is stable should OpenSourceRisk/Engine be introduced as a separately versioned adapter and differential comparator.
+Stage 11.10 should add exception-independence and clustering diagnostics plus a risk-review dossier that combines deterministic stress coverage, historical-simulation calibration, concentration and model limitations. Only after QuantOS's independent risk layer is stable should OpenSourceRisk/Engine be introduced as a separately versioned adapter and differential comparator.

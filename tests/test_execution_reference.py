@@ -20,7 +20,7 @@ from quantos.execution_contracts import (
     TopOfBookQuote,
 )
 from quantos.execution_reference import (
-    FirstCurrentReferenceFillEngine,
+    QuantOSReferenceFillEngine,
     ReferenceExecutionResultStore,
 )
 from quantos.pricing_risk_contracts import Currency
@@ -103,7 +103,7 @@ def run(data=None, simulation_policy=None):
         portfolio_solution_id="portfolio-solution:" + "p" * 64,
         replay_dataset=data,
         simulation_policy=simulation_policy,
-        engine_name="FIRST_CURRENT_REFERENCE",
+        engine_name="QUANTOS_REFERENCE",
         engine_version="12.2",
         code_revision="git:stage12.2",
         created_at=AT,
@@ -158,7 +158,7 @@ def simulate(
     ledger = SimulationOrderLedger(
         Path(tmp) / "execution.duckdb"
     )
-    result = FirstCurrentReferenceFillEngine().simulate(
+    result = QuantOSReferenceFillEngine().simulate(
         run=simulation_run,
         dataset=data,
         policy=simulation_policy,
@@ -461,7 +461,7 @@ class ReferenceFillEngineTests(unittest.TestCase):
                 Path(tmp) / "execution.duckdb"
             )
             with self.assertRaises(ValueError):
-                FirstCurrentReferenceFillEngine().simulate(
+                QuantOSReferenceFillEngine().simulate(
                     run=simulation_run,
                     dataset=data,
                     policy=different_policy,

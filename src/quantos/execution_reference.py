@@ -66,10 +66,10 @@ class ReferenceExecutionResult:
     capital_authority: str
 
 
-class FirstCurrentReferenceFillEngine:
+class QuantOSReferenceFillEngine:
     """Deterministic top-of-book historical replay oracle."""
 
-    ENGINE_NAME = "FIRST_CURRENT_REFERENCE"
+    ENGINE_NAME = "QUANTOS_REFERENCE"
     ENGINE_VERSION = "12.10"
 
     def simulate(
@@ -413,9 +413,9 @@ class FirstCurrentReferenceFillEngine:
             raise ValueError(
                 "execution simulation run identity mismatch"
             )
-        if run.engine_name != FirstCurrentReferenceFillEngine.ENGINE_NAME:
+        if run.engine_name != QuantOSReferenceFillEngine.ENGINE_NAME:
             raise ValueError(
-                "reference fill engine requires FIRST_CURRENT_REFERENCE run"
+                "reference fill engine requires QUANTOS_REFERENCE run"
             )
         if (
             run.network_authority != "NONE"

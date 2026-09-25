@@ -34,13 +34,13 @@ jobs:
         include:
           - name: Windows
             os: windows-latest
-            asset: FirstCurrent-Windows-x64.zip
+            asset: QuantOS-Windows-x64.zip
           - name: macOS
             os: macos-14
-            asset: FirstCurrent-macOS-arm64.dmg
+            asset: QuantOS-macOS-arm64.dmg
           - name: Linux
             os: ubuntu-22.04   # oldest supported glibc for the AppImage
-            asset: FirstCurrent-Linux-x86_64.AppImage
+            asset: QuantOS-Linux-x86_64.AppImage
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     steps:
@@ -79,16 +79,16 @@ jobs:
       - name: Stable names
         run: |
           cd packaging/live-usb/build
-          mv first-current-quant-os-*-amd64.iso first-current-live-usb-amd64.iso
-          sha256sum first-current-live-usb-amd64.iso > first-current-live-usb-amd64.iso.sha256
+          mv quantos-*-amd64.iso quantos-live-usb-amd64.iso
+          sha256sum quantos-live-usb-amd64.iso > quantos-live-usb-amd64.iso.sha256
           ls -la
       - uses: actions/upload-artifact@v4
         with:
           name: live-usb
           path: |
-            packaging/live-usb/build/first-current-live-usb-amd64.iso
-            packaging/live-usb/build/first-current-live-usb-amd64.iso.sha256
-            packaging/live-usb/build/make-first-current-usb
+            packaging/live-usb/build/quantos-live-usb-amd64.iso
+            packaging/live-usb/build/quantos-live-usb-amd64.iso.sha256
+            packaging/live-usb/build/make-quantos-usb
             packaging/live-usb/build/*source*
           if-no-files-found: error
           retention-days: 14
@@ -112,7 +112,7 @@ jobs:
       - uses: docker/setup-buildx-action@v3
       - id: meta
         run: |
-          echo "image=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/first-current" >> "$GITHUB_OUTPUT"
+          echo "image=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/quantos" >> "$GITHUB_OUTPUT"
           echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
       - id: push
         uses: docker/build-push-action@v6
@@ -155,14 +155,14 @@ jobs:
         run: |
           cd dist
           uvx --from cyclonedx-bom==7.4.0 cyclonedx-py requirements ../requirements.lock \
-            --output-format JSON --output-file first-current-sbom.cdx.json
-          sha256sum FirstCurrent-* first-current-* > SHA256SUMS.txt
+            --output-format JSON --output-file quantos-sbom.cdx.json
+          sha256sum QuantOS-* quantos-* > SHA256SUMS.txt
           cat SHA256SUMS.txt
       - uses: actions/attest-build-provenance@v2
         with:
           subject-path: |
-            dist/FirstCurrent-*
-            dist/first-current-live-usb-amd64.iso
+            dist/QuantOS-*
+            dist/quantos-live-usb-amd64.iso
       - name: Release notes from CHANGELOG
         run: |
           version="${GITHUB_REF_NAME#v}"
@@ -173,13 +173,13 @@ jobs:
 
           | Platform | File |
           | --- | --- |
-          | Windows 10/11 (x64) | `FirstCurrent-Windows-x64.zip` — extract, run `FirstCurrent.exe` |
-          | macOS 12+ (Apple Silicon) | `FirstCurrent-macOS-arm64.dmg` — drag to Applications |
-          | Linux (x86-64) | `FirstCurrent-Linux-x86_64.AppImage` — `chmod +x`, run |
-          | Any PC (bootable USB) | `first-current-live-usb-amd64.iso` — see packaging/live-usb/README.md |
-          | Docker/Podman | `ghcr.io/purysho/first-current` |
+          | Windows 10/11 (x64) | `QuantOS-Windows-x64.zip` — extract, run `QuantOS.exe` |
+          | macOS 12+ (Apple Silicon) | `QuantOS-macOS-arm64.dmg` — drag to Applications |
+          | Linux (x86-64) | `QuantOS-Linux-x86_64.AppImage` — `chmod +x`, run |
+          | Any PC (bootable USB) | `quantos-live-usb-amd64.iso` — see packaging/live-usb/README.md |
+          | Docker/Podman | `ghcr.io/purysho/quantos` |
 
-          Verify with `SHA256SUMS.txt`, or `gh attestation verify <file> --repo purysho/First-Current-Quant-OS-prototype`.
+          Verify with `SHA256SUMS.txt`, or `gh attestation verify <file> --repo purysho/QuantOS`.
           Builds are not code-signed yet: Windows SmartScreen and macOS Gatekeeper warn on first launch (see the User Guide).
           NOTES
       - name: Publish release
@@ -187,4 +187,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "$GITHUB_REF_NAME" dist/* \
-            --title "First Current ${GITHUB_REF_NAME}" --notes-file notes.md --verify-tag
+            --title "QuantOS ${GITHUB_REF_NAME}" --notes-file notes.md --verify-tag

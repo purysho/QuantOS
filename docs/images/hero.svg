@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="480" viewBox="0 0 1280 480" role="img" aria-label="First Current: point-in-time investment research. Free, open source, runs on your own computer.">
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="480" viewBox="0 0 1280 480" role="img" aria-label="QuantOS: point-in-time investment research. Free, open source, runs on your own computer.">
   <defs>
     <radialGradient id="glow" cx="0.74" cy="0.42" r="0.55">
       <stop offset="0" stop-color="#c9a44c" stop-opacity="0.22"/>
@@ -36,7 +36,7 @@
 
   <!-- text -->
   <text x="72" y="150" fill="#8b919c" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="15" letter-spacing="5">POINT-IN-TIME INVESTMENT RESEARCH</text>
-  <text x="68" y="252" fill="url(#silver)" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="92" font-weight="800" letter-spacing="-2">FIRST CURRENT</text>
+  <text x="68" y="252" fill="url(#silver)" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="116" font-weight="800" letter-spacing="-4">QuantOS</text>
   <text x="72" y="314" font-family="Georgia, 'Times New Roman', serif" font-size="36">
     <tspan fill="#e9c874">Research what was known.</tspan><tspan fill="#f3e3b3"> Never trade.</tspan>
   </text>

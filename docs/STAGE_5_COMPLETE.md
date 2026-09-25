@@ -92,7 +92,7 @@ A resolution:
 
 ## What this proves
 
-First Current can now preserve a chain from raw source bytes through independently reviewed claims and structured professional disagreement without collapsing uncertainty into a magic score.
+QuantOS can now preserve a chain from raw source bytes through independently reviewed claims and structured professional disagreement without collapsing uncertainty into a magic score.
 
 ## Still not built
 

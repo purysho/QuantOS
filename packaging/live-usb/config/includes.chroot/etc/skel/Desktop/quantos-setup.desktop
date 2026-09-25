@@ -1,6 +1,6 @@
 [Desktop Entry]
 Type=Application
-Name=First Current: setup
+Name=QuantOS: setup
 Comment=Contact email, tickers and optional free API keys
 Exec=xfce4-terminal --hold -e 'quantos setup'
 Terminal=false

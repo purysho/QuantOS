@@ -53,7 +53,7 @@ from quantos.execution_nautilus import (
     nautilus_execution_result_identity,
     nautilus_is_available,
 )
-from quantos.execution_reference import FirstCurrentReferenceFillEngine
+from quantos.execution_reference import QuantOSReferenceFillEngine
 from quantos.pricing_risk_contracts import Currency
 
 UTC = timezone.utc
@@ -171,11 +171,11 @@ def intent(
 
 
 def reference_side(data, p, order, tmp):
-    reference_run = run("FIRST_CURRENT_REFERENCE", "12.2", data, p)
+    reference_run = run("QUANTOS_REFERENCE", "12.2", data, p)
     reference_intent = intent(reference_run, **order)
     ledger = SimulationOrderLedger(Path(tmp) / "reference.duckdb")
     try:
-        result = FirstCurrentReferenceFillEngine().simulate(
+        result = QuantOSReferenceFillEngine().simulate(
             run=reference_run,
             dataset=data,
             policy=p,
@@ -784,7 +784,7 @@ class MultiInstrumentScheduleContractTests(DifferentialAssertions):
     def run_schedule(self, data, p, orders):
         adapter = NautilusHistoricalBacktestAdapter()
         nautilus_run = run("NAUTILUS_TRADER", adapter.engine_version, data, p)
-        reference_run = run("FIRST_CURRENT_REFERENCE", "12.2", data, p)
+        reference_run = run("QUANTOS_REFERENCE", "12.2", data, p)
         instruments = (instrument(), other_instrument())
         by_id = {i.execution_instrument_id: i for i in instruments}
         nautilus_intents = tuple(
@@ -808,7 +808,7 @@ class MultiInstrumentScheduleContractTests(DifferentialAssertions):
                     reference_intent = SimulationOrderIntentBuilder().build(
                         run=reference_run, **o
                     )
-                    reference_result = FirstCurrentReferenceFillEngine().simulate(
+                    reference_result = QuantOSReferenceFillEngine().simulate(
                         run=reference_run,
                         dataset=data,
                         policy=p,

@@ -365,7 +365,7 @@ def last_run() -> dict | None:
 
 def daily_command(*, steps: tuple[str, ...] | None, backfill_from: int | None, price_days: int) -> int:
     results = run_daily(steps=steps, backfill_from=backfill_from, price_days=price_days)
-    print("\nFirst Current daily run")
+    print("\nQuantOS daily run")
     width = max((len(r.step) for r in results), default=4)
     for result in results:
         print(f"  [{'ok  ' if result.ok else 'FAIL'}] {result.step.ljust(width)}  {result.summary}")

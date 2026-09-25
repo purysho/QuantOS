@@ -1,4 +1,4 @@
-First Current Quant OS — free, open-source investment research (Apache-2.0)
+QuantOS — free, open-source investment research (Apache-2.0)
 ==========================================================================
 
 What it does
@@ -13,7 +13,7 @@ Setup asks for
   3. Optional free personal API keys (press Enter to skip):
        TIINGO_API_KEY  stock prices    https://www.tiingo.com
        FRED_API_KEY    macro vintages  https://fredaccount.stlouisfed.org
-     Keys are stored in ~/FirstCurrent/secrets (readable only by you).
+     Keys are stored in ~/QuantOS/secrets (readable only by you).
 
 Everyday use
   quantos daily            fetch new data and refresh the terminal
@@ -21,6 +21,6 @@ Everyday use
   Terminal                 http://127.0.0.1:8765/  (desktop icon)
 
 Persistence
-  If you created the USB with `make-first-current-usb`, your home folder lives
+  If you created the USB with `make-quantos-usb`, your home folder lives
   on an encrypted partition and survives reboots. Without it, everything is
   lost at shutdown.

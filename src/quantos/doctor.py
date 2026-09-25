@@ -152,7 +152,7 @@ def _probe(url: str) -> int:
     from .security import guarded
 
     guarded(url, "doctor")
-    agent = os.environ.get("SEC_USER_AGENT", "First Current Quant OS doctor")
+    agent = os.environ.get("SEC_USER_AGENT", "QuantOS doctor")
     response = requests.head(url, headers={"User-Agent": agent}, timeout=30, allow_redirects=False)
     if response.status_code in (405, 501):
         response = requests.get(url, headers={"User-Agent": agent}, timeout=30, stream=True)

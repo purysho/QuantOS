@@ -19,7 +19,7 @@ quantos-radar scan-arxiv \
 You may set a descriptive User-Agent:
 
 ```bash
-export ARXIV_USER_AGENT="First Current Quant OS contact@example.com"
+export ARXIV_USER_AGENT="QuantOS contact@example.com"
 ```
 
 If omitted, the prototype identifies itself with the public repository URL.

@@ -14,7 +14,7 @@ Safety and point-in-time rules:
   expansion), and bodies over 5 MB are refused;
 * exact response bytes are archived as a source artifact;
 * feeds that carry no dates (NBER's new-papers feed) are stamped with the
-  first time First Current saw the item, tagged
+  first time QuantOS saw the item, tagged
   ``published-precision:first-seen``, and never back-dated.
 """
 

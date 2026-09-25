@@ -1,6 +1,6 @@
 # Research Cases — Stage 6.1
 
-Stage 6 moves First Current from single-claim reasoning to whole-case reasoning.
+Stage 6 moves QuantOS from single-claim reasoning to whole-case reasoning.
 
 A Research Case is immutable and content-addressed.
 

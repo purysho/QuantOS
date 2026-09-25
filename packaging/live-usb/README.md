@@ -1,6 +1,6 @@
-# First Current Quant OS — Live USB
+# QuantOS — Live USB
 
-A bootable Debian 13 ("trixie") system with First Current preinstalled:
+A bootable Debian 13 ("trixie") system with QuantOS preinstalled:
 - an Xfce desktop, Firefox ESR, and the read-only terminal;
 - a first-login setup wizard;
 - a daily update timer;
@@ -17,16 +17,16 @@ FC_SOURCE=true packaging/live-usb/build.sh   # + matching source ISO (needed to 
 ```
 
 The build uses `live-build` in a privileged Debian container.
-- It installs First Current from the repository's **HEAD** commit, with exactly the locked dependencies (`uv sync --locked`, uv pinned by hash).
+- It installs QuantOS from the repository's **HEAD** commit, with exactly the locked dependencies (`uv sync --locked`, uv pinned by hash).
 - It vendors Perspective after verifying the npm integrity hashes.
 - It **runs the license gate and the keyless/runbook test suites inside the image**, so the build fails if they fail.
 
-Output: `packaging/live-usb/build/first-current-quant-os-<version>-amd64.iso`, plus a `.sha256` file and the `make-first-current-usb` helper.
+Output: `packaging/live-usb/build/quantos-<version>-amd64.iso`, plus a `.sha256` file and the `make-quantos-usb` helper.
 
 ## Write a USB stick (16 GB or larger)
 
 ```bash
-sudo packaging/live-usb/build/make-first-current-usb first-current-quant-os-<version>-amd64.iso /dev/sdX
+sudo packaging/live-usb/build/make-quantos-usb quantos-<version>-amd64.iso /dev/sdX
 ```
 
 The script:
@@ -42,12 +42,12 @@ On Windows or macOS, write the ISO with a tool that copies it byte for byte (for
 
 | | |
 |---|---|
-| First Current | `/opt/quantos/venv`, with `quantos`, `quantos-radar` and `quantos-lab` on the `PATH` |
+| QuantOS | `/opt/quantos/venv`, with `quantos`, `quantos-radar` and `quantos-lab` on the `PATH` |
 | Offline terminal assets | `/opt/quantos/vendor` (`QUANTOS_VENDOR_DIR`) |
-| Your home | `~/FirstCurrent` (`QUANTOS_HOME`): configuration, `secrets/` (0700) and `data/` |
-| Services (systemd user) | `first-current-terminal.service` (loopback only); `first-current-daily.timer` (weekdays 22:30 UTC) |
+| Your home | `~/QuantOS` (`QUANTOS_HOME`): configuration, `secrets/` (0700) and `data/` |
+| Services (systemd user) | `quantos-terminal.service` (loopback only); `quantos-daily.timer` (weekdays 22:30 UTC) |
 | Desktop icons | Terminal, Update data, Setup, Health check |
-| Licenses | `/usr/share/doc/first-current-quant-os/` (LICENSE, NOTICE, THIRD_PARTY_NOTICES.md, requirements.lock) |
+| Licenses | `/usr/share/doc/quantos/` (LICENSE, NOTICE, THIRD_PARTY_NOTICES.md, requirements.lock) |
 
 Live user: `quantos`, with the standard Debian live password `live`.
 
@@ -59,4 +59,4 @@ Live user: `quantos`, with the standard Debian live password `live`.
 
 ## Publishing an ISO
 
-A built ISO redistributes Debian packages under their own licenses, including the GPL. Publish the matching source ISO (`FC_SOURCE=true`) alongside it, or point to the exact package versions on snapshot.debian.org. First Current itself is Apache-2.0. See `docs/LICENSING.md`.
+A built ISO redistributes Debian packages under their own licenses, including the GPL. Publish the matching source ISO (`FC_SOURCE=true`) alongside it, or point to the exact package versions on snapshot.debian.org. QuantOS itself is Apache-2.0. See `docs/LICENSING.md`.

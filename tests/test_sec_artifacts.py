@@ -62,7 +62,7 @@ class SECFilingArtifactTests(unittest.TestCase):
             )
             lineage = LineageStore(Path(tmp) / "lineage.duckdb")
             fetcher = SECFilingArtifactFetcher(
-                user_agent="First Current Quant OS test@example.com",
+                user_agent="QuantOS test@example.com",
                 transport=transport,
             )
             event = filing_event()
@@ -102,7 +102,7 @@ class SECFilingArtifactTests(unittest.TestCase):
             )
             lineage = LineageStore(Path(tmp) / "lineage.duckdb")
             fetcher = SECFilingArtifactFetcher(
-                user_agent="First Current Quant OS test@example.com",
+                user_agent="QuantOS test@example.com",
                 transport=transport,
             )
             event = filing_event()

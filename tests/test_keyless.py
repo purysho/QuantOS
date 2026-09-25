@@ -31,7 +31,7 @@ from urllib.parse import urlparse
 
 UTC = timezone.utc
 CAPTURED = datetime(2026, 9, 25, 12, tzinfo=UTC)
-AGENT = "First Current Quant OS test research@example.com"
+AGENT = "QuantOS test research@example.com"
 
 TICKERS = json.dumps({
     "fields": ["cik", "name", "ticker", "exchange"],

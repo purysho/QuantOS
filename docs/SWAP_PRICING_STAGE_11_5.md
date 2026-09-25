@@ -26,7 +26,7 @@ No benchmark-specific fixing, lookback, lockout, observation-shift or compoundin
 
 ## Independent reference pricer
 
-First Current independently generates both schedules and cash flows.
+QuantOS independently generates both schedules and cash flows.
 
 The fixed leg is notional × fixed rate × accrual fraction. The floating leg is notional × (projected forward + spread) × accrual fraction. Each signed cash flow is discounted with the separately bound discount curve.
 

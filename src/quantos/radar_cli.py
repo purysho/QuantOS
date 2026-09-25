@@ -19,8 +19,8 @@ from .review_queue import ResearchReviewQueue, ReviewStatus
 
 
 DEFAULT_USER_AGENT = (
-    "First Current Quant OS prototype/0.4.3 "
-    "(+https://github.com/purysho/First-Current-Quant-OS-prototype)"
+    "QuantOS prototype/0.4.3 "
+    "(+https://github.com/purysho/QuantOS)"
 )
 
 

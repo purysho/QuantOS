@@ -17,7 +17,7 @@ provider API ──(EgressGuard + kill switch, key from SecretProvider in a head
 
 ## Rules
 
-- **Raw prices only are facts.** First Current applies its own corporate actions (Stage 13.2). Tiingo's `adjClose`, `divCash` and `splitFactor` fields are kept only to reconcile against the reviewed ledger. Nothing is ingested from them automatically. Polygon responses must be `adjusted=false`; an adjusted response is refused.
+- **Raw prices only are facts.** QuantOS applies its own corporate actions (Stage 13.2). Tiingo's `adjClose`, `divCash` and `splitFactor` fields are kept only to reconcile against the reviewed ledger. Nothing is ingested from them automatically. Polygon responses must be `adjusted=false`; an adjusted response is refused.
 - **Point in time.** A bar is known when it was captured. A later capture with different values is a *revision*: both rows are kept and `BarStore.bars(known_at=...)` returns what was known at that moment. Identical re-captures are deduplicated.
 - **Intraday captures are never closes.** A bar captured before its session closed is flagged `INTRADAY_CAPTURE` and excluded by `to_session_closes`.
 - **Calendar completeness.** Every `SessionCalendar` session that has closed by `known_at` must have a bar. A missing one gives `MISSING_SESSION`. A bar on a non-session gives `BAR_ON_NON_SESSION`. If there is no bar for the latest closed session(s), the report shows `STALE`.

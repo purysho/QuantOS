@@ -1,6 +1,6 @@
 # Stage 11 Complete — Pricing, Scenario Risk & Prospective Calibration
 
-Stage 11 establishes First Current's independent pricing and risk baseline before any OpenSourceRisk/Engine integration.
+Stage 11 establishes QuantOS's independent pricing and risk baseline before any OpenSourceRisk/Engine integration.
 
 ## 11.1 — Pricing & risk contracts
 
@@ -15,7 +15,7 @@ Stage 11 establishes First Current's independent pricing and risk baseline befor
 
 ## 11.2 — Narrow QuantLib adapter
 
-- QuantLib remains behind First Current domain contracts;
+- QuantLib remains behind QuantOS domain contracts;
 - equity spot mark-to-market;
 - analytic European Black-Scholes-Merton;
 - explicit market-quote mapping and model parameters;
@@ -41,7 +41,7 @@ Stage 11 establishes First Current's independent pricing and risk baseline befor
 
 - regular no-stub fixed-rate bond contract;
 - exact curve binding;
-- independent First Current cash-flow reference;
+- independent QuantOS cash-flow reference;
 - QuantLib FixedRateBond comparison;
 - NPV, clean/dirty price, accrued amount and parallel-zero-curve DV01;
 - content-addressed differential validation policy;
@@ -135,9 +135,9 @@ Stage 11 establishes First Current's independent pricing and risk baseline befor
 
 ## Why ORE comes after this
 
-First Current now has an independently specified baseline against which OpenSourceRisk/Engine can be compared. ORE should be integrated as a separately versioned adapter, not as the system's source of truth.
+QuantOS now has an independently specified baseline against which OpenSourceRisk/Engine can be compared. ORE should be integrated as a separately versioned adapter, not as the system's source of truth.
 
-Before an ORE result is trusted, the adapter should preserve exact First Current input lineage, engine/build provenance and differential comparisons for supported deterministic stress and distributional-risk fixtures.
+Before an ORE result is trusted, the adapter should preserve exact QuantOS input lineage, engine/build provenance and differential comparisons for supported deterministic stress and distributional-risk fixtures.
 
 ## Current gate
 

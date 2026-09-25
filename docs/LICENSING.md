@@ -2,7 +2,7 @@
 
 ## Decision
 
-First Current Quant OS is free and open source under the **Apache License 2.0** (`LICENSE`, `NOTICE`). Anyone may use, study, modify and redistribute it, including commercially. Apache-2.0 includes an explicit patent grant. It also asks that redistributions keep the `LICENSE` and `NOTICE` files and mark modified files.
+QuantOS is free and open source under the **Apache License 2.0** (`LICENSE`, `NOTICE`). Anyone may use, study, modify and redistribute it, including commercially. Apache-2.0 includes an explicit patent grant. It also asks that redistributions keep the `LICENSE` and `NOTICE` files and mark modified files.
 
 The project was proprietary until v0.19.0 and was relicensed by its owner. The copyright line names the GitHub owner (`purysho`) and the project's contributors. Contributions are accepted under the same license (see `CONTRIBUTING.md`).
 

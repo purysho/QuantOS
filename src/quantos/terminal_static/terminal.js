@@ -1,4 +1,4 @@
-// First Current Terminal — read-only view over an immutable export.
+// QuantOS Terminal — read-only view over an immutable export.
 // No business logic lives here: tables are loaded as exported, after their
 // SHA-256 is checked against terminal_manifest.json.
 import perspective from "https://cdn.jsdelivr.net/npm/@finos/perspective@3.8.0/dist/cdn/perspective.js";

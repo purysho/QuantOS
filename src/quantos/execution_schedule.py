@@ -1,7 +1,7 @@
 """Stage 12.5 — multi-order execution schedules with inventory and cash.
 
 A schedule turns explicit position targets into several simulated orders
-across instruments, runs every order through the First Current reference
+across instruments, runs every order through the QuantOS reference
 fill engine, and reconstructs cash and inventory from the resulting fills.
 
 The top-of-book reference model has no shared-liquidity semantics between
@@ -37,7 +37,7 @@ from .execution_contracts import (
     simulation_order_intent_identity,
 )
 from .execution_reference import (
-    FirstCurrentReferenceFillEngine,
+    QuantOSReferenceFillEngine,
     ReferenceExecutionResult,
 )
 from .pricing_risk_contracts import Currency
@@ -300,7 +300,7 @@ class ExecutionScheduleEngine:
             raise ValueError("supplied intents differ from the schedule")
         by_instrument = _instrument_map(instruments)
 
-        reference = FirstCurrentReferenceFillEngine()
+        reference = QuantOSReferenceFillEngine()
         working_until: dict[str, datetime] = {}
         order_results: list[ReferenceExecutionResult] = []
         fills: list[SimulatedFill] = []

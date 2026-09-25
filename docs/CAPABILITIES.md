@@ -1,6 +1,6 @@
 # Capabilities
 
-The full, engine-by-engine inventory of what First Current Quant OS implements. Each item is backed by tests, and each stage has its own document in this folder. The build history is in `HANDOFF.md`.
+The full, engine-by-engine inventory of what QuantOS implements. Each item is backed by tests, and each stage has its own document in this folder. The build history is in `HANDOFF.md`.
 
 
 ### Point-in-time foundation
@@ -214,7 +214,7 @@ Examples:
 - point-in-time market snapshots with event/knowledge-time lineage;
 - typed equity, bond, European option and fixed/float swap contracts;
 - explicit model specifications and pricing requests;
-- QuantLib isolated behind First Current contracts and a shared global-state lock;
+- QuantLib isolated behind QuantOS contracts and a shared global-state lock;
 - independent differential validation for Black-Scholes options, fixed-rate bonds and vanilla swaps;
 - frozen engine/version and exact market-input lineage.
 
@@ -250,7 +250,7 @@ Examples:
 - point-in-time top-of-book quotes and trade prints with event/knowledge time;
 - content-addressed historical replay datasets, simulation policies and run manifests;
 - strict simulated order state machine with immutable fills;
-- deterministic First Current top-of-book reference fill engine with explicit order/market-data latency, participation, tick/lot rounding, slippage, impact, commission, partial-fill, IOC/FOK and horizon-expiry semantics.
+- deterministic QuantOS top-of-book reference fill engine with explicit order/market-data latency, participation, tick/lot rounding, slippage, impact, commission, partial-fill, IOC/FOK and horizon-expiry semantics.
 
 **NautilusTrader historical differential**
 - NautilusTrader 2.0.0rc5 `BacktestEngine` only, on Python 3.12+; no `LiveNode` or venue adapters;
@@ -278,11 +278,11 @@ Examples:
 - point-in-time research return panels from raw session closes and the reviewed corporate-action ledger: split-only or total-return, close-to-close in UTC, incomplete histories excluded rather than filled.
 
 ### OpenSourceRisk/Engine differential — v0.14.6 baseline
-- pinned `open-source-risk-engine==1.8.17.0` as an optional `ore` extra behind First Current contracts;
+- pinned `open-source-risk-engine==1.8.17.0` as an optional `ore` extra behind QuantOS contracts;
 - ORE isolated in a child process (its SWIG bindings crash when sharing a process with QuantLib);
 - content-addressed ORE input bundles generated from frozen swap and curve artifacts;
 - swap NPV compared with the Stage 11.5 reference and QuantLib; Stage 11.6 scenario P&L compared cell by cell and across a cube;
-- fixed-rate bonds against the Stage 11.4 reference, European equity options against a closed-form Black–Scholes–Merton reference, and ORE's own sensitivity and stress analytics against single-pillar First Current revaluations.
+- fixed-rate bonds against the Stage 11.4 reference, European equity options against a closed-form Black–Scholes–Merton reference, and ORE's own sensitivity and stress analytics against single-pillar QuantOS revaluations.
 
 ### Observability and security — v0.16 baseline
 - run and span tracing, redacted JSON-line events, error taxonomy, metrics and `quantos ops-report`;

@@ -1,6 +1,6 @@
 """Stage 13.3 — exchange session calendars.
 
-First Current owns a frozen, rule-based session calendar (XNYS first) and
+QuantOS owns a frozen, rule-based session calendar (XNYS first) and
 treats the ``exchange_calendars`` package as an external engine to be
 differentially compared, never trusted blindly.
 
@@ -25,7 +25,7 @@ from zoneinfo import ZoneInfo
 
 
 class CalendarSource(str, Enum):
-    FIRST_CURRENT_RULES = "FIRST_CURRENT_RULES"
+    QUANTOS_RULES = "QUANTOS_RULES"
     EXCHANGE_CALENDARS = "EXCHANGE_CALENDARS"
 
 
@@ -158,7 +158,7 @@ class XNYSRuleCalendarBuilder:
         return _calendar(
             mic=self.MIC,
             timezone_name=self.TIMEZONE,
-            source=CalendarSource.FIRST_CURRENT_RULES,
+            source=CalendarSource.QUANTOS_RULES,
             source_version=self.RULES_VERSION,
             start=start,
             end=end,

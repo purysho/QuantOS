@@ -118,7 +118,7 @@ class CrossrefAdapterTests(unittest.TestCase):
 
         adapter = CrossrefRadarAdapter(
             mailto="ops@example.com",
-            user_agent="FirstCurrent/test",
+            user_agent="QuantOS/test",
             transport=transport,
             clock=lambda: now[0],
             sleeper=sleeps.append,

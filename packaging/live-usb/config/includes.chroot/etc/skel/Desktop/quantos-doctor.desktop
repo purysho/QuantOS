@@ -1,6 +1,6 @@
 [Desktop Entry]
 Type=Application
-Name=First Current: health check
+Name=QuantOS: health check
 Comment=Check what works on this machine
 Exec=xfce4-terminal --hold -e 'quantos doctor --online'
 Terminal=false

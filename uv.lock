@@ -444,53 +444,6 @@ wheels = [
 ]
 
 [[package]]
-name = "first-current-quant-os"
-version = "0.20.0"
-source = { editable = "." }
-dependencies = [
-    { name = "cvxpy" },
-    { name = "duckdb" },
-    { name = "exchange-calendars" },
-    { name = "nautilus-trader", marker = "python_full_version >= '3.12'" },
-    { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
-    { name = "numpy", version = "2.5.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
-    { name = "packaging" },
-    { name = "pytz" },
-    { name = "quantlib" },
-    { name = "requests" },
-    { name = "skfolio" },
-]
-
-[package.optional-dependencies]
-ore = [
-    { name = "open-source-risk-engine", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
-]
-
-[package.dev-dependencies]
-desktop = [
-    { name = "pyinstaller" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "cvxpy", specifier = ">=1.6,<2" },
-    { name = "duckdb", specifier = ">=1.4,<2" },
-    { name = "exchange-calendars", specifier = ">=4.5,<5" },
-    { name = "nautilus-trader", marker = "python_full_version >= '3.12'", specifier = "==2.0.0rc5" },
-    { name = "numpy", specifier = ">=2,<3" },
-    { name = "open-source-risk-engine", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'ore') or (platform_machine == 'AMD64' and sys_platform == 'win32' and extra == 'ore')", specifier = "==1.8.17.0" },
-    { name = "packaging", specifier = ">=24" },
-    { name = "pytz", specifier = ">=2025.2" },
-    { name = "quantlib", specifier = ">=1.43,<2" },
-    { name = "requests", specifier = ">=2.32,<3" },
-    { name = "skfolio", specifier = ">=1.0,<2" },
-]
-provides-extras = ["ore"]
-
-[package.metadata.requires-dev]
-desktop = [{ name = "pyinstaller", specifier = "==6.22.3" }]
-
-[[package]]
 name = "highspy"
 version = "1.15.1"
 source = { registry = "https://pypi.org/simple" }
@@ -1192,6 +1145,53 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/fc/3e/24676d1158762c00937044ec0415959a8eb863ac5d8d983be20bcd657a1d/quantlib-1.43-pp311-pypy311_pp73-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:39db7f7a33f3fa71d50a53451699f9685b2bca0045db7f2d87dc1e24ba68ea0e", size = 20255939, upload-time = "2026-07-14T08:41:33.306Z" },
     { url = "https://files.pythonhosted.org/packages/ce/40/75b3ba6b37788941a04139096e2b0b8923cd39049183aaf842c0b7b91ba6/quantlib-1.43-pp311-pypy311_pp73-win_amd64.whl", hash = "sha256:4e0107b25771d72a4744f0cbcd4874117302a82ddcab04213d2eaf6b3d2b723b", size = 12721243, upload-time = "2026-07-14T08:41:36.355Z" },
 ]
+
+[[package]]
+name = "quantos"
+version = "0.20.0"
+source = { editable = "." }
+dependencies = [
+    { name = "cvxpy" },
+    { name = "duckdb" },
+    { name = "exchange-calendars" },
+    { name = "nautilus-trader", marker = "python_full_version >= '3.12'" },
+    { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
+    { name = "numpy", version = "2.5.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+    { name = "packaging" },
+    { name = "pytz" },
+    { name = "quantlib" },
+    { name = "requests" },
+    { name = "skfolio" },
+]
+
+[package.optional-dependencies]
+ore = [
+    { name = "open-source-risk-engine", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
+]
+
+[package.dev-dependencies]
+desktop = [
+    { name = "pyinstaller" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "cvxpy", specifier = ">=1.6,<2" },
+    { name = "duckdb", specifier = ">=1.4,<2" },
+    { name = "exchange-calendars", specifier = ">=4.5,<5" },
+    { name = "nautilus-trader", marker = "python_full_version >= '3.12'", specifier = "==2.0.0rc5" },
+    { name = "numpy", specifier = ">=2,<3" },
+    { name = "open-source-risk-engine", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'ore') or (platform_machine == 'AMD64' and sys_platform == 'win32' and extra == 'ore')", specifier = "==1.8.17.0" },
+    { name = "packaging", specifier = ">=24" },
+    { name = "pytz", specifier = ">=2025.2" },
+    { name = "quantlib", specifier = ">=1.43,<2" },
+    { name = "requests", specifier = ">=2.32,<3" },
+    { name = "skfolio", specifier = ">=1.0,<2" },
+]
+provides-extras = ["ore"]
+
+[package.metadata.requires-dev]
+desktop = [{ name = "pyinstaller", specifier = "==6.22.3" }]
 
 [[package]]
 name = "requests"

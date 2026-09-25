@@ -1,18 +1,18 @@
 # Stage 12.3 — NautilusTrader Historical Differential Adapter
 
-Stage 12.3 introduces NautilusTrader only after First Current owns independent execution contracts and a deterministic reference fill oracle.
+Stage 12.3 introduces NautilusTrader only after QuantOS owns independent execution contracts and a deterministic reference fill oracle.
 
 ## Version and Python boundary
 
-The adapter pins NautilusTrader 2.0.0rc5 on Python 3.12+ only. Python 3.11 remains a supported First Current runtime but does not install or execute the Nautilus v2 adapter.
+The adapter pins NautilusTrader 2.0.0rc5 on Python 3.12+ only. Python 3.11 remains a supported QuantOS runtime but does not install or execute the Nautilus v2 adapter.
 
 NautilusTrader 2.x currently requires Python 3.12+ and is still distributed as a release candidate. Stage 12.3 therefore treats it as an experimental historical engine, not as a production live-trading dependency.
 
-Every Nautilus result records the exact installed package version plus a First Current adapter version and a content-addressed backtest configuration fingerprint.
+Every Nautilus result records the exact installed package version plus a QuantOS adapter version and a content-addressed backtest configuration fingerprint.
 
 ## Historical-only boundary
 
-The adapter imports BacktestEngine, not LiveNode. It creates only an in-memory simulated venue and loads First Current historical QuoteTick mappings.
+The adapter imports BacktestEngine, not LiveNode. It creates only an in-memory simulated venue and loads QuantOS historical QuoteTick mappings.
 
 Every run retains network_authority = NONE, external_order_authority = NONE and capital_authority = NONE.
 
@@ -34,7 +34,7 @@ Anything outside this overlap fails closed before Nautilus is run.
 
 ## Mapping
 
-First Current event_time maps to Nautilus ts_event and knowledge_time maps to ts_init. Top-of-book quotes map to L1_MBP QuoteTick data.
+QuantOS event_time maps to Nautilus ts_event and knowledge_time maps to ts_init. Top-of-book quotes map to L1_MBP QuoteTick data.
 
 The simulated venue uses NETTING, a MARGIN account, L1_MBP, trade_execution disabled, liquidity consumption enabled, queue position disabled and a zero Maker/Taker fee model.
 
@@ -42,7 +42,7 @@ Trade-based execution is disabled so any unrelated TradePrint data cannot become
 
 ## Differential oracle
 
-The same economic order is run once through FIRST_CURRENT_REFERENCE and once through NAUTILUS_TRADER using separate content-addressed run and intent identities.
+The same economic order is run once through QUANTOS_REFERENCE and once through NAUTILUS_TRADER using separate content-addressed run and intent identities.
 
 NautilusDifferentialEngine requires both runs to share the exact Research Run Manifest, portfolio solution, replay dataset and simulation policy, and requires the economic intent fields to be identical.
 
@@ -52,7 +52,7 @@ A match records trust_authority = REFERENCE_MATCH_ONLY. A mismatch remains an ex
 
 ## No live inference
 
-A historical differential match means Nautilus reproduced the deliberately narrow First Current fixture. It does not validate live adapters, venue connectivity, queue models, latency models, partial fills, fees, slippage, impact or broker reconciliation.
+A historical differential match means Nautilus reproduced the deliberately narrow QuantOS fixture. It does not validate live adapters, venue connectivity, queue models, latency models, partial fills, fees, slippage, impact or broker reconciliation.
 
 ## Next slice
 

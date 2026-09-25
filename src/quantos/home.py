@@ -32,7 +32,7 @@ from pathlib import Path
 CONFIG_NAME = "quantos.toml"
 SECRETS_DIR = "secrets"
 DATA_DIR = "data"
-PROJECT_URL = "https://github.com/purysho/First-Current-Quant-OS-prototype"
+PROJECT_URL = "https://github.com/purysho/QuantOS"
 _EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 _TICKER = re.compile(r"^[A-Z][A-Z0-9.\-]{0,9}$")
 
@@ -63,7 +63,7 @@ class QuantosConfig:
         # SEC's documented format is "Company Name contact@domain"; it rejects
         # agents containing URLs, so none is included here.
         who = " ".join(self.organization.split()) if self.organization else "user"
-        return f"First Current Quant OS {who} {self.contact_email}"
+        return f"QuantOS {who} {self.contact_email}"
 
     def validate(self) -> None:
         if self.contact_email and not _EMAIL.fullmatch(self.contact_email):
@@ -112,7 +112,7 @@ def render_config(config: QuantosConfig) -> str:
 
     return "\n".join(
         [
-            "# First Current Quant OS configuration. Secrets never go in this file;",
+            "# QuantOS configuration. Secrets never go in this file;",
             f"# they live in {SECRETS_DIR}/ (see `quantos setup`).",
             "",
             "[identity]",
@@ -227,7 +227,7 @@ def run_setup(
         answer = prompt(f"{label}{f' [{default}]' if default else ''}: ").strip()
         return answer or default
 
-    print("First Current Quant OS setup", file=out)
+    print("QuantOS setup", file=out)
     print(f"Home: {home}", file=out)
     print("Nothing here is sent anywhere except as the contact identity in requests to", file=out)
     print("public data sources that require one (SEC EDGAR, Crossref, feed hosts).", file=out)

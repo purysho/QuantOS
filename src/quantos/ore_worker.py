@@ -3,9 +3,9 @@
 ORE's SWIG bindings share the SWIG runtime type table with the QuantLib
 Python package; loading both in one process lets objects from one library be
 destroyed through the other's wrappers and crashes the interpreter. ORE also
-keeps process-global QuantLib state and logging. First Current therefore
+keeps process-global QuantLib state and logging. QuantOS therefore
 runs ORE only in this child process, which must never import QuantLib or any
-First Current module that does.
+QuantOS module that does.
 
 Protocol: one JSON object on stdin describing the input bundle and the
 analytics to run; one JSON object on stdout:

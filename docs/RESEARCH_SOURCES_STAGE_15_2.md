@@ -25,7 +25,7 @@ Atom is supported too, for future sources. `scan-feeds` without `--source` scans
 ## Rules
 
 - **Identity.** An NBER paper's identity is its working-paper number (`nber:w35758`). Every other item's identity is its link, normalized to https with a lower-case host, no fragment and no duplicate slashes, and namespaced by the feed.
-- **Point in time.** Feed dates are converted to UTC. A date without a timezone is refused. NBER's feed carries no dates, so an item is stamped with the first time First Current saw it and tagged `published-precision:first-seen`. Re-scans reuse that stamp, so the discovery ID stays stable and nothing is back-dated.
+- **Point in time.** Feed dates are converted to UTC. A date without a timezone is refused. NBER's feed carries no dates, so an item is stamped with the first time QuantOS saw it and tagged `published-precision:first-seen`. Re-scans reuse that stamp, so the discovery ID stays stable and nothing is back-dated.
 - **Authors.** NBER authors are split from the title's `-- by` byline. Fed FEDS and IFDP authors are taken from the byline at the start of the description. RSS 1.0 uses `dc:creator` and Atom uses `author/name`.
 - **Safety.**
   - Only registered feeds are fetched. Every feed host is on the Stage 16 egress allowlist (`back.nber.org` was added), and the kill switch applies.

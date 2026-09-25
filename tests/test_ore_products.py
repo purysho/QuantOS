@@ -34,7 +34,7 @@ requires_ore = unittest.skipUnless(ore_is_available(), f"ORE {ORE_PINNED_VERSION
 def policy(tolerance="1e-6"):
     return OREDifferentialPolicy(
         maximum_absolute_npv_difference=Decimal(tolerance),
-        rationale="ORE must reproduce the frozen First Current overlap.",
+        rationale="ORE must reproduce the frozen QuantOS overlap.",
         evidence_references=("ore-policy:products",),
     )
 

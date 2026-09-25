@@ -33,5 +33,5 @@ class CapitalFirewall:
 
     def authorize_live_order(self, proposal: OrderProposal) -> None:
         raise LiveTradingDisabled(
-            "Quant OS prototype v0.1 is research-only; live order authorization is disabled"
+            "QuantOS prototype v0.1 is research-only; live order authorization is disabled"
         )

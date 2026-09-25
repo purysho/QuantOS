@@ -1,13 +1,13 @@
 # Stage 13.3 — Exchange Session Calendars
 
-First Current now owns a frozen, rule-based session calendar. It treats the `exchange_calendars` package (Apache-2.0, now a core dependency) as an external engine to compare against, never as the source of truth.
+QuantOS now owns a frozen, rule-based session calendar. It treats the `exchange_calendars` package (Apache-2.0, now a core dependency) as an external engine to compare against, never as the source of truth.
 
 ## Artifact
 
 A `SessionCalendar` is content-addressed. It holds:
 
 - the exchange MIC and IANA time zone;
-- its source (`FIRST_CURRENT_RULES` or `EXCHANGE_CALENDARS`) and source version;
+- its source (`QUANTOS_RULES` or `EXCHANGE_CALENDARS`) and source version;
 - a frozen date range;
 - the exact sessions, each with a local date, UTC open, UTC close and early-close flag.
 
@@ -47,7 +47,7 @@ Other Saturday holidays move to the Friday before, and Sunday holidays move to t
 - sessions missing on either side;
 - sessions whose open, close or early-close flag differ.
 
-Over 2010-01-04 to 2030-12-31, the First Current rules match `exchange_calendars` exactly on all 5,279 sessions. A closure missing from the unscheduled table would show up as a MISMATCH, not be silently absorbed.
+Over 2010-01-04 to 2030-12-31, the QuantOS rules match `exchange_calendars` exactly on all 5,279 sessions. A closure missing from the unscheduled table would show up as a MISMATCH, not be silently absorbed.
 
 ## Not yet in scope
 

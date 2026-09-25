@@ -1,5 +1,5 @@
 #!/bin/sh
-# Builds the First Current Quant OS live-USB ISO inside a Debian container,
+# Builds the QuantOS live-USB ISO inside a Debian container,
 # so any Linux machine with Docker (or Podman) can build it.
 #
 #   packaging/live-usb/build.sh                 # free-software-only image
@@ -8,7 +8,7 @@
 #   FC_EXTRA_CA=/path/ca.pem ...                # behind a TLS-intercepting proxy (build only;
 #                                               # the CA is removed before the image is sealed)
 #
-# Output: packaging/live-usb/build/first-current-quant-os-<version>-amd64.iso (+ .sha256)
+# Output: packaging/live-usb/build/quantos-<version>-amd64.iso (+ .sha256)
 set -eu
 HERE="$(cd "$(dirname "$0")" && pwd)"
 REPO="$(cd "$HERE/../.." && pwd)"
@@ -51,10 +51,10 @@ git -C "$REPO" rev-parse HEAD > "$BUILD/config/includes.chroot/opt/quantos/REVIS
     lb build
   '
 
-ISO="$BUILD/first-current-quant-os-$VERSION-amd64.iso"
+ISO="$BUILD/quantos-$VERSION-amd64.iso"
 mv "$BUILD"/live-image-amd64.hybrid.iso "$ISO"
 ( cd "$BUILD" && sha256sum "$(basename "$ISO")" > "$(basename "$ISO").sha256" )
-cp "$HERE/config/includes.chroot/usr/local/bin/make-first-current-usb" "$BUILD/"
+cp "$HERE/config/includes.chroot/usr/local/bin/make-quantos-usb" "$BUILD/"
 echo
 echo "Built $ISO"
-echo "Write it with encrypted persistence:  sudo $BUILD/make-first-current-usb $ISO /dev/sdX"
+echo "Write it with encrypted persistence:  sudo $BUILD/make-quantos-usb $ISO /dev/sdX"

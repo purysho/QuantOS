@@ -1,8 +1,8 @@
 """Stage 14.1 — OpenSourceRisk/Engine (ORE) differential adapter.
 
-ORE sits behind First Current contracts. First Current writes ORE's inputs
+ORE sits behind QuantOS contracts. QuantOS writes ORE's inputs
 (conventions, curve configuration, today's-market mapping, pricing engines,
-portfolio XML and market-data lines) from frozen First Current artifacts,
+portfolio XML and market-data lines) from frozen QuantOS artifacts,
 content-addresses that exact input bundle, runs ORE in-process, and compares
 ORE's NPV with the Stage 11.5 independent reference that already agreed with
 QuantLib. ORE never becomes the source of truth.
@@ -10,7 +10,7 @@ QuantLib. ORE never becomes the source of truth.
 Frozen overlap (anything else fails closed before ORE runs):
 
 * future-starting vanilla fixed/float swap, as in Stage 11.5;
-* both curves are First Current zero-rate artifacts (ACT/365F, continuous,
+* both curves are QuantOS zero-rate artifacts (ACT/365F, continuous,
   log-linear discount interpolation) with extrapolation disabled, mapped to
   ORE Direct zero segments with date-based quotes;
 * the floating index is a convention-defined ORE Ibor index with zero
@@ -174,7 +174,7 @@ class OREDifferentialResult:
 
 
 class OREInputBuilder:
-    """Pure-Python mapping from First Current artifacts to ORE inputs."""
+    """Pure-Python mapping from QuantOS artifacts to ORE inputs."""
 
     def swap_bundle(
         self,
@@ -548,7 +548,7 @@ class OREFixedFloatSwapDifferential:
                 "Direct zero segments, LogLinear discount, no extrapolation",
                 "convention-defined Ibor index: 0 settlement, NullCalendar, Unadjusted",
                 "future-starting vanilla fixed/float swap only",
-                "ORE is compared, never substituted, for the First Current reference",
+                "ORE is compared, never substituted, for the QuantOS reference",
             ),
             trust_authority="REFERENCE_MATCH_ONLY" if matched else "NONE",
             order_authority="NONE",
@@ -597,7 +597,7 @@ class ORERiskCubeDifferential:
 class OREScenarioDifferential:
     """Stage 14.2: ORE revalues each Stage 11.6 swap scenario independently.
 
-    First Current rebuilds the exact base and shocked curves from the frozen
+    QuantOS rebuilds the exact base and shocked curves from the frozen
     snapshot, scenario and curve policies, proves they are the curves the
     Stage 11.6 revaluation used, and hands only those to ORE. ORE's base NPV,
     shocked NPV and scenario P&L are then compared with the reference ones.

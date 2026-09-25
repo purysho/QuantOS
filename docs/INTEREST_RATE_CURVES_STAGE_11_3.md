@@ -36,7 +36,7 @@ The builder checks:
 
 ## QuantLib verification
 
-First Current constructs its own frozen pillar artifact first. It then constructs a QuantLib DiscountCurve from the same dates and discount factors and verifies every pillar to the frozen tolerance.
+QuantOS constructs its own frozen pillar artifact first. It then constructs a QuantLib DiscountCurve from the same dates and discount factors and verifies every pillar to the frozen tolerance.
 
 QuantLib is therefore a checked adapter, not the owner of curve lineage.
 

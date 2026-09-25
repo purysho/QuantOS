@@ -1,12 +1,12 @@
 # Stage 11.2 — QuantLib Pricing Adapter
 
-Stage 11.2 introduces QuantLib behind the Stage 11.1 First Current contracts.
+Stage 11.2 introduces QuantLib behind the Stage 11.1 QuantOS contracts.
 
 ## Dependency
 
-The adapter uses the official `QuantLib` Python distribution. First Current records the installed QuantLib package version in every PricingResult.
+The adapter uses the official `QuantLib` Python distribution. QuantOS records the installed QuantLib package version in every PricingResult.
 
-QuantLib objects are adapter implementation details; First Current MarketDataSnapshot, PricingInstrument, PricingModelSpecification and PricingRequest remain the source-of-truth contracts.
+QuantLib objects are adapter implementation details; QuantOS MarketDataSnapshot, PricingInstrument, PricingModelSpecification and PricingRequest remain the source-of-truth contracts.
 
 ## Narrow instrument scope
 
@@ -35,7 +35,7 @@ The reporting currency must equal the instrument currency. Stage 11.2 refuses im
 
 QuantLib's evaluation date is global process state. Every option pricing call therefore holds a process-wide re-entrant lock, sets the exact evaluation calendar date, and restores the previous QuantLib evaluation date in a `finally` block.
 
-This prevents one concurrent First Current request from intentionally sharing mutable QuantLib evaluation-date state with another.
+This prevents one concurrent QuantOS request from intentionally sharing mutable QuantLib evaluation-date state with another.
 
 ## Independent differential test
 

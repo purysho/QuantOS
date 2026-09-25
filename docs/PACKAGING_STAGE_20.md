@@ -28,8 +28,8 @@
 ## Live USB (`packaging/live-usb/`)
 
 - Debian 13 live-build: an Xfce desktop, Firefox ESR, and `iso-hybrid` for BIOS and UEFI.
-- First Current is installed from HEAD with locked dependencies. The image runs its own license and keyless/runbook tests during the build.
-- An encrypted LUKS2 persistence partition (`/home union`) is created by `make-first-current-usb`, which requires typing `YES`.
+- QuantOS is installed from HEAD with locked dependencies. The image runs its own license and keyless/runbook tests during the build.
+- An encrypted LUKS2 persistence partition (`/home union`) is created by `make-quantos-usb`, which requires typing `YES`.
 - There is a first-login welcome/setup flow, a systemd user terminal service (it creates an export if none exists), a weekday daily timer, and desktop launchers.
 - The default archive area is `main` only, so the image is 100% free software. `FC_FIRMWARE=1` adds non-free firmware for broader hardware support.
 - `FC_SOURCE=true` builds the matching source ISO, which is needed when publishing an ISO (GPL).
