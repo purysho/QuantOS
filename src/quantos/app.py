@@ -381,6 +381,15 @@ def _mime(name: str) -> str:
 
 def app_command(*, port: int = 0, open_browser: bool = True, smoke_test: bool = False) -> int:
     home = _prepare_environment()
+    if not smoke_test and port == 0:
+        existing = _running_instance(home)
+        if existing:
+            print(f"First Current is already running: {existing.split('#')[0]}", flush=True)
+            if open_browser:
+                webbrowser.open(existing)
+            else:
+                print(f"Open: {existing}", flush=True)
+            return 0
     try:
         server = AppServer(port)
     except OSError as exc:
@@ -394,13 +403,48 @@ def app_command(*, port: int = 0, open_browser: bool = True, smoke_test: bool = 
         threading.Timer(0.4, lambda: webbrowser.open(server.launch_url)).start()
     else:
         print(f"Open: {server.launch_url}", flush=True)
+    instance = _record_instance(home, server)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
         pass
     finally:
         server.server_close()
+        with contextlib.suppress(OSError):
+            instance.unlink()
     return 0
+
+
+INSTANCE_FILE = "app_instance.json"
+
+
+def _record_instance(home: Path, server: AppServer) -> Path:
+    """Lets a second launch reopen this server instead of starting another.
+    Private to the user (0600): it holds this launch's token."""
+
+    path = home / INSTANCE_FILE
+    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(descriptor, "w") as handle:
+        json.dump({"url": server.launch_url, "pid": os.getpid()}, handle)
+    return path
+
+
+def _running_instance(home: Path) -> str | None:
+    import urllib.error
+    import urllib.request
+
+    try:
+        record = json.loads((home / INSTANCE_FILE).read_text())
+        url = str(record["url"])
+        base, token = url.split("/#token=", 1)
+        if not base.startswith("http://127.0.0.1:"):
+            return None
+        request = urllib.request.Request(base + "/api/status", headers={"X-Quantos-Token": token})
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        with opener.open(request, timeout=2) as response:
+            return url if response.status == 200 else None
+    except (OSError, ValueError, KeyError, urllib.error.URLError):
+        return None
 
 
 def _exercise_runtime_paths() -> None:

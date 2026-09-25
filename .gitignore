@@ -15,3 +15,6 @@ packaging/live-usb/build/
 quantos.toml
 secrets/
 vendor/
+
+# Desktop build output
+packaging/desktop/icon.icns

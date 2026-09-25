@@ -100,6 +100,17 @@ class AppServerTests(unittest.TestCase):
             self.assertEqual(response.read(), b"<html>terminal</html>")
             self.assertIn("cdn.jsdelivr.net", response.headers["Content-Security-Policy"])
 
+    def test_second_launch_finds_the_running_instance(self):
+        from quantos.app import _record_instance, _running_instance
+
+        home = Path(self.tmp.name)
+        self.assertIsNone(_running_instance(home))
+        path = _record_instance(home, self.server)
+        self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+        self.assertEqual(_running_instance(home), self.server.launch_url)
+        path.write_text(json.dumps({"url": "http://evil.example/#token=x"}))
+        self.assertIsNone(_running_instance(home), "only loopback instances are trusted")
+
     def test_preflight_and_writes_to_static_are_refused(self):
         request = urllib.request.Request(self.server.origin + "/api/setup", method="OPTIONS")
         with self.assertRaises(urllib.error.HTTPError) as caught:
