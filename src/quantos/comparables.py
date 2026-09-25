@@ -197,12 +197,17 @@ class PeerSelectionResult:
     target_id: str
     policy_id: str
     as_of: datetime
+    minimum_included_peers: int
     decisions: tuple[PeerSelectionDecision, ...]
     included_snapshots: tuple[PeerSnapshot, ...]
 
     @property
     def included_peer_ids(self) -> tuple[str, ...]:
         return tuple(item.entity_id for item in self.included_snapshots)
+
+    @property
+    def is_sufficient(self) -> bool:
+        return len(self.included_snapshots) >= self.minimum_included_peers
 
 
 class PeerSelector:
@@ -229,8 +234,6 @@ class PeerSelector:
             ))
             if not reasons:
                 included.append(peer)
-        if len(included) < policy.minimum_included_peers:
-            pass
         payload = {
             "target_id": target.target_id,
             "policy_id": policy.policy_id,
@@ -253,6 +256,7 @@ class PeerSelector:
             target_id=target.target_id,
             policy_id=policy.policy_id,
             as_of=target.as_of,
+            minimum_included_peers=policy.minimum_included_peers,
             decisions=tuple(decisions),
             included_snapshots=tuple(included),
         )
@@ -424,8 +428,10 @@ class ComparableCompanyEngine:
             raise ValueError("peer selection does not belong to target financials")
         if target.as_of != selection.as_of:
             raise ValueError("target financials and peer selection as_of differ")
-        if len(selection.included_snapshots) < 2:
-            raise ValueError("comps valuation requires at least two included peers")
+        if not selection.is_sufficient:
+            raise ValueError(
+                "peer selection does not satisfy its minimum-included-peers policy"
+            )
         if any(peer.knowledge_time > target.as_of for peer in selection.included_snapshots):
             raise ValueError("included peer contains future-known information")
         if any(peer.market_as_of > target.as_of for peer in selection.included_snapshots):
