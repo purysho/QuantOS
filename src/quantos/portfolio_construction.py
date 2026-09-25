@@ -295,7 +295,7 @@ class SkfolioBaselineAllocator:
     ) -> PortfolioSolution:
         if dataset.observations < 2:
             raise ValueError("portfolio allocation requires at least two observations")
-        previous = self._validate_previous_weights(
+        previous = validate_previous_weights(
             dataset=dataset,
             previous_weights=previous_weights,
         )
@@ -348,11 +348,11 @@ class SkfolioBaselineAllocator:
         )
         net = sum((item.weight for item in weights), Decimal("0"))
         gross = sum((abs(item.weight) for item in weights), Decimal("0"))
-        turnover = _one_way_turnover(
+        turnover = calculate_one_way_turnover(
             target=weights,
             previous=previous,
         )
-        self._validate_constraints(
+        validate_portfolio_constraints(
             weights=weights,
             net=net,
             gross=gross,
@@ -406,53 +406,6 @@ class SkfolioBaselineAllocator:
             capital_authority="NONE",
         )
 
-    @staticmethod
-    def _validate_previous_weights(
-        *,
-        dataset: PortfolioDataset,
-        previous_weights: tuple[PortfolioWeight, ...],
-    ) -> tuple[PortfolioWeight, ...]:
-        if len({item.security_id for item in previous_weights}) != len(
-            previous_weights
-        ):
-            raise ValueError("previous weights contain duplicate securities")
-        allowed = set(dataset.security_ids)
-        if any(item.security_id not in allowed for item in previous_weights):
-            raise ValueError("previous weights contain security outside dataset")
-        if any(not item.weight.is_finite() for item in previous_weights):
-            raise ValueError("previous weights must be finite")
-        return tuple(sorted(previous_weights, key=lambda item: item.security_id))
-
-    @staticmethod
-    def _validate_constraints(
-        *,
-        weights: tuple[PortfolioWeight, ...],
-        net: Decimal,
-        gross: Decimal,
-        turnover: Decimal,
-        constraints: PortfolioConstraintPolicy,
-    ) -> None:
-        tolerance = Decimal("1e-10")
-        for item in weights:
-            if item.weight < constraints.minimum_weight - tolerance:
-                raise ValueError(
-                    f"{item.security_id} weight violates minimum_weight"
-                )
-            if item.weight > constraints.maximum_weight + tolerance:
-                raise ValueError(
-                    f"{item.security_id} weight violates maximum_weight"
-                )
-            if constraints.long_only and item.weight < -tolerance:
-                raise ValueError("allocator produced short weight under long-only policy")
-        if constraints.fully_invested and abs(net - Decimal("1")) > tolerance:
-            raise ValueError("fully invested allocation must sum to 1")
-        if gross > constraints.maximum_gross_exposure + tolerance:
-            raise ValueError("allocation exceeds maximum gross exposure")
-        if (
-            constraints.maximum_one_way_turnover is not None
-            and turnover > constraints.maximum_one_way_turnover + tolerance
-        ):
-            raise ValueError("allocation exceeds maximum one-way turnover")
 
 
 class PortfolioSolutionStore:
@@ -548,7 +501,57 @@ class PortfolioSolutionStore:
         self._con.close()
 
 
-def _one_way_turnover(
+def validate_previous_weights(
+    *,
+    dataset: PortfolioDataset,
+    previous_weights: tuple[PortfolioWeight, ...],
+) -> tuple[PortfolioWeight, ...]:
+    if len({item.security_id for item in previous_weights}) != len(
+        previous_weights
+    ):
+        raise ValueError("previous weights contain duplicate securities")
+    allowed = set(dataset.security_ids)
+    if any(item.security_id not in allowed for item in previous_weights):
+        raise ValueError("previous weights contain security outside dataset")
+    if any(not item.weight.is_finite() for item in previous_weights):
+        raise ValueError("previous weights must be finite")
+    return tuple(sorted(previous_weights, key=lambda item: item.security_id))
+
+
+def validate_portfolio_constraints(
+    *,
+    weights: tuple[PortfolioWeight, ...],
+    net: Decimal,
+    gross: Decimal,
+    turnover: Decimal,
+    constraints: PortfolioConstraintPolicy,
+) -> None:
+    tolerance = Decimal("1e-10")
+    for item in weights:
+        if item.weight < constraints.minimum_weight - tolerance:
+            raise ValueError(
+                f"{item.security_id} weight violates minimum_weight"
+            )
+        if item.weight > constraints.maximum_weight + tolerance:
+            raise ValueError(
+                f"{item.security_id} weight violates maximum_weight"
+            )
+        if constraints.long_only and item.weight < -tolerance:
+            raise ValueError(
+                "allocator produced short weight under long-only policy"
+            )
+    if constraints.fully_invested and abs(net - Decimal("1")) > tolerance:
+        raise ValueError("fully invested allocation must sum to 1")
+    if gross > constraints.maximum_gross_exposure + tolerance:
+        raise ValueError("allocation exceeds maximum gross exposure")
+    if (
+        constraints.maximum_one_way_turnover is not None
+        and turnover > constraints.maximum_one_way_turnover + tolerance
+    ):
+        raise ValueError("allocation exceeds maximum one-way turnover")
+
+
+def calculate_one_way_turnover(
     *,
     target: tuple[PortfolioWeight, ...],
     previous: tuple[PortfolioWeight, ...],
