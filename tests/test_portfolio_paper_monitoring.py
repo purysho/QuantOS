@@ -439,5 +439,36 @@ class PortfolioPaperShadowLedgerTests(unittest.TestCase):
             ledger.close()
 
 
+    def test_clean_completion_closes_and_blocks_future_observations(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            ledger = PortfolioPaperShadowLedger(
+                Path(tmp) / "portfolio-paper-shadow.duckdb"
+            )
+            auth = authorization()
+            healthy_record(ledger, auth=auth)
+            event = ledger.complete(
+                authorization=auth,
+                completed_at=AT + timedelta(days=3),
+                reviewer="completion-reviewer",
+                reason="Planned shadow horizon completed.",
+                evidence_references=("completion:evidence",),
+            )
+            self.assertEqual(
+                event.new_state,
+                PortfolioPaperAuthorizationState.CLOSED,
+            )
+            self.assertEqual(
+                ledger.state(auth.authorization_id),
+                PortfolioPaperAuthorizationState.CLOSED,
+            )
+            with self.assertRaises(ValueError):
+                healthy_record(
+                    ledger,
+                    auth=auth,
+                    start=AT + timedelta(days=4),
+                )
+            ledger.close()
+
+
 if __name__ == "__main__":
     unittest.main()
