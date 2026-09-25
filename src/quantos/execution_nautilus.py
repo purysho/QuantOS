@@ -194,6 +194,8 @@ class NautilusHistoricalBacktestAdapter:
             min_quantity=Quantity.from_int(
                 int(instrument.minimum_quantity)
             ),
+            maker_fee=Decimal("0"),
+            taker_fee=Decimal("0"),
         )
 
         nt_quotes = [
@@ -346,10 +348,7 @@ class NautilusHistoricalBacktestAdapter:
                     Money(1_000_000, nt_currency),
                 ],
                 default_leverage=Decimal("10"),
-                fee_model=MakerTakerFeeModel(
-                    maker_rate=Decimal("0"),
-                    taker_rate=Decimal("0"),
-                ),
+                fee_model=MakerTakerFeeModel(),
                 book_type=BookType.L1_MBP,
                 trade_execution=False,
                 liquidity_consumption=True,
@@ -998,72 +997,3 @@ def nautilus_differential_result_payload(
             else None
         ),
         "absolute_vwap_error": (
-            str(result.absolute_vwap_error)
-            if result.absolute_vwap_error is not None
-            else None
-        ),
-        "diagnostics": list(result.diagnostics),
-        "trust_authority": result.trust_authority,
-        "network_authority": result.network_authority,
-        "external_order_authority": result.external_order_authority,
-        "capital_authority": result.capital_authority,
-    }
-
-
-def nautilus_differential_result_identity(
-    result: NautilusDifferentialResult,
-) -> str:
-    return _content_id(
-        "nautilus-execution-differential",
-        nautilus_differential_result_payload(result),
-    )
-
-
-def _economic_intent_payload(
-    intent: SimulationOrderIntent,
-) -> dict[str, object]:
-    return {
-        "execution_instrument_id": intent.execution_instrument_id,
-        "side": intent.side.value,
-        "order_type": intent.order_type.value,
-        "quantity": str(intent.quantity),
-        "limit_price": (
-            str(intent.limit_price)
-            if intent.limit_price is not None
-            else None
-        ),
-        "time_in_force": intent.time_in_force.value,
-        "submitted_at": intent.submitted_at.isoformat(),
-        "source_target_id": intent.source_target_id,
-    }
-
-
-def _decimal_precision(value: Decimal) -> int:
-    exponent = value.as_tuple().exponent
-    return max(0, -int(exponent))
-
-
-def _plain_decimal(value: Decimal) -> str:
-    return format(value, "f")
-
-
-def _unix_nanos(value: datetime) -> int:
-    if value.tzinfo is None:
-        raise ValueError("timestamp must be timezone-aware")
-    utc = value.astimezone(timezone.utc)
-    epoch = datetime(1970, 1, 1, tzinfo=timezone.utc)
-    delta = utc - epoch
-    return (
-        delta.days * 86_400 * 1_000_000_000
-        + delta.seconds * 1_000_000_000
-        + delta.microseconds * 1_000
-    )
-
-
-def _content_id(prefix: str, payload: object) -> str:
-    material = json.dumps(
-        payload,
-        sort_keys=True,
-        separators=(",", ":"),
-    ).encode("utf-8")
-    return f"{prefix}:" + hashlib.sha256(material).hexdigest()
