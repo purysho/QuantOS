@@ -452,3 +452,231 @@ class ComparableCompanyEngine:
             "policy_id": policy.policy_id,
             "target_id": target.target_id,
             "distributions": [
+                {
+                    "kind": item.kind.value,
+                    "status": item.status.value,
+                    "peer_values": [
+                        {
+                            "peer_entity_id": peer.peer_entity_id,
+                            "peer_snapshot_id": peer.peer_snapshot_id,
+                            "value": str(peer.value),
+                        }
+                        for peer in item.peer_values
+                    ],
+                    "percentiles": [
+                        {
+                            "percentile": str(point.percentile),
+                            "value": str(point.value),
+                        }
+                        for point in item.percentiles
+                    ],
+                }
+                for item in distributions
+            ],
+            "implied_ranges": [
+                {
+                    "kind": item.kind.value,
+                    "status": item.status.value,
+                    "reason": item.reason,
+                    "points": [
+                        {
+                            "percentile": str(point.percentile),
+                            "multiple_or_yield": str(point.multiple_or_yield),
+                            "enterprise_value": (
+                                str(point.enterprise_value)
+                                if point.enterprise_value is not None
+                                else None
+                            ),
+                            "equity_value": str(point.equity_value),
+                            "value_per_diluted_share": str(
+                                point.value_per_diluted_share
+                            ),
+                        }
+                        for point in item.points
+                    ],
+                }
+                for item in ranges
+            ],
+        }
+        return ComparableValuationResult(
+            valuation_id=_content_id("trading-comps", payload),
+            selection_id=selection.selection_id,
+            method_permit_id=method_permit.permit_id,
+            policy_id=policy.policy_id,
+            distributions=distributions,
+            implied_ranges=ranges,
+        )
+
+    @staticmethod
+    def _multiple(
+        peer: PeerSnapshot,
+        kind: MultipleKind,
+    ) -> Decimal | None:
+        if kind is MultipleKind.EV_REVENUE:
+            return peer.enterprise_value / peer.revenue if peer.revenue > 0 else None
+        if kind is MultipleKind.EV_EBITDA:
+            return peer.enterprise_value / peer.ebitda if peer.ebitda > 0 else None
+        if kind is MultipleKind.EV_EBIT:
+            return peer.enterprise_value / peer.ebit if peer.ebit > 0 else None
+        if kind is MultipleKind.PE:
+            return peer.equity_value / peer.net_income if peer.net_income > 0 else None
+        if kind is MultipleKind.PB:
+            return peer.equity_value / peer.book_equity if peer.book_equity > 0 else None
+        if kind is MultipleKind.FCF_YIELD:
+            return peer.free_cash_flow / peer.equity_value
+        raise AssertionError(kind)
+
+    def _distribution(
+        self,
+        kind: MultipleKind,
+        peers: tuple[PeerSnapshot, ...],
+        policy: CompsValuationPolicy,
+    ) -> MultipleDistribution:
+        records: list[PeerMultiple] = []
+        for peer in peers:
+            value = self._multiple(peer, kind)
+            if value is None:
+                continue
+            records.append(
+                PeerMultiple(
+                    peer_entity_id=peer.entity_id,
+                    peer_snapshot_id=peer.snapshot_id,
+                    kind=kind,
+                    value=value,
+                )
+            )
+        records.sort(key=lambda item: (item.value, item.peer_snapshot_id))
+        if len(records) < policy.minimum_peers_per_multiple:
+            return MultipleDistribution(
+                kind=kind,
+                status=DistributionStatus.INSUFFICIENT_PEERS,
+                peer_count=len(records),
+                peer_values=tuple(records),
+                minimum=None,
+                percentiles=(),
+                maximum=None,
+            )
+        values = tuple(item.value for item in records)
+        return MultipleDistribution(
+            kind=kind,
+            status=DistributionStatus.AVAILABLE,
+            peer_count=len(records),
+            peer_values=tuple(records),
+            minimum=values[0],
+            percentiles=tuple(
+                PercentileValue(
+                    percentile=p,
+                    value=_percentile(values, p),
+                )
+                for p in policy.percentiles
+            ),
+            maximum=values[-1],
+        )
+
+    @staticmethod
+    def _implied_range(
+        distribution: MultipleDistribution,
+        target: CompsTargetFinancials,
+    ) -> ImpliedValuationRange:
+        if distribution.status is DistributionStatus.INSUFFICIENT_PEERS:
+            return ImpliedValuationRange(
+                kind=distribution.kind,
+                status=ImpliedValuationStatus.INSUFFICIENT_PEERS,
+                points=(),
+                reason="Not enough eligible peers for this metric.",
+            )
+
+        denominator = {
+            MultipleKind.EV_REVENUE: target.revenue,
+            MultipleKind.EV_EBITDA: target.ebitda,
+            MultipleKind.EV_EBIT: target.ebit,
+            MultipleKind.PE: target.net_income,
+            MultipleKind.PB: target.book_equity,
+            MultipleKind.FCF_YIELD: target.free_cash_flow,
+        }[distribution.kind]
+        if denominator <= 0:
+            return ImpliedValuationRange(
+                kind=distribution.kind,
+                status=ImpliedValuationStatus.TARGET_NOT_APPLICABLE,
+                points=(),
+                reason="Target denominator is non-positive for this valuation metric.",
+            )
+
+        bridge = target.equity_bridge
+        points: list[ImpliedValuationPoint] = []
+        for item in distribution.percentiles:
+            if distribution.kind in {
+                MultipleKind.EV_REVENUE,
+                MultipleKind.EV_EBITDA,
+                MultipleKind.EV_EBIT,
+            }:
+                enterprise = denominator * item.value
+                equity = (
+                    enterprise
+                    + bridge.cash
+                    + bridge.non_operating_investments
+                    - bridge.debt
+                    - bridge.preferred_equity
+                    - bridge.noncontrolling_interest
+                )
+            elif distribution.kind in {MultipleKind.PE, MultipleKind.PB}:
+                enterprise = None
+                equity = denominator * item.value
+            else:
+                if item.value <= 0:
+                    return ImpliedValuationRange(
+                        kind=distribution.kind,
+                        status=ImpliedValuationStatus.TARGET_NOT_APPLICABLE,
+                        points=(),
+                        reason=(
+                            "Non-positive peer FCF yield cannot support "
+                            "reciprocal valuation."
+                        ),
+                    )
+                enterprise = None
+                equity = denominator / item.value
+
+            points.append(
+                ImpliedValuationPoint(
+                    percentile=item.percentile,
+                    multiple_or_yield=item.value,
+                    enterprise_value=enterprise,
+                    equity_value=equity,
+                    value_per_diluted_share=equity / bridge.diluted_shares,
+                )
+            )
+
+        return ImpliedValuationRange(
+            kind=distribution.kind,
+            status=ImpliedValuationStatus.AVAILABLE,
+            points=tuple(points),
+            reason=None,
+        )
+
+
+def _percentile(
+    values: tuple[Decimal, ...],
+    percentile: Decimal,
+) -> Decimal:
+    if not values:
+        raise ValueError("cannot calculate percentile of empty values")
+    if len(values) == 1:
+        return values[0]
+    position = Decimal(len(values) - 1) * percentile
+    lower = int(position)
+    upper = lower if position == Decimal(lower) else lower + 1
+    if lower == upper:
+        return values[lower]
+    fraction = position - Decimal(lower)
+    return values[lower] + (
+        values[upper] - values[lower]
+    ) * fraction
+
+
+def _content_id(prefix: str, payload: object) -> str:
+    material = json.dumps(
+        payload,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return f"{prefix}:" + hashlib.sha256(material).hexdigest()
