@@ -27,6 +27,16 @@ from .performance_analytics import (
     PerformanceAnalyticsEngine,
     PerformancePolicy,
 )
+from .portfolio_construction import (
+    BaselineAllocator,
+    PortfolioConstraintPolicy,
+    PortfolioDataset,
+    PortfolioDatasetBuilder,
+    PortfolioReturnObservation,
+    PortfolioSolution,
+    PortfolioWeight,
+    SkfolioBaselineAllocator,
+)
 from .prospective_review import (
     ProspectiveBehaviorExpectation,
     ProspectiveComparison,
@@ -66,6 +76,8 @@ class ResearchLabService:
         self._overfitting = MultipleTestingEngine()
         self._manifests = ResearchRunManifestBuilder()
         self._prospective = ProspectiveReviewEngine()
+        self._portfolio_datasets = PortfolioDatasetBuilder()
+        self._baseline_allocator = SkfolioBaselineAllocator()
 
     def build_universe(
         self,
@@ -182,6 +194,36 @@ class ResearchLabService:
             multiple_testing=multiple_testing,
             selected_variant=selected_variant,
             shadow_permit=shadow_permit,
+        )
+
+    def build_portfolio_dataset(
+        self,
+        *,
+        manifest: ResearchRunManifest,
+        decision_time,
+        observations: tuple[PortfolioReturnObservation, ...],
+        minimum_periods: int,
+    ) -> PortfolioDataset:
+        return self._portfolio_datasets.build(
+            manifest=manifest,
+            decision_time=decision_time,
+            observations=observations,
+            minimum_periods=minimum_periods,
+        )
+
+    def allocate_baseline_portfolio(
+        self,
+        *,
+        dataset: PortfolioDataset,
+        allocator: BaselineAllocator,
+        constraints: PortfolioConstraintPolicy,
+        previous_weights: tuple[PortfolioWeight, ...] = (),
+    ) -> PortfolioSolution:
+        return self._baseline_allocator.allocate(
+            dataset=dataset,
+            allocator=allocator,
+            constraints=constraints,
+            previous_weights=previous_weights,
         )
 
     def freeze_expectation(
