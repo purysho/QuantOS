@@ -57,3 +57,7 @@ A historical differential match means Nautilus reproduced the deliberately narro
 ## Next slice
 
 Stage 12.4 should expand differential coverage carefully: explicit latency models, deterministic fees and controlled partial-liquidity cases only where Nautilus semantics can be mapped without ambiguity. Each new behavior should require a separate frozen equivalence contract rather than broadening Stage 12.3 implicitly.
+
+## Superseded comparison (Stage 12.4)
+
+Stage 12.4 keeps this scope unchanged as the `ZERO_FRICTION` frozen equivalence contract, and strengthens the comparison to include total fees and the exact per-fill sequence. See docs/NAUTILUS_EQUIVALENCE_CONTRACTS_STAGE_12_4.md.

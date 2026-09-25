@@ -1,9 +1,10 @@
+import os
 import sys
 import tempfile
 import unittest
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
-from importlib.metadata import version as package_version
 from pathlib import Path
 
 from quantos.execution_contracts import (
@@ -16,14 +17,26 @@ from quantos.execution_contracts import (
     HistoricalReplayDatasetBuilder,
     SimulationOrderIntentBuilder,
     SimulationOrderLedger,
+    SimulationOrderState,
     TimeInForce,
     TopOfBookQuote,
 )
 from quantos.execution_nautilus import (
+    DETERMINISTIC_FEES_CONTRACT,
+    IMMEDIATE_TIME_IN_FORCE_CONTRACT,
+    LIMIT_TRANSITION_CONTRACT,
+    MARKET_DATA_LATENCY_CONTRACT,
+    NAUTILUS_EQUIVALENCE_CONTRACTS,
+    ORDER_LATENCY_CONTRACT,
+    ZERO_FRICTION_CONTRACT,
     DifferentialState,
+    NautilusDifferentialBehavior,
     NautilusDifferentialEngine,
     NautilusDifferentialStore,
+    NautilusExecutionResult,
     NautilusHistoricalBacktestAdapter,
+    NautilusRawTerminalState,
+    nautilus_execution_result_identity,
     nautilus_is_available,
 )
 from quantos.execution_reference import FirstCurrentReferenceFillEngine
@@ -31,6 +44,14 @@ from quantos.pricing_risk_contracts import Currency
 
 UTC = timezone.utc
 AT = datetime(2026, 9, 25, 12, tzinfo=UTC)
+SUBMIT = AT + timedelta(seconds=1)
+MS = timedelta(milliseconds=1)
+FIXTURE_NAUTILUS_VERSION = "2.0.0rc5"
+
+requires_nautilus = unittest.skipUnless(
+    nautilus_is_available(),
+    "NautilusTrader v2 requires Python >= 3.12",
+)
 
 
 def instrument():
@@ -47,25 +68,32 @@ def instrument():
     )
 
 
-def quote(side_size="1000"):
+def quote(
+    *,
+    at=SUBMIT,
+    sequence=1,
+    bid="99.99",
+    ask="100.01",
+    size="1000",
+):
     return TopOfBookQuote(
         execution_instrument_id=instrument().execution_instrument_id,
-        event_time=AT + timedelta(seconds=1),
-        knowledge_time=AT + timedelta(seconds=1),
-        sequence=1,
-        bid_price=Decimal("99.99"),
-        bid_quantity=Decimal(side_size),
-        ask_price=Decimal("100.01"),
-        ask_quantity=Decimal(side_size),
-        source_fact_ids=("quote:1",),
+        event_time=at,
+        knowledge_time=at,
+        sequence=sequence,
+        bid_price=Decimal(bid),
+        bid_quantity=Decimal(size),
+        ask_price=Decimal(ask),
+        ask_quantity=Decimal(size),
+        source_fact_ids=(f"quote:{sequence}",),
     )
 
 
-def dataset():
+def dataset(*quotes, end=None):
     return HistoricalReplayDatasetBuilder().build(
         start_time=AT,
-        end_time=AT + timedelta(seconds=10),
-        events=(quote(),),
+        end_time=end or AT + timedelta(seconds=10),
+        events=quotes or (quote(),),
     )
 
 
@@ -78,7 +106,7 @@ def policy(**overrides):
         "market_impact_bps": Decimal("0"),
         "maximum_participation_rate": Decimal("1"),
         "allow_partial_fills": False,
-        "rationale": "Exact Stage 12.3 differential fixture.",
+        "rationale": "Exact Nautilus differential fixture.",
         "evidence_references": ("execution-policy:differential",),
     }
     values.update(overrides)
@@ -95,21 +123,30 @@ def run(engine_name, engine_version, data=None, p=None):
         simulation_policy=p,
         engine_name=engine_name,
         engine_version=engine_version,
-        code_revision="git:stage12.3",
+        code_revision="git:stage12.4",
         created_at=AT,
         evidence_references=("simulation-run:evidence",),
     )
 
 
-def intent(simulation_run, *, side=ExecutionSide.BUY, order_type=ExecutionOrderType.MARKET, limit_price=None):
+def intent(
+    simulation_run,
+    *,
+    side=ExecutionSide.BUY,
+    order_type=ExecutionOrderType.MARKET,
+    limit_price=None,
+    quantity="100",
+    time_in_force=TimeInForce.GTC,
+    submitted_at=SUBMIT,
+):
     return SimulationOrderIntentBuilder().build(
         run=simulation_run,
         instrument=instrument(),
         side=side,
         order_type=order_type,
-        quantity=Decimal("100"),
-        time_in_force=TimeInForce.GTC,
-        submitted_at=quote().knowledge_time,
+        quantity=Decimal(quantity),
+        time_in_force=time_in_force,
+        submitted_at=submitted_at,
         source_target_id="portfolio-target:SEC:A",
         limit_price=(
             Decimal(limit_price)
@@ -119,114 +156,139 @@ def intent(simulation_run, *, side=ExecutionSide.BUY, order_type=ExecutionOrderT
     )
 
 
-@unittest.skipUnless(
-    nautilus_is_available(),
-    "NautilusTrader v2 requires Python >= 3.12",
-)
-class NautilusHistoricalAdapterRuntimeTests(unittest.TestCase):
-    def compare_fixture(
-        self,
-        *,
-        side=ExecutionSide.BUY,
-        order_type=ExecutionOrderType.MARKET,
-        limit_price=None,
-    ):
-        data = dataset()
-        p = policy()
-        reference_run = run(
-            "FIRST_CURRENT_REFERENCE",
-            "12.2",
-            data,
-            p,
+def reference_side(data, p, order, tmp):
+    reference_run = run("FIRST_CURRENT_REFERENCE", "12.2", data, p)
+    reference_intent = intent(reference_run, **order)
+    ledger = SimulationOrderLedger(Path(tmp) / "reference.duckdb")
+    try:
+        result = FirstCurrentReferenceFillEngine().simulate(
+            run=reference_run,
+            dataset=data,
+            policy=p,
+            instrument=instrument(),
+            intent=reference_intent,
+            ledger=ledger,
         )
-        nautilus_version = package_version("nautilus_trader")
-        nautilus_run = run(
-            "NAUTILUS_TRADER",
-            nautilus_version,
-            data,
-            p,
-        )
-        reference_intent = intent(
-            reference_run,
-            side=side,
-            order_type=order_type,
-            limit_price=limit_price,
-        )
-        nautilus_intent = intent(
-            nautilus_run,
-            side=side,
-            order_type=order_type,
-            limit_price=limit_price,
-        )
-        with tempfile.TemporaryDirectory() as tmp:
-            reference_ledger = SimulationOrderLedger(
-                Path(tmp) / "reference.duckdb"
-            )
-            reference_result = FirstCurrentReferenceFillEngine().simulate(
-                run=reference_run,
-                dataset=data,
-                policy=p,
-                instrument=instrument(),
-                intent=reference_intent,
-                ledger=reference_ledger,
-            )
-            nautilus_result = NautilusHistoricalBacktestAdapter().simulate(
-                run=nautilus_run,
-                dataset=data,
-                policy=p,
-                instrument=instrument(),
-                intent=nautilus_intent,
-            )
-            differential = NautilusDifferentialEngine().compare(
-                reference_run=reference_run,
-                reference_intent=reference_intent,
-                reference_result=reference_result,
-                nautilus_run=nautilus_run,
-                nautilus_intent=nautilus_intent,
-                nautilus_result=nautilus_result,
-            )
-            reference_ledger.close()
-            return nautilus_result, differential
+        fills = ledger.fills(reference_intent.intent_id)
+    finally:
+        ledger.close()
+    return reference_run, reference_intent, result, fills
 
+
+def compare(data, p, contract=ZERO_FRICTION_CONTRACT, **order):
+    adapter = NautilusHistoricalBacktestAdapter()
+    with tempfile.TemporaryDirectory() as tmp:
+        (
+            reference_run,
+            reference_intent,
+            reference_result,
+            reference_fills,
+        ) = reference_side(data, p, order, tmp)
+    nautilus_run = run("NAUTILUS_TRADER", adapter.engine_version, data, p)
+    nautilus_intent = intent(nautilus_run, **order)
+    nautilus_result = adapter.simulate(
+        run=nautilus_run,
+        dataset=data,
+        policy=p,
+        instrument=instrument(),
+        intent=nautilus_intent,
+        contract=contract,
+    )
+    differential = NautilusDifferentialEngine().compare(
+        reference_run=reference_run,
+        reference_intent=reference_intent,
+        reference_result=reference_result,
+        reference_fills=reference_fills,
+        nautilus_run=nautilus_run,
+        nautilus_intent=nautilus_intent,
+        nautilus_result=nautilus_result,
+    )
+    return reference_result, nautilus_result, differential
+
+
+def simulate_only(data, p, contract=ZERO_FRICTION_CONTRACT, **order):
+    adapter = NautilusHistoricalBacktestAdapter()
+    nautilus_run = run("NAUTILUS_TRADER", adapter.engine_version, data, p)
+    return adapter.simulate(
+        run=nautilus_run,
+        dataset=data,
+        policy=p,
+        instrument=instrument(),
+        intent=intent(nautilus_run, **order),
+        contract=contract,
+    )
+
+
+class DifferentialAssertions(unittest.TestCase):
+    def assertMatch(self, differential):
+        self.assertEqual(
+            differential.state,
+            DifferentialState.MATCH,
+            differential.diagnostics,
+        )
+        self.assertTrue(differential.fill_sequence_match)
+        self.assertTrue(differential.fee_match)
+        self.assertEqual(
+            differential.trust_authority,
+            "REFERENCE_MATCH_ONLY",
+        )
+        self.assertEqual(differential.network_authority, "NONE")
+        self.assertEqual(differential.external_order_authority, "NONE")
+        self.assertEqual(differential.capital_authority, "NONE")
+
+
+@requires_nautilus
+class ZeroFrictionContractTests(DifferentialAssertions):
     def test_market_buy_matches_reference_exactly(self):
-        result, diff = self.compare_fixture()
-        self.assertEqual(diff.state, DifferentialState.MATCH)
+        _, result, diff = compare(dataset(), policy())
+        self.assertMatch(diff)
+        self.assertEqual(diff.behavior, NautilusDifferentialBehavior.ZERO_FRICTION)
         self.assertEqual(result.filled_quantity, Decimal("100"))
         self.assertEqual(
             result.volume_weighted_average_price,
             Decimal("100.01"),
         )
-        self.assertEqual(
-            result.engine_version,
-            package_version("nautilus_trader"),
-        )
+        self.assertEqual(result.fill_times, (SUBMIT,))
+        self.assertEqual(result.raw_terminal_state, NautilusRawTerminalState.FILLED)
         self.assertEqual(result.network_authority, "NONE")
         self.assertEqual(result.external_order_authority, "NONE")
         self.assertEqual(result.capital_authority, "NONE")
-        self.assertEqual(
-            diff.trust_authority,
-            "REFERENCE_MATCH_ONLY",
-        )
+        self.assertEqual(result.result_id, nautilus_execution_result_identity(result))
 
     def test_marketable_limit_buy_matches_reference_exactly(self):
-        _, diff = self.compare_fixture(
+        _, _, diff = compare(
+            dataset(),
+            policy(),
             order_type=ExecutionOrderType.LIMIT,
             limit_price="100.01",
         )
-        self.assertEqual(diff.state, DifferentialState.MATCH)
+        self.assertMatch(diff)
 
     def test_market_sell_matches_reference_exactly(self):
-        result, diff = self.compare_fixture(
+        _, result, diff = compare(
+            dataset(),
+            policy(),
             side=ExecutionSide.SELL,
         )
-        self.assertEqual(diff.state, DifferentialState.MATCH)
+        self.assertMatch(diff)
         self.assertEqual(
             result.volume_weighted_average_price,
             Decimal("99.99"),
         )
 
+    def test_fully_liquid_ioc_and_fok_fill_completely(self):
+        for tif in (TimeInForce.IOC, TimeInForce.FOK):
+            with self.subTest(tif=tif):
+                _, result, diff = compare(
+                    dataset(),
+                    policy(),
+                    time_in_force=tif,
+                )
+                self.assertMatch(diff)
+                self.assertEqual(result.final_state, SimulationOrderState.FILLED)
+
     def test_differential_store_is_idempotent(self):
-        _, diff = self.compare_fixture()
+        _, _, diff = compare(dataset(), policy())
         with tempfile.TemporaryDirectory() as tmp:
             store = NautilusDifferentialStore(
                 Path(tmp) / "nautilus-differential.duckdb"
@@ -236,71 +298,412 @@ class NautilusHistoricalAdapterRuntimeTests(unittest.TestCase):
             store.close()
 
 
-class NautilusHistoricalAdapterScopeTests(unittest.TestCase):
-    def test_python_311_reports_nautilus_unavailable(self):
-        if sys.version_info < (3, 12):
-            self.assertFalse(nautilus_is_available())
+@requires_nautilus
+class DeterministicFeesContractTests(DifferentialAssertions):
+    def fee_data(self):
+        return dataset(quote(bid="49.90", ask="50.00", size="5000"))
 
-    @unittest.skipUnless(
-        nautilus_is_available(),
-        "NautilusTrader v2 requires Python >= 3.12",
-    )
-    def test_nonzero_execution_cost_policy_fails_closed(self):
-        data = dataset()
-        p = policy(slippage_bps=Decimal("1"))
-        adapter = NautilusHistoricalBacktestAdapter()
-        r = run(
-            "NAUTILUS_TRADER",
-            adapter.engine_version,
-            data,
-            p,
+    def test_buy_commission_matches_reference_exactly(self):
+        reference, result, diff = compare(
+            self.fee_data(),
+            policy(commission_bps=Decimal("3")),
+            DETERMINISTIC_FEES_CONTRACT,
         )
-        with self.assertRaises(ValueError):
-            adapter.simulate(
-                run=r,
-                dataset=data,
-                policy=p,
-                instrument=instrument(),
-                intent=intent(r),
+        self.assertMatch(diff)
+        self.assertEqual(reference.total_fees, Decimal("1.5"))
+        self.assertEqual(result.total_fees, Decimal("1.50"))
+        self.assertEqual(result.fill_fees, (Decimal("1.50"),))
+
+    def test_sell_commission_matches_reference_exactly(self):
+        _, result, diff = compare(
+            self.fee_data(),
+            policy(commission_bps=Decimal("3")),
+            DETERMINISTIC_FEES_CONTRACT,
+            side=ExecutionSide.SELL,
+            quantity="1000",
+        )
+        self.assertMatch(diff)
+        self.assertEqual(result.total_fees, Decimal("14.97"))
+
+    def test_marketable_limit_commission_is_liquidity_side_neutral(self):
+        _, _, diff = compare(
+            self.fee_data(),
+            policy(commission_bps=Decimal("3")),
+            DETERMINISTIC_FEES_CONTRACT,
+            order_type=ExecutionOrderType.LIMIT,
+            limit_price="50.05",
+        )
+        self.assertMatch(diff)
+
+    def test_commission_requiring_rounding_is_refused(self):
+        with self.assertRaisesRegex(ValueError, "currency precision"):
+            simulate_only(
+                dataset(),
+                policy(commission_bps=Decimal("1")),
+                DETERMINISTIC_FEES_CONTRACT,
             )
 
-    @unittest.skipUnless(
-        nautilus_is_available(),
-        "NautilusTrader v2 requires Python >= 3.12",
-    )
-    def test_nonzero_latency_policy_fails_closed(self):
-        data = dataset()
-        p = policy(order_latency_ms=1)
-        adapter = NautilusHistoricalBacktestAdapter()
-        r = run(
-            "NAUTILUS_TRADER",
-            adapter.engine_version,
-            data,
-            p,
-        )
-        with self.assertRaises(ValueError):
-            adapter.simulate(
-                run=r,
-                dataset=data,
-                policy=p,
-                instrument=instrument(),
-                intent=intent(r),
+    def test_fee_contract_requires_nonzero_commission(self):
+        with self.assertRaisesRegex(ValueError, "requires the behavior"):
+            simulate_only(dataset(), policy(), DETERMINISTIC_FEES_CONTRACT)
+
+    def test_fees_are_refused_under_zero_friction_contract(self):
+        with self.assertRaisesRegex(ValueError, "DETERMINISTIC_FEES"):
+            simulate_only(
+                self.fee_data(),
+                policy(commission_bps=Decimal("3")),
             )
 
-    @unittest.skipUnless(
-        nautilus_is_available(),
-        "NautilusTrader v2 requires Python >= 3.12",
-    )
+
+@requires_nautilus
+class OrderLatencyContractTests(DifferentialAssertions):
+    def latency_data(self):
+        return dataset(
+            quote(at=SUBMIT, sequence=1, ask="100.01", bid="99.99"),
+            quote(at=SUBMIT + 2 * MS, sequence=2, ask="100.02", bid="100.00"),
+            quote(at=SUBMIT + 5 * MS, sequence=3, ask="100.03", bid="100.01"),
+        )
+
+    def test_order_fills_on_activation_book_not_submission_book(self):
+        reference, result, diff = compare(
+            self.latency_data(),
+            policy(order_latency_ms=5),
+            ORDER_LATENCY_CONTRACT,
+        )
+        self.assertMatch(diff)
+        self.assertEqual(reference.active_at, SUBMIT + 5 * MS)
+        self.assertEqual(result.volume_weighted_average_price, Decimal("100.03"))
+        self.assertEqual(result.fill_times, (SUBMIT + 5 * MS,))
+
+    def test_sell_limit_with_latency_matches_reference(self):
+        _, result, diff = compare(
+            self.latency_data(),
+            policy(order_latency_ms=5),
+            ORDER_LATENCY_CONTRACT,
+            side=ExecutionSide.SELL,
+            order_type=ExecutionOrderType.LIMIT,
+            limit_price="100.00",
+        )
+        self.assertMatch(diff)
+        self.assertEqual(result.volume_weighted_average_price, Decimal("100.01"))
+
+    def test_immediate_time_in_force_uses_activation_book(self):
+        for tif in (TimeInForce.IOC, TimeInForce.FOK):
+            with self.subTest(tif=tif):
+                _, result, diff = compare(
+                    self.latency_data(),
+                    policy(order_latency_ms=2),
+                    ORDER_LATENCY_CONTRACT,
+                    time_in_force=tif,
+                )
+                self.assertMatch(diff)
+                self.assertEqual(
+                    result.volume_weighted_average_price,
+                    Decimal("100.02"),
+                )
+
+    def test_activation_between_quotes_is_refused(self):
+        with self.assertRaisesRegex(ValueError, "activation time"):
+            simulate_only(
+                self.latency_data(),
+                policy(order_latency_ms=4),
+                ORDER_LATENCY_CONTRACT,
+            )
+
+    def test_activation_after_horizon_is_refused(self):
+        with self.assertRaisesRegex(ValueError, "horizon"):
+            simulate_only(
+                dataset(quote(), end=SUBMIT + 3 * MS),
+                policy(order_latency_ms=5),
+                ORDER_LATENCY_CONTRACT,
+            )
+
+    def test_latency_is_refused_under_zero_friction_contract(self):
+        with self.assertRaisesRegex(ValueError, "ORDER_LATENCY"):
+            simulate_only(self.latency_data(), policy(order_latency_ms=5))
+
+    def test_latency_and_fees_cannot_be_combined(self):
+        with self.assertRaisesRegex(ValueError, "DETERMINISTIC_FEES"):
+            simulate_only(
+                self.latency_data(),
+                policy(order_latency_ms=5, commission_bps=Decimal("3")),
+                ORDER_LATENCY_CONTRACT,
+            )
+
+
+@requires_nautilus
+class MarketDataLatencyContractTests(DifferentialAssertions):
+    def delayed_data(self, end=None):
+        return dataset(
+            quote(at=SUBMIT, sequence=1, ask="100.01", bid="99.99"),
+            quote(at=SUBMIT + 4 * MS, sequence=2, ask="100.02", bid="100.00"),
+            end=end,
+        )
+
+    def test_order_submitted_on_delayed_arrival_matches_reference(self):
+        _, result, diff = compare(
+            self.delayed_data(),
+            policy(market_latency_ms=3),
+            MARKET_DATA_LATENCY_CONTRACT,
+            submitted_at=SUBMIT + 3 * MS,
+        )
+        self.assertMatch(diff)
+        self.assertEqual(result.volume_weighted_average_price, Decimal("100.01"))
+        self.assertEqual(result.fill_times, (SUBMIT + 3 * MS,))
+
+    def test_post_horizon_arrivals_are_not_loaded(self):
+        _, _, diff = compare(
+            self.delayed_data(end=SUBMIT + 5 * MS),
+            policy(market_latency_ms=3),
+            MARKET_DATA_LATENCY_CONTRACT,
+            submitted_at=SUBMIT + 3 * MS,
+        )
+        self.assertMatch(diff)
+
+    def test_submission_at_undelayed_knowledge_time_is_refused(self):
+        with self.assertRaisesRegex(ValueError, "submission time"):
+            simulate_only(
+                self.delayed_data(),
+                policy(market_latency_ms=3),
+                MARKET_DATA_LATENCY_CONTRACT,
+            )
+
+
+@requires_nautilus
+class ImmediateTimeInForceContractTests(DifferentialAssertions):
+    def short_book(self):
+        return dataset(quote(size="60"))
+
+    def test_ioc_shortfall_fills_displayed_and_expires_remainder(self):
+        for side in (ExecutionSide.BUY, ExecutionSide.SELL):
+            with self.subTest(side=side):
+                reference, result, diff = compare(
+                    self.short_book(),
+                    policy(allow_partial_fills=True),
+                    IMMEDIATE_TIME_IN_FORCE_CONTRACT,
+                    side=side,
+                    time_in_force=TimeInForce.IOC,
+                )
+                self.assertMatch(diff)
+                self.assertEqual(result.filled_quantity, Decimal("60"))
+                self.assertEqual(result.final_state, SimulationOrderState.EXPIRED)
+                self.assertEqual(
+                    result.raw_terminal_state,
+                    NautilusRawTerminalState.CANCELED,
+                )
+                self.assertEqual(reference.final_state, SimulationOrderState.EXPIRED)
+
+    def test_marketable_limit_ioc_shortfall_fills_only_at_touch(self):
+        _, result, diff = compare(
+            self.short_book(),
+            policy(allow_partial_fills=True),
+            IMMEDIATE_TIME_IN_FORCE_CONTRACT,
+            order_type=ExecutionOrderType.LIMIT,
+            limit_price="100.03",
+            time_in_force=TimeInForce.IOC,
+        )
+        self.assertMatch(diff)
+        self.assertEqual(result.fill_prices, (Decimal("100.01"),))
+
+    def test_fok_shortfall_kills_without_fill(self):
+        for partial in (False, True):
+            with self.subTest(allow_partial_fills=partial):
+                _, result, diff = compare(
+                    self.short_book(),
+                    policy(allow_partial_fills=partial),
+                    IMMEDIATE_TIME_IN_FORCE_CONTRACT,
+                    time_in_force=TimeInForce.FOK,
+                )
+                self.assertMatch(diff)
+                self.assertEqual(result.fill_count, 0)
+                self.assertEqual(result.final_state, SimulationOrderState.EXPIRED)
+
+    def test_non_marketable_immediate_limits_expire_without_fill(self):
+        for tif in (TimeInForce.IOC, TimeInForce.FOK):
+            with self.subTest(tif=tif):
+                _, result, diff = compare(
+                    dataset(),
+                    policy(),
+                    IMMEDIATE_TIME_IN_FORCE_CONTRACT,
+                    order_type=ExecutionOrderType.LIMIT,
+                    limit_price="100.00",
+                    time_in_force=tif,
+                )
+                self.assertMatch(diff)
+                self.assertIsNone(result.volume_weighted_average_price)
+
+    def test_ioc_shortfall_without_partial_fills_is_refused(self):
+        with self.assertRaisesRegex(ValueError, "known"):
+            simulate_only(
+                self.short_book(),
+                policy(),
+                IMMEDIATE_TIME_IN_FORCE_CONTRACT,
+                time_in_force=TimeInForce.IOC,
+            )
+
+    def test_fully_liquid_fixture_is_refused_as_not_exercising_contract(self):
+        with self.assertRaisesRegex(ValueError, "fills completely"):
+            simulate_only(
+                dataset(),
+                policy(),
+                IMMEDIATE_TIME_IN_FORCE_CONTRACT,
+                time_in_force=TimeInForce.IOC,
+            )
+
+    def test_resting_time_in_force_is_refused(self):
+        with self.assertRaisesRegex(ValueError, "IOC or FOK"):
+            simulate_only(
+                self.short_book(),
+                policy(allow_partial_fills=True),
+                IMMEDIATE_TIME_IN_FORCE_CONTRACT,
+            )
+
+
+@requires_nautilus
+class LimitTransitionContractTests(DifferentialAssertions):
+    def transition_data(self, final_ask="100.00", final_size="500"):
+        return dataset(
+            quote(at=SUBMIT, sequence=1, ask="100.01", bid="99.99"),
+            quote(at=SUBMIT + 5 * MS, sequence=2, ask="100.03", bid="100.00"),
+            quote(
+                at=SUBMIT + 10 * MS,
+                sequence=3,
+                ask=final_ask,
+                bid="99.97",
+                size=final_size,
+            ),
+        )
+
+    def test_buy_limit_fills_when_touch_reaches_limit(self):
+        for tif in (TimeInForce.GTC, TimeInForce.DAY):
+            with self.subTest(tif=tif):
+                _, result, diff = compare(
+                    self.transition_data(),
+                    policy(),
+                    LIMIT_TRANSITION_CONTRACT,
+                    order_type=ExecutionOrderType.LIMIT,
+                    limit_price="100.00",
+                    time_in_force=tif,
+                )
+                self.assertMatch(diff)
+                self.assertEqual(result.fill_times, (SUBMIT + 10 * MS,))
+                self.assertEqual(result.fill_prices, (Decimal("100.00"),))
+
+    def test_sell_limit_fills_when_touch_reaches_limit(self):
+        data = dataset(
+            quote(at=SUBMIT, sequence=1, ask="100.01", bid="99.99"),
+            quote(at=SUBMIT + 5 * MS, sequence=2, ask="100.02", bid="100.00"),
+        )
+        _, result, diff = compare(
+            data,
+            policy(),
+            LIMIT_TRANSITION_CONTRACT,
+            side=ExecutionSide.SELL,
+            order_type=ExecutionOrderType.LIMIT,
+            limit_price="100.00",
+        )
+        self.assertMatch(diff)
+        self.assertEqual(result.fill_prices, (Decimal("100.00"),))
+
+    def test_never_marketable_limit_expires_at_horizon(self):
+        _, result, diff = compare(
+            self.transition_data(final_ask="100.02"),
+            policy(),
+            LIMIT_TRANSITION_CONTRACT,
+            order_type=ExecutionOrderType.LIMIT,
+            limit_price="100.00",
+        )
+        self.assertMatch(diff)
+        self.assertEqual(result.final_state, SimulationOrderState.EXPIRED)
+        self.assertEqual(
+            result.raw_terminal_state,
+            NautilusRawTerminalState.OPEN_AT_HORIZON,
+        )
+
+    def test_transition_crossing_beyond_limit_is_refused(self):
+        with self.assertRaisesRegex(ValueError, "beyond the limit"):
+            simulate_only(
+                self.transition_data(final_ask="99.99"),
+                policy(),
+                LIMIT_TRANSITION_CONTRACT,
+                order_type=ExecutionOrderType.LIMIT,
+                limit_price="100.00",
+            )
+
+    def test_transition_with_short_book_is_refused(self):
+        with self.assertRaisesRegex(ValueError, "full displayed liquidity"):
+            simulate_only(
+                self.transition_data(final_size="50"),
+                policy(),
+                LIMIT_TRANSITION_CONTRACT,
+                order_type=ExecutionOrderType.LIMIT,
+                limit_price="100.00",
+            )
+
+    def test_marketable_limit_is_refused(self):
+        with self.assertRaisesRegex(ValueError, "non-marketable"):
+            simulate_only(
+                self.transition_data(),
+                policy(),
+                LIMIT_TRANSITION_CONTRACT,
+                order_type=ExecutionOrderType.LIMIT,
+                limit_price="100.01",
+            )
+
+    def test_day_fixture_crossing_utc_date_is_refused(self):
+        late = datetime(2026, 9, 25, 23, 59, 59, tzinfo=UTC)
+        data = HistoricalReplayDatasetBuilder().build(
+            start_time=late - timedelta(seconds=1),
+            end_time=late + timedelta(seconds=2),
+            events=(quote(at=late),),
+        )
+        with self.assertRaisesRegex(ValueError, "UTC date"):
+            simulate_only(
+                data,
+                policy(),
+                LIMIT_TRANSITION_CONTRACT,
+                order_type=ExecutionOrderType.LIMIT,
+                limit_price="100.00",
+                time_in_force=TimeInForce.DAY,
+                submitted_at=late,
+            )
+
+
+@requires_nautilus
+class NautilusScopeTests(unittest.TestCase):
+    def test_nonzero_slippage_fails_closed(self):
+        with self.assertRaises(ValueError):
+            simulate_only(dataset(), policy(slippage_bps=Decimal("1")))
+
+    def test_partial_participation_fails_closed(self):
+        with self.assertRaises(ValueError):
+            simulate_only(
+                dataset(),
+                policy(maximum_participation_rate=Decimal("0.5")),
+            )
+
+    def test_partial_fills_outside_immediate_contract_fail_closed(self):
+        with self.assertRaisesRegex(ValueError, "partial fills"):
+            simulate_only(dataset(), policy(allow_partial_fills=True))
+
+    def test_tampered_contract_fails_closed(self):
+        widened = replace(ZERO_FRICTION_CONTRACT, scope=("anything",))
+        with self.assertRaisesRegex(ValueError, "frozen equivalence"):
+            simulate_only(dataset(), policy(), widened)
+
+    def test_duplicate_quote_arrival_time_fails_closed(self):
+        data = dataset(
+            quote(sequence=1),
+            quote(sequence=2, ask="100.02"),
+        )
+        with self.assertRaisesRegex(ValueError, "unique quote arrival"):
+            simulate_only(data, policy())
+
     def test_fractional_equity_scope_fails_closed(self):
+        adapter = NautilusHistoricalBacktestAdapter()
         data = dataset()
         p = policy()
-        adapter = NautilusHistoricalBacktestAdapter()
-        r = run(
-            "NAUTILUS_TRADER",
-            adapter.engine_version,
-            data,
-            p,
-        )
+        r = run("NAUTILUS_TRADER", adapter.engine_version, data, p)
         fractional = ExecutionInstrument(
             canonical_instrument_id="SEC:A",
             venue_id="XTEST",
@@ -321,42 +724,195 @@ class NautilusHistoricalAdapterScopeTests(unittest.TestCase):
                 intent=intent(r),
             )
 
-    @unittest.skipUnless(
-        nautilus_is_available(),
-        "NautilusTrader v2 requires Python >= 3.12",
-    )
     def test_partial_liquidity_fixture_is_rejected_before_nautilus(self):
-        data = HistoricalReplayDatasetBuilder().build(
-            start_time=AT,
-            end_time=AT + timedelta(seconds=10),
-            events=(quote(side_size="50"),),
+        with self.assertRaisesRegex(ValueError, "full displayed liquidity"):
+            simulate_only(dataset(quote(size="50")), policy())
+
+
+class NautilusEnvironmentTests(unittest.TestCase):
+    def test_python_311_reports_nautilus_unavailable(self):
+        if sys.version_info < (3, 12):
+            self.assertFalse(nautilus_is_available())
+
+    def test_ci_requires_nautilus_runtime_where_declared(self):
+        # CI sets this on Python 3.12+ so a failed install cannot turn the
+        # runtime differential tests into silent skips.
+        if os.environ.get("QUANTOS_REQUIRE_NAUTILUS") == "1":
+            self.assertTrue(nautilus_is_available())
+
+
+class EquivalenceContractRegistryTests(unittest.TestCase):
+    def test_every_behavior_has_exactly_one_frozen_contract(self):
+        self.assertEqual(
+            set(NAUTILUS_EQUIVALENCE_CONTRACTS),
+            set(NautilusDifferentialBehavior),
         )
-        p = policy()
-        adapter = NautilusHistoricalBacktestAdapter()
-        r = run(
+        ids = [c.contract_id for c in NAUTILUS_EQUIVALENCE_CONTRACTS.values()]
+        self.assertEqual(len(ids), len(set(ids)))
+
+    def test_contract_identity_changes_with_scope(self):
+        widened = replace(
+            ORDER_LATENCY_CONTRACT,
+            known_divergences=(),
+        )
+        self.assertNotEqual(
+            widened.contract_id,
+            ORDER_LATENCY_CONTRACT.contract_id,
+        )
+
+    def test_divergent_behaviors_record_known_divergences(self):
+        for contract in (
+            DETERMINISTIC_FEES_CONTRACT,
+            ORDER_LATENCY_CONTRACT,
+            IMMEDIATE_TIME_IN_FORCE_CONTRACT,
+            LIMIT_TRANSITION_CONTRACT,
+        ):
+            self.assertTrue(contract.known_divergences, contract.behavior)
+
+
+class SyntheticDifferentialTests(unittest.TestCase):
+    """Differential-gate logic, runnable without NautilusTrader."""
+
+    def setUp(self):
+        self.data = dataset(quote(bid="49.90", ask="50.00", size="5000"))
+        self.policy = policy(commission_bps=Decimal("3"))
+        with tempfile.TemporaryDirectory() as tmp:
+            (
+                self.reference_run,
+                self.reference_intent,
+                self.reference_result,
+                self.reference_fills,
+            ) = reference_side(self.data, self.policy, {}, tmp)
+        self.nautilus_run = run(
             "NAUTILUS_TRADER",
-            adapter.engine_version,
-            data,
-            p,
+            FIXTURE_NAUTILUS_VERSION,
+            self.data,
+            self.policy,
         )
-        order = SimulationOrderIntentBuilder().build(
-            run=r,
-            instrument=instrument(),
-            side=ExecutionSide.BUY,
-            order_type=ExecutionOrderType.MARKET,
-            quantity=Decimal("100"),
-            time_in_force=TimeInForce.GTC,
-            submitted_at=data.events[0].knowledge_time,
-            source_target_id="portfolio-target:SEC:A",
+        self.nautilus_intent = intent(self.nautilus_run)
+
+    def nautilus_result(self, **overrides):
+        values = {
+            "result_id": "",
+            "run_id": self.nautilus_run.run_id,
+            "intent_id": self.nautilus_intent.intent_id,
+            "execution_instrument_id": instrument().execution_instrument_id,
+            "engine_name": "NAUTILUS_TRADER",
+            "engine_version": FIXTURE_NAUTILUS_VERSION,
+            "adapter_version": "12.4",
+            "contract_id": DETERMINISTIC_FEES_CONTRACT.contract_id,
+            "behavior": NautilusDifferentialBehavior.DETERMINISTIC_FEES,
+            "config_fingerprint": "nautilus-backtest-config:" + "c" * 64,
+            "final_state": SimulationOrderState.FILLED,
+            "raw_terminal_state": NautilusRawTerminalState.FILLED,
+            "fill_count": 1,
+            "filled_quantity": Decimal("100"),
+            "remaining_quantity": Decimal("0"),
+            "volume_weighted_average_price": Decimal("50.00"),
+            "total_fees": Decimal("1.50"),
+            "fill_times": (SUBMIT,),
+            "fill_prices": (Decimal("50.00"),),
+            "fill_quantities": (Decimal("100"),),
+            "fill_fees": (Decimal("1.50"),),
+            "fill_liquidity_sides": ("TAKER",),
+            "source_quote_event_ids": (self.data.events[0].event_id,),
+            "diagnostics": ("synthetic",),
+            "network_authority": "NONE",
+            "external_order_authority": "NONE",
+            "capital_authority": "NONE",
+        }
+        values.update(overrides)
+        result = NautilusExecutionResult(**values)
+        return replace(
+            result,
+            result_id=nautilus_execution_result_identity(result),
         )
-        with self.assertRaises(ValueError):
-            adapter.simulate(
-                run=r,
-                dataset=data,
-                policy=p,
-                instrument=instrument(),
-                intent=order,
+
+    def compare(self, nautilus_result, reference_fills=None):
+        return NautilusDifferentialEngine().compare(
+            reference_run=self.reference_run,
+            reference_intent=self.reference_intent,
+            reference_result=self.reference_result,
+            reference_fills=(
+                self.reference_fills
+                if reference_fills is None
+                else reference_fills
+            ),
+            nautilus_run=self.nautilus_run,
+            nautilus_intent=self.nautilus_intent,
+            nautilus_result=nautilus_result,
+        )
+
+    def test_identical_outcome_matches(self):
+        diff = self.compare(self.nautilus_result())
+        self.assertEqual(diff.state, DifferentialState.MATCH)
+        self.assertEqual(diff.trust_authority, "REFERENCE_MATCH_ONLY")
+        self.assertEqual(diff.contract_id, DETERMINISTIC_FEES_CONTRACT.contract_id)
+
+    def test_fee_divergence_is_preserved_as_mismatch(self):
+        diff = self.compare(
+            self.nautilus_result(
+                total_fees=Decimal("1.51"),
+                fill_fees=(Decimal("1.51"),),
             )
+        )
+        self.assertEqual(diff.state, DifferentialState.MISMATCH)
+        self.assertFalse(diff.fee_match)
+        self.assertFalse(diff.fill_sequence_match)
+        self.assertEqual(diff.trust_authority, "NONE")
+        self.assertIn(
+            "fill[0] fee reference=1.50 nautilus=1.51",
+            diff.diagnostics,
+        )
+
+    def test_fill_time_divergence_is_preserved_as_mismatch(self):
+        diff = self.compare(
+            self.nautilus_result(fill_times=(SUBMIT + 5 * MS,))
+        )
+        self.assertEqual(diff.state, DifferentialState.MISMATCH)
+        self.assertTrue(diff.price_match)
+        self.assertFalse(diff.fill_sequence_match)
+
+    def test_split_fill_with_same_vwap_is_still_a_mismatch(self):
+        diff = self.compare(
+            self.nautilus_result(
+                fill_count=2,
+                fill_times=(SUBMIT, SUBMIT),
+                fill_prices=(Decimal("50.00"), Decimal("50.00")),
+                fill_quantities=(Decimal("40"), Decimal("60")),
+                fill_fees=(Decimal("0.60"), Decimal("0.90")),
+            )
+        )
+        self.assertEqual(diff.state, DifferentialState.MISMATCH)
+        self.assertTrue(diff.quantity_match)
+        self.assertTrue(diff.price_match)
+        self.assertTrue(diff.fee_match)
+        self.assertFalse(diff.fill_count_match)
+
+    def test_tampered_nautilus_result_is_refused(self):
+        tampered = replace(
+            self.nautilus_result(),
+            total_fees=Decimal("0"),
+        )
+        with self.assertRaisesRegex(ValueError, "identity mismatch"):
+            self.compare(tampered)
+
+    def test_unfrozen_contract_binding_is_refused(self):
+        with self.assertRaisesRegex(ValueError, "frozen equivalence"):
+            self.compare(
+                self.nautilus_result(
+                    contract_id=ZERO_FRICTION_CONTRACT.contract_id,
+                )
+            )
+
+    def test_reference_fills_must_match_reference_result(self):
+        with self.assertRaisesRegex(ValueError, "reference fills differ"):
+            self.compare(self.nautilus_result(), reference_fills=())
+
+    def test_tampered_reference_fill_is_refused(self):
+        tampered = (replace(self.reference_fills[0], fee=Decimal("0")),)
+        with self.assertRaisesRegex(ValueError, "reference fill identity"):
+            self.compare(self.nautilus_result(), reference_fills=tampered)
 
 
 if __name__ == "__main__":

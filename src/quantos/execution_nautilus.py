@@ -3,8 +3,8 @@ from __future__ import annotations
 import hashlib
 import json
 import sys
-from dataclasses import dataclass
-from datetime import datetime, timezone
+from dataclasses import dataclass, replace
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from enum import Enum
 from importlib.metadata import PackageNotFoundError, version as package_version
@@ -20,12 +20,14 @@ from .execution_contracts import (
     ExecutionSimulationPolicy,
     ExecutionSimulationRunManifest,
     HistoricalReplayDataset,
+    SimulatedFill,
     SimulationOrderIntent,
     SimulationOrderState,
     TimeInForce,
     TopOfBookQuote,
     execution_simulation_run_identity,
     historical_replay_dataset_identity,
+    simulated_fill_identity,
     simulation_order_intent_identity,
 )
 from .execution_reference import (
@@ -36,12 +38,253 @@ from .pricing_risk_contracts import Currency
 
 
 NAUTILUS_DISTRIBUTION = "nautilus_trader"
-ADAPTER_VERSION = "12.3"
+ADAPTER_VERSION = "12.4"
+
+# Minor-unit precision Nautilus applies when it rounds commissions to Money.
+# A currency absent from this table cannot enter a fee differential.
+CURRENCY_PRECISION: dict[Currency, int] = {
+    Currency.USD: 2,
+    Currency.GBP: 2,
+    Currency.EUR: 2,
+    Currency.CNY: 2,
+    Currency.JPY: 0,
+    Currency.CHF: 2,
+    Currency.CAD: 2,
+    Currency.AUD: 2,
+    Currency.HKD: 2,
+}
+
+_IMMEDIATE_TIME_IN_FORCE = frozenset({TimeInForce.IOC, TimeInForce.FOK})
+_RESTING_TIME_IN_FORCE = frozenset({TimeInForce.DAY, TimeInForce.GTC})
 
 
 class DifferentialState(str, Enum):
     MATCH = "MATCH"
     MISMATCH = "MISMATCH"
+
+
+class NautilusDifferentialBehavior(str, Enum):
+    """The single behavior a frozen equivalence contract exercises."""
+
+    ZERO_FRICTION = "ZERO_FRICTION"
+    DETERMINISTIC_FEES = "DETERMINISTIC_FEES"
+    ORDER_LATENCY = "ORDER_LATENCY"
+    MARKET_DATA_LATENCY = "MARKET_DATA_LATENCY"
+    IMMEDIATE_TIME_IN_FORCE = "IMMEDIATE_TIME_IN_FORCE"
+    LIMIT_TRANSITION = "LIMIT_TRANSITION"
+
+
+class NautilusRawTerminalState(str, Enum):
+    """What Nautilus itself reported before First Current mapping."""
+
+    FILLED = "FILLED"
+    CANCELED = "CANCELED"
+    EXPIRED = "EXPIRED"
+    REJECTED = "REJECTED"
+    OPEN_AT_HORIZON = "OPEN_AT_HORIZON"
+
+
+COMPARED_FIELDS = (
+    "final_state",
+    "fill_count",
+    "filled_quantity",
+    "volume_weighted_average_price",
+    "total_fees",
+    "fill_sequence.fill_time",
+    "fill_sequence.quantity",
+    "fill_sequence.price",
+    "fill_sequence.fee",
+)
+
+
+@dataclass(frozen=True)
+class NautilusEquivalenceContract:
+    """Frozen statement of one overlap where both engines must agree.
+
+    Each contract adds exactly one behavior to the Stage 12.3 zero-friction
+    baseline. Contracts are never composed: a fixture that needs two new
+    behaviors at once is outside every frozen contract and fails closed.
+    """
+
+    behavior: NautilusDifferentialBehavior
+    stage: str
+    scope: tuple[str, ...]
+    mapping: tuple[str, ...]
+    compared_fields: tuple[str, ...]
+    known_divergences: tuple[str, ...]
+
+    @property
+    def contract_id(self) -> str:
+        return _content_id(
+            "nautilus-equivalence-contract",
+            nautilus_equivalence_contract_payload(self),
+        )
+
+
+_BASELINE_SCOPE = (
+    "whole-share equity with unit multiplier",
+    "slippage and market impact are zero",
+    "maximum participation is exactly 1",
+    "every mapped quote arrival time is unique",
+    "exactly one quote arrives at order submission time",
+)
+
+ZERO_FRICTION_CONTRACT = NautilusEquivalenceContract(
+    behavior=NautilusDifferentialBehavior.ZERO_FRICTION,
+    stage="12.3",
+    scope=_BASELINE_SCOPE
+    + (
+        "market and order latency are zero",
+        "commission is zero",
+        "partial fills are disabled",
+        "displayed contra liquidity fills the complete order",
+        "limit orders are already marketable",
+    ),
+    mapping=(
+        "event_time -> QuoteTick.ts_event",
+        "knowledge_time -> QuoteTick.ts_init",
+        "L1_MBP book, trade_execution disabled",
+        "liquidity_consumption enabled, queue_position disabled",
+        "zero MakerTakerFeeModel rates",
+    ),
+    compared_fields=COMPARED_FIELDS,
+    known_divergences=(),
+)
+
+DETERMINISTIC_FEES_CONTRACT = NautilusEquivalenceContract(
+    behavior=NautilusDifferentialBehavior.DETERMINISTIC_FEES,
+    stage="12.4.1",
+    scope=_BASELINE_SCOPE
+    + (
+        "commission_bps is strictly positive",
+        "market and order latency are zero",
+        "partial fills are disabled",
+        "displayed contra liquidity fills the complete order",
+        "limit orders are already marketable",
+        "exact commission is representable at currency minor-unit precision",
+    ),
+    mapping=(
+        "commission_bps / 10000 -> Equity.maker_fee and Equity.taker_fee",
+        "maker and taker rates are equal so liquidity side cannot change fees",
+        "MakerTakerFeeModel commission -> per-fill fee",
+    ),
+    compared_fields=COMPARED_FIELDS,
+    known_divergences=(
+        "Nautilus rounds commission half-even to currency precision; the "
+        "First Current reference keeps the exact decimal. Fixtures whose "
+        "exact commission needs rounding are refused.",
+    ),
+)
+
+ORDER_LATENCY_CONTRACT = NautilusEquivalenceContract(
+    behavior=NautilusDifferentialBehavior.ORDER_LATENCY,
+    stage="12.4.2",
+    scope=_BASELINE_SCOPE
+    + (
+        "order_latency_ms is strictly positive",
+        "market latency and commission are zero",
+        "partial fills are disabled",
+        "order activation time is at or before the replay horizon",
+        "exactly one quote arrives at order activation time",
+        "activation quote displays liquidity for the complete order",
+        "limit orders are marketable on the activation quote",
+    ),
+    mapping=(
+        "order_latency_ms -> StaticLatencyModel insert/update/cancel "
+        "latency with zero base latency",
+    ),
+    compared_fields=COMPARED_FIELDS,
+    known_divergences=(
+        "Nautilus processes an in-flight order only when the next data "
+        "point arrives and matches it against that post-activation book; "
+        "the reference matches immediately against the latest book known "
+        "at activation. Activation between quote arrivals is refused.",
+    ),
+)
+
+MARKET_DATA_LATENCY_CONTRACT = NautilusEquivalenceContract(
+    behavior=NautilusDifferentialBehavior.MARKET_DATA_LATENCY,
+    stage="12.4.3",
+    scope=_BASELINE_SCOPE
+    + (
+        "market_latency_ms is strictly positive",
+        "order latency and commission are zero",
+        "partial fills are disabled",
+        "displayed contra liquidity fills the complete order",
+        "limit orders are already marketable",
+    ),
+    mapping=(
+        "knowledge_time + market_latency_ms -> QuoteTick.ts_init",
+        "quotes arriving after the replay horizon are not loaded",
+    ),
+    compared_fields=COMPARED_FIELDS,
+    known_divergences=(),
+)
+
+IMMEDIATE_TIME_IN_FORCE_CONTRACT = NautilusEquivalenceContract(
+    behavior=NautilusDifferentialBehavior.IMMEDIATE_TIME_IN_FORCE,
+    stage="12.4.4",
+    scope=_BASELINE_SCOPE
+    + (
+        "time in force is IOC or FOK",
+        "market and order latency are zero",
+        "commission is zero",
+        "the order leaves an unfilled remainder on the submission quote",
+        "IOC displayed-liquidity shortfall requires partial fills enabled",
+    ),
+    mapping=(
+        "Nautilus venue cancel of an IOC/FOK remainder -> EXPIRED",
+    ),
+    compared_fields=COMPARED_FIELDS,
+    known_divergences=(
+        "With partial fills disabled the reference IOC takes nothing from "
+        "a short book while Nautilus IOC takes the displayed quantity; "
+        "that fixture is refused.",
+    ),
+)
+
+LIMIT_TRANSITION_CONTRACT = NautilusEquivalenceContract(
+    behavior=NautilusDifferentialBehavior.LIMIT_TRANSITION,
+    stage="12.4.5",
+    scope=_BASELINE_SCOPE
+    + (
+        "limit order with DAY or GTC time in force",
+        "market and order latency are zero",
+        "commission is zero",
+        "partial fills are disabled",
+        "limit is not marketable on the submission quote",
+        "first later marketable quote has contra touch exactly at the limit",
+        "that quote displays liquidity for the complete order",
+        "DAY fixtures do not cross a UTC date boundary",
+    ),
+    mapping=(
+        "resting limit filled by a later quote at the limit price",
+        "order still working when replay data ends -> EXPIRED at horizon",
+    ),
+    compared_fields=COMPARED_FIELDS,
+    known_divergences=(
+        "Nautilus fills a resting limit at its limit price even when the "
+        "later book crosses through it; the reference fills at the contra "
+        "touch. Transitions that cross beyond the limit are refused.",
+        "Nautilus liquidity consumption does not refresh an unchanged "
+        "repeated quote; multi-quote partial accumulation is refused.",
+    ),
+)
+
+NAUTILUS_EQUIVALENCE_CONTRACTS: dict[
+    NautilusDifferentialBehavior,
+    NautilusEquivalenceContract,
+] = {
+    contract.behavior: contract
+    for contract in (
+        ZERO_FRICTION_CONTRACT,
+        DETERMINISTIC_FEES_CONTRACT,
+        ORDER_LATENCY_CONTRACT,
+        MARKET_DATA_LATENCY_CONTRACT,
+        IMMEDIATE_TIME_IN_FORCE_CONTRACT,
+        LIMIT_TRANSITION_CONTRACT,
+    )
+}
 
 
 @dataclass(frozen=True)
@@ -53,14 +296,21 @@ class NautilusExecutionResult:
     engine_name: str
     engine_version: str
     adapter_version: str
+    contract_id: str
+    behavior: NautilusDifferentialBehavior
     config_fingerprint: str
     final_state: SimulationOrderState
+    raw_terminal_state: NautilusRawTerminalState
     fill_count: int
     filled_quantity: Decimal
     remaining_quantity: Decimal
     volume_weighted_average_price: Decimal | None
+    total_fees: Decimal
+    fill_times: tuple[datetime, ...]
     fill_prices: tuple[Decimal, ...]
     fill_quantities: tuple[Decimal, ...]
+    fill_fees: tuple[Decimal, ...]
+    fill_liquidity_sides: tuple[str, ...]
     source_quote_event_ids: tuple[str, ...]
     diagnostics: tuple[str, ...]
     network_authority: str
@@ -78,6 +328,8 @@ class NautilusDifferentialResult:
     replay_dataset_id: str
     simulation_policy_id: str
     economic_intent_fingerprint: str
+    contract_id: str
+    behavior: NautilusDifferentialBehavior
     nautilus_version: str
     adapter_version: str
     state: DifferentialState
@@ -85,19 +337,31 @@ class NautilusDifferentialResult:
     fill_count_match: bool
     quantity_match: bool
     price_match: bool
+    fee_match: bool
+    fill_sequence_match: bool
     reference_final_state: SimulationOrderState
     nautilus_final_state: SimulationOrderState
+    nautilus_raw_terminal_state: NautilusRawTerminalState
     reference_filled_quantity: Decimal
     nautilus_filled_quantity: Decimal
     quantity_error: Decimal
     reference_vwap: Decimal | None
     nautilus_vwap: Decimal | None
     absolute_vwap_error: Decimal | None
+    reference_total_fees: Decimal
+    nautilus_total_fees: Decimal
     diagnostics: tuple[str, ...]
     trust_authority: str
     network_authority: str
     external_order_authority: str
     capital_authority: str
+
+
+@dataclass(frozen=True)
+class _ScopedFixture:
+    submission_quote: TopOfBookQuote
+    activation_quote: TopOfBookQuote
+    arrivals: tuple[tuple[TopOfBookQuote, datetime], ...]
 
 
 def nautilus_is_available() -> bool:
@@ -113,7 +377,7 @@ def nautilus_is_available() -> bool:
 class NautilusHistoricalBacktestAdapter:
     """Historical-only NautilusTrader differential adapter.
 
-    This adapter intentionally supports only the exact overlap where First
+    This adapter supports only frozen equivalence contracts where First
     Current's reference engine and Nautilus can be compared without hidden
     latency, cost, participation, or queue assumptions.
     """
@@ -136,13 +400,15 @@ class NautilusHistoricalBacktestAdapter:
         policy: ExecutionSimulationPolicy,
         instrument: ExecutionInstrument,
         intent: SimulationOrderIntent,
+        contract: NautilusEquivalenceContract = ZERO_FRICTION_CONTRACT,
     ) -> NautilusExecutionResult:
-        trigger_quote = self._validate_scope(
+        fixture = self._validate_scope(
             run=run,
             dataset=dataset,
             policy=policy,
             instrument=instrument,
             intent=intent,
+            contract=contract,
         )
 
         from nautilus_trader.backtest import BacktestEngine
@@ -152,7 +418,10 @@ class NautilusHistoricalBacktestAdapter:
             LoggerConfig,
             StrategyConfig,
         )
-        from nautilus_trader.execution import MakerTakerFeeModel
+        from nautilus_trader.execution import (
+            MakerTakerFeeModel,
+            StaticLatencyModel,
+        )
         from nautilus_trader.model import (
             AccountType,
             BookType,
@@ -177,9 +446,16 @@ class NautilusHistoricalBacktestAdapter:
         nt_currency = NTCurrency.from_str(
             instrument.quote_currency.value
         )
+        if nt_currency.precision != CURRENCY_PRECISION[
+            instrument.quote_currency
+        ]:
+            raise ValueError(
+                "Nautilus currency precision differs from frozen fee table"
+            )
         price_precision = _decimal_precision(
             instrument.price_increment
         )
+        fee_rate = policy.commission_bps / Decimal("10000")
         nt_instrument = Equity(
             instrument_id=nt_id,
             raw_symbol=Symbol(instrument.venue_symbol),
@@ -194,8 +470,8 @@ class NautilusHistoricalBacktestAdapter:
             min_quantity=Quantity.from_int(
                 int(instrument.minimum_quantity)
             ),
-            maker_fee=Decimal("0"),
-            taker_fee=Decimal("0"),
+            maker_fee=fee_rate,
+            taker_fee=fee_rate,
         )
 
         nt_quotes = [
@@ -210,15 +486,13 @@ class NautilusHistoricalBacktestAdapter:
                 bid_size=Quantity.from_int(int(event.bid_quantity)),
                 ask_size=Quantity.from_int(int(event.ask_quantity)),
                 ts_event=_unix_nanos(event.event_time),
-                ts_init=_unix_nanos(event.knowledge_time),
+                ts_init=_unix_nanos(available_at),
             )
-            for event in dataset.events
-            if isinstance(event, TopOfBookQuote)
-            and event.execution_instrument_id
-            == instrument.execution_instrument_id
+            for event, available_at in fixture.arrivals
         ]
 
         target_ns = _unix_nanos(intent.submitted_at)
+        order_latency_ns = policy.order_latency_ms * 1_000_000
         nt_side = (
             OrderSide.BUY
             if intent.side is ExecutionSide.BUY
@@ -246,9 +520,13 @@ class NautilusHistoricalBacktestAdapter:
             def __init__(self) -> None:
                 super().__init__(_SingleOrderConfig())
                 self.submitted = False
+                self.accepted = False
+                self.fill_times_ns: list[int] = []
                 self.fill_prices: list[Decimal] = []
                 self.fill_quantities: list[Decimal] = []
-                self.terminal_state: SimulationOrderState | None = None
+                self.fill_fees: list[Decimal] = []
+                self.fill_liquidity_sides: list[str] = []
+                self.terminal_state: NautilusRawTerminalState | None = None
                 self.submission_tick_ns: int | None = None
 
             def on_start(self) -> None:
@@ -258,8 +536,6 @@ class NautilusHistoricalBacktestAdapter:
                 if self.submitted:
                     return
                 tick_ns = int(tick.ts_init)
-                if tick_ns < self.config.submit_ns:
-                    return
                 if tick_ns != self.config.submit_ns:
                     return
                 instrument_obj = self.cache.instrument(
@@ -294,22 +570,32 @@ class NautilusHistoricalBacktestAdapter:
                 self.submission_tick_ns = tick_ns
                 self.submit_order(order)
 
+            def on_order_accepted(self, event) -> None:
+                self.accepted = True
+
             def on_order_filled(self, event) -> None:
+                self.fill_times_ns.append(int(event.ts_event))
                 self.fill_quantities.append(
                     Decimal(str(event.last_qty))
                 )
                 self.fill_prices.append(
                     Decimal(str(event.last_px))
                 )
+                self.fill_fees.append(
+                    Decimal(str(event.commission.as_decimal()))
+                )
+                self.fill_liquidity_sides.append(
+                    str(event.liquidity_side)
+                )
 
             def on_order_rejected(self, event) -> None:
-                self.terminal_state = SimulationOrderState.REJECTED
+                self.terminal_state = NautilusRawTerminalState.REJECTED
 
             def on_order_canceled(self, event) -> None:
-                self.terminal_state = SimulationOrderState.CANCELED
+                self.terminal_state = NautilusRawTerminalState.CANCELED
 
             def on_order_expired(self, event) -> None:
-                self.terminal_state = SimulationOrderState.EXPIRED
+                self.terminal_state = NautilusRawTerminalState.EXPIRED
 
         strategy = _SingleOrderStrategy()
         config_fingerprint = _content_id(
@@ -317,6 +603,7 @@ class NautilusHistoricalBacktestAdapter:
             {
                 "adapter_version": ADAPTER_VERSION,
                 "nautilus_version": self.engine_version,
+                "contract_id": contract.contract_id,
                 "venue_id": instrument.venue_id,
                 "oms_type": "NETTING",
                 "account_type": "MARGIN",
@@ -326,10 +613,24 @@ class NautilusHistoricalBacktestAdapter:
                 "trade_execution": False,
                 "liquidity_consumption": True,
                 "queue_position": False,
-                "maker_fee": "0",
-                "taker_fee": "0",
+                "maker_fee": str(fee_rate),
+                "taker_fee": str(fee_rate),
+                "base_latency_nanos": 0,
+                "insert_latency_nanos": order_latency_ns,
+                "market_data_shift_nanos": (
+                    policy.market_latency_ms * 1_000_000
+                ),
             },
         )
+
+        venue_options: dict[str, object] = {}
+        if order_latency_ns:
+            venue_options["latency_model"] = StaticLatencyModel(
+                base_latency_nanos=0,
+                insert_latency_nanos=order_latency_ns,
+                update_latency_nanos=order_latency_ns,
+                cancel_latency_nanos=order_latency_ns,
+            )
 
         engine = BacktestEngine(
             config=BacktestEngineConfig(
@@ -353,6 +654,7 @@ class NautilusHistoricalBacktestAdapter:
                 trade_execution=False,
                 liquidity_consumption=True,
                 queue_position=False,
+                **venue_options,
             )
             engine.add_instrument(nt_instrument)
             engine.add_data(nt_quotes)
@@ -379,14 +681,49 @@ class NautilusHistoricalBacktestAdapter:
             Decimal("0"),
         )
         remaining = intent.quantity - filled
+        mapping_notes: list[str] = []
         if filled == intent.quantity:
+            raw_state = NautilusRawTerminalState.FILLED
             final_state = SimulationOrderState.FILLED
-        elif filled > 0:
-            final_state = SimulationOrderState.PARTIALLY_FILLED
         elif strategy.terminal_state is not None:
-            final_state = strategy.terminal_state
+            raw_state = strategy.terminal_state
+            if (
+                raw_state is NautilusRawTerminalState.CANCELED
+                and intent.time_in_force in _IMMEDIATE_TIME_IN_FORCE
+            ):
+                final_state = SimulationOrderState.EXPIRED
+                mapping_notes.append(
+                    "Nautilus venue cancel of "
+                    + intent.time_in_force.value
+                    + " remainder mapped to EXPIRED"
+                )
+            else:
+                final_state = SimulationOrderState(raw_state.value)
         else:
-            final_state = SimulationOrderState.ACCEPTED
+            if intent.time_in_force not in _RESTING_TIME_IN_FORCE:
+                raise ValueError(
+                    "Nautilus immediate order ended without a terminal event"
+                )
+            if (
+                intent.order_type is ExecutionOrderType.LIMIT
+                and not strategy.accepted
+            ):
+                raise ValueError(
+                    "Nautilus limit order was never accepted by the venue"
+                )
+            if (
+                intent.order_type is ExecutionOrderType.MARKET
+                and not strategy.fill_quantities
+            ):
+                raise ValueError(
+                    "Nautilus market order neither filled nor terminated"
+                )
+            raw_state = NautilusRawTerminalState.OPEN_AT_HORIZON
+            final_state = SimulationOrderState.EXPIRED
+            mapping_notes.append(
+                "order working when replay data ended mapped to EXPIRED "
+                "by First Current horizon rule"
+            )
 
         vwap = (
             sum(
@@ -403,53 +740,38 @@ class NautilusHistoricalBacktestAdapter:
             if filled > 0
             else None
         )
+        total_fees = sum(strategy.fill_fees, Decimal("0"))
+        fill_times = tuple(
+            _from_unix_nanos(item) for item in strategy.fill_times_ns
+        )
+        source_quote_event_ids = tuple(
+            dict.fromkeys(
+                (
+                    fixture.submission_quote.event_id,
+                    fixture.activation_quote.event_id,
+                )
+            )
+        )
         diagnostics = (
             "historical BacktestEngine only",
+            "equivalence contract "
+            + contract.behavior.value
+            + " (stage "
+            + contract.stage
+            + ")",
             "L1_MBP quote-driven matching",
             "trade_execution disabled",
             "liquidity_consumption enabled",
             "queue_position disabled",
-            "zero Nautilus fee model",
+            "maker/taker fee rate " + str(fee_rate),
+            "order latency " + str(policy.order_latency_ms) + "ms",
+            "market data latency " + str(policy.market_latency_ms) + "ms",
             "no live node or venue adapter imported",
-            (
-                "exact submission quote "
-                + trigger_quote.event_id
-            ),
-        )
-        payload = {
-            "run_id": run.run_id,
-            "intent_id": intent.intent_id,
-            "execution_instrument_id": (
-                instrument.execution_instrument_id
-            ),
-            "engine_name": self.ENGINE_NAME,
-            "engine_version": self.engine_version,
-            "adapter_version": ADAPTER_VERSION,
-            "config_fingerprint": config_fingerprint,
-            "final_state": final_state.value,
-            "fill_count": len(strategy.fill_prices),
-            "filled_quantity": str(filled),
-            "remaining_quantity": str(remaining),
-            "volume_weighted_average_price": (
-                str(vwap) if vwap is not None else None
-            ),
-            "fill_prices": [
-                str(item) for item in strategy.fill_prices
-            ],
-            "fill_quantities": [
-                str(item) for item in strategy.fill_quantities
-            ],
-            "source_quote_event_ids": [trigger_quote.event_id],
-            "diagnostics": list(diagnostics),
-            "network_authority": "NONE",
-            "external_order_authority": "NONE",
-            "capital_authority": "NONE",
-        }
-        return NautilusExecutionResult(
-            result_id=_content_id(
-                "nautilus-execution-result",
-                payload,
-            ),
+            "exact submission quote " + fixture.submission_quote.event_id,
+            "activation quote " + fixture.activation_quote.event_id,
+        ) + tuple(mapping_notes)
+        result = NautilusExecutionResult(
+            result_id="",
             run_id=run.run_id,
             intent_id=intent.intent_id,
             execution_instrument_id=(
@@ -458,20 +780,28 @@ class NautilusHistoricalBacktestAdapter:
             engine_name=self.ENGINE_NAME,
             engine_version=self.engine_version,
             adapter_version=ADAPTER_VERSION,
+            contract_id=contract.contract_id,
+            behavior=contract.behavior,
             config_fingerprint=config_fingerprint,
             final_state=final_state,
+            raw_terminal_state=raw_state,
             fill_count=len(strategy.fill_prices),
             filled_quantity=filled,
             remaining_quantity=remaining,
             volume_weighted_average_price=vwap,
+            total_fees=total_fees,
+            fill_times=fill_times,
             fill_prices=tuple(strategy.fill_prices),
             fill_quantities=tuple(strategy.fill_quantities),
-            source_quote_event_ids=(trigger_quote.event_id,),
+            fill_fees=tuple(strategy.fill_fees),
+            fill_liquidity_sides=tuple(strategy.fill_liquidity_sides),
+            source_quote_event_ids=source_quote_event_ids,
             diagnostics=diagnostics,
             network_authority="NONE",
             external_order_authority="NONE",
             capital_authority="NONE",
         )
+        return _with_result_identity(result)
 
     def _validate_scope(
         self,
@@ -481,7 +811,9 @@ class NautilusHistoricalBacktestAdapter:
         policy: ExecutionSimulationPolicy,
         instrument: ExecutionInstrument,
         intent: SimulationOrderIntent,
-    ) -> TopOfBookQuote:
+        contract: NautilusEquivalenceContract,
+    ) -> _ScopedFixture:
+        _require_frozen_contract(contract)
         if run.run_id != execution_simulation_run_identity(run):
             raise ValueError(
                 "Nautilus execution simulation run identity mismatch"
@@ -542,7 +874,7 @@ class NautilusHistoricalBacktestAdapter:
             )
         if instrument.asset_class is not ExecutionAssetClass.EQUITY:
             raise ValueError(
-                "Stage 12.3 Nautilus differential supports equity only"
+                "Nautilus differential supports equity only"
             )
         if (
             instrument.quantity_increment != Decimal("1")
@@ -550,80 +882,212 @@ class NautilusHistoricalBacktestAdapter:
             or instrument.minimum_quantity < Decimal("1")
         ):
             raise ValueError(
-                "Stage 12.3 Nautilus equity mapping requires whole shares "
+                "Nautilus equity mapping requires whole shares "
                 "with unit multiplier"
             )
         if "." in instrument.venue_symbol or "." in instrument.venue_id:
             raise ValueError(
                 "Nautilus differential fixture symbol/venue cannot contain '.'"
             )
-        if any(
-            value != 0
-            for value in (
-                policy.market_latency_ms,
-                policy.order_latency_ms,
+        if intent.submitted_at < dataset.start_time:
+            raise ValueError(
+                "Nautilus order submitted before replay dataset start"
             )
+
+        behavior = contract.behavior
+        self._validate_policy(policy=policy, behavior=behavior)
+
+        arrivals = _quote_arrivals(
+            dataset=dataset,
+            instrument=instrument,
+            market_latency_ms=policy.market_latency_ms,
+        )
+        submission_quote = _single_arrival(
+            arrivals,
+            intent.submitted_at,
+            "exactly one quote must arrive at order submission time",
+        )
+        active_at = intent.submitted_at + timedelta(
+            milliseconds=policy.order_latency_ms
+        )
+        if active_at > dataset.end_time:
+            raise ValueError(
+                "order activation lies outside the replay horizon"
+            )
+        activation_quote = (
+            _single_arrival(
+                arrivals,
+                active_at,
+                "ORDER_LATENCY requires exactly one quote at order "
+                "activation time; Nautilus matches in-flight orders only "
+                "on the next data arrival",
+            )
+            if behavior is NautilusDifferentialBehavior.ORDER_LATENCY
+            else submission_quote
+        )
+        touch_price, touch_quantity = _contra_touch(
+            intent.side,
+            activation_quote,
+        )
+        marketable = _is_marketable(intent, touch_price)
+        full_liquidity = touch_quantity >= intent.quantity
+
+        if behavior is NautilusDifferentialBehavior.IMMEDIATE_TIME_IN_FORCE:
+            if intent.time_in_force not in _IMMEDIATE_TIME_IN_FORCE:
+                raise ValueError(
+                    "IMMEDIATE_TIME_IN_FORCE contract requires IOC or FOK"
+                )
+            if marketable and full_liquidity:
+                raise ValueError(
+                    "IMMEDIATE_TIME_IN_FORCE fixture fills completely; use "
+                    "the zero-friction contract"
+                )
+            if (
+                marketable
+                and intent.time_in_force is TimeInForce.IOC
+                and not policy.allow_partial_fills
+            ):
+                raise ValueError(
+                    "IOC shortfall with partial fills disabled is a known "
+                    "reference/Nautilus divergence"
+                )
+        elif behavior is NautilusDifferentialBehavior.LIMIT_TRANSITION:
+            self._validate_limit_transition(
+                dataset=dataset,
+                intent=intent,
+                arrivals=arrivals,
+                active_at=active_at,
+                marketable=marketable,
+            )
+        else:
+            if not full_liquidity:
+                raise ValueError(
+                    "exact differential requires full displayed liquidity"
+                )
+            if not marketable:
+                raise ValueError(
+                    "exact differential supports only marketable limits "
+                    "outside the LIMIT_TRANSITION contract"
+                )
+            if behavior is NautilusDifferentialBehavior.DETERMINISTIC_FEES:
+                _require_exact_commission(
+                    quantity=intent.quantity,
+                    price=touch_price,
+                    commission_bps=policy.commission_bps,
+                    currency=instrument.quote_currency,
+                )
+        return _ScopedFixture(
+            submission_quote=submission_quote,
+            activation_quote=activation_quote,
+            arrivals=arrivals,
+        )
+
+    @staticmethod
+    def _validate_policy(
+        *,
+        policy: ExecutionSimulationPolicy,
+        behavior: NautilusDifferentialBehavior,
+    ) -> None:
+        if (
+            policy.slippage_bps != Decimal("0")
+            or policy.market_impact_bps != Decimal("0")
         ):
             raise ValueError(
-                "Stage 12.3 exact differential requires zero latency"
-            )
-        if any(
-            value != Decimal("0")
-            for value in (
-                policy.commission_bps,
-                policy.slippage_bps,
-                policy.market_impact_bps,
-            )
-        ):
-            raise ValueError(
-                "Stage 12.3 exact differential requires zero execution costs"
+                "Nautilus differential requires zero slippage and impact"
             )
         if policy.maximum_participation_rate != Decimal("1"):
             raise ValueError(
-                "Stage 12.3 exact differential requires full participation"
+                "Nautilus differential requires full participation"
             )
-        if policy.allow_partial_fills:
+        exercised = {
+            NautilusDifferentialBehavior.DETERMINISTIC_FEES: (
+                policy.commission_bps != Decimal("0")
+            ),
+            NautilusDifferentialBehavior.ORDER_LATENCY: (
+                policy.order_latency_ms != 0
+            ),
+            NautilusDifferentialBehavior.MARKET_DATA_LATENCY: (
+                policy.market_latency_ms != 0
+            ),
+        }
+        for other, active in exercised.items():
+            if other is behavior and not active:
+                raise ValueError(
+                    behavior.value
+                    + " contract requires the behavior it names"
+                )
+            if other is not behavior and active:
+                raise ValueError(
+                    other.value
+                    + " is outside the "
+                    + behavior.value
+                    + " equivalence contract"
+                )
+        if (
+            policy.allow_partial_fills
+            and behavior
+            is not NautilusDifferentialBehavior.IMMEDIATE_TIME_IN_FORCE
+        ):
             raise ValueError(
-                "Stage 12.3 exact differential disables partial fills"
+                "partial fills are outside the "
+                + behavior.value
+                + " equivalence contract"
             )
 
-        matching_quotes = tuple(
-            event
-            for event in dataset.events
-            if isinstance(event, TopOfBookQuote)
-            and event.execution_instrument_id
-            == instrument.execution_instrument_id
-            and event.knowledge_time == intent.submitted_at
-        )
-        if len(matching_quotes) != 1:
+    @staticmethod
+    def _validate_limit_transition(
+        *,
+        dataset: HistoricalReplayDataset,
+        intent: SimulationOrderIntent,
+        arrivals: tuple[tuple[TopOfBookQuote, datetime], ...],
+        active_at: datetime,
+        marketable: bool,
+    ) -> None:
+        if intent.order_type is not ExecutionOrderType.LIMIT:
             raise ValueError(
-                "Stage 12.3 requires exactly one quote at order submission time"
+                "LIMIT_TRANSITION contract requires a limit order"
             )
-        quote = matching_quotes[0]
-        touch_price, touch_quantity = (
-            (quote.ask_price, quote.ask_quantity)
-            if intent.side is ExecutionSide.BUY
-            else (quote.bid_price, quote.bid_quantity)
-        )
-        if touch_quantity < intent.quantity:
+        if intent.time_in_force not in _RESTING_TIME_IN_FORCE:
             raise ValueError(
-                "Stage 12.3 exact differential requires full displayed liquidity"
+                "LIMIT_TRANSITION contract requires DAY or GTC"
             )
-        if intent.order_type is ExecutionOrderType.LIMIT:
-            assert intent.limit_price is not None
-            if intent.side is ExecutionSide.BUY:
-                marketable = touch_price <= intent.limit_price
-            else:
-                marketable = touch_price >= intent.limit_price
-            if not marketable:
+        if marketable:
+            raise ValueError(
+                "LIMIT_TRANSITION requires a non-marketable limit at "
+                "submission"
+            )
+        if intent.time_in_force is TimeInForce.DAY and (
+            intent.submitted_at.astimezone(timezone.utc).date()
+            != dataset.end_time.astimezone(timezone.utc).date()
+        ):
+            raise ValueError(
+                "LIMIT_TRANSITION DAY fixture crosses a UTC date boundary"
+            )
+        assert intent.limit_price is not None
+        for quote, available_at in arrivals:
+            if available_at <= active_at:
+                continue
+            touch_price, touch_quantity = _contra_touch(
+                intent.side,
+                quote,
+            )
+            if not _is_marketable(intent, touch_price):
+                continue
+            if touch_price != intent.limit_price:
                 raise ValueError(
-                    "Stage 12.3 differential supports only marketable limits"
+                    "LIMIT_TRANSITION later book crosses beyond the limit; "
+                    "Nautilus fills at the limit, the reference at the touch"
                 )
-        return quote
+            if touch_quantity < intent.quantity:
+                raise ValueError(
+                    "LIMIT_TRANSITION requires full displayed liquidity on "
+                    "the transition quote"
+                )
+            return
 
 
 class NautilusDifferentialEngine:
-    """Exact differential gate for the narrow Stage 12.3 overlap."""
+    """Exact differential gate for frozen reference/Nautilus overlaps."""
 
     def compare(
         self,
@@ -631,6 +1095,7 @@ class NautilusDifferentialEngine:
         reference_run: ExecutionSimulationRunManifest,
         reference_intent: SimulationOrderIntent,
         reference_result: ReferenceExecutionResult,
+        reference_fills: tuple[SimulatedFill, ...],
         nautilus_run: ExecutionSimulationRunManifest,
         nautilus_intent: SimulationOrderIntent,
         nautilus_result: NautilusExecutionResult,
@@ -648,6 +1113,16 @@ class NautilusDifferentialEngine:
         ):
             raise ValueError(
                 "Nautilus execution result identity mismatch"
+            )
+        contract = NAUTILUS_EQUIVALENCE_CONTRACTS.get(
+            nautilus_result.behavior
+        )
+        if (
+            contract is None
+            or contract.contract_id != nautilus_result.contract_id
+        ):
+            raise ValueError(
+                "Nautilus result is not bound to a frozen equivalence contract"
             )
         for run in (reference_run, nautilus_run):
             if run.run_id != execution_simulation_run_identity(run):
@@ -696,6 +1171,22 @@ class NautilusDifferentialEngine:
             raise ValueError(
                 "differential runs do not share exact research inputs"
             )
+        for fill in reference_fills:
+            if fill.fill_id != simulated_fill_identity(fill):
+                raise ValueError(
+                    "reference fill identity mismatch"
+                )
+            if fill.intent_id != reference_intent.intent_id:
+                raise ValueError(
+                    "reference fill belongs to another intent"
+                )
+        if (
+            tuple(fill.fill_id for fill in reference_fills)
+            != reference_result.fill_ids
+        ):
+            raise ValueError(
+                "reference fills differ from reference result fill ids"
+            )
         reference_economics = _economic_intent_payload(
             reference_intent
         )
@@ -739,12 +1230,22 @@ class NautilusDifferentialEngine:
                 - nautilus_result.volume_weighted_average_price
             )
             price_match = price_error == 0
+        fee_match = (
+            reference_result.total_fees == nautilus_result.total_fees
+        )
+        sequence_mismatches = _fill_sequence_mismatches(
+            reference_fills,
+            nautilus_result,
+        )
+        fill_sequence_match = not sequence_mismatches
 
         matched = (
             final_state_match
             and fill_count_match
             and quantity_match
             and price_match
+            and fee_match
+            and fill_sequence_match
         )
         state = (
             DifferentialState.MATCH
@@ -752,62 +1253,16 @@ class NautilusDifferentialEngine:
             else DifferentialState.MISMATCH
         )
         diagnostics = (
-            "exact zero-friction historical overlap",
+            "equivalence contract "
+            + contract.behavior.value
+            + " (stage "
+            + contract.stage
+            + ")",
             "First Current reference is independent differential oracle",
-            "Nautilus live adapters are outside Stage 12.3 scope",
-        )
-        payload = {
-            "reference_result_id": reference_result.result_id,
-            "nautilus_result_id": nautilus_result.result_id,
-            "reference_run_id": reference_run.run_id,
-            "nautilus_run_id": nautilus_run.run_id,
-            "replay_dataset_id": reference_run.replay_dataset_id,
-            "simulation_policy_id": reference_run.simulation_policy_id,
-            "economic_intent_fingerprint": economics_fingerprint,
-            "nautilus_version": nautilus_result.engine_version,
-            "adapter_version": ADAPTER_VERSION,
-            "state": state.value,
-            "final_state_match": final_state_match,
-            "fill_count_match": fill_count_match,
-            "quantity_match": quantity_match,
-            "price_match": price_match,
-            "reference_final_state": reference_result.final_state.value,
-            "nautilus_final_state": nautilus_result.final_state.value,
-            "reference_filled_quantity": str(
-                reference_result.filled_quantity
-            ),
-            "nautilus_filled_quantity": str(
-                nautilus_result.filled_quantity
-            ),
-            "quantity_error": str(quantity_error),
-            "reference_vwap": (
-                str(reference_result.volume_weighted_average_price)
-                if reference_result.volume_weighted_average_price is not None
-                else None
-            ),
-            "nautilus_vwap": (
-                str(nautilus_result.volume_weighted_average_price)
-                if nautilus_result.volume_weighted_average_price is not None
-                else None
-            ),
-            "absolute_vwap_error": (
-                str(price_error) if price_error is not None else None
-            ),
-            "diagnostics": list(diagnostics),
-            "trust_authority": (
-                "REFERENCE_MATCH_ONLY"
-                if matched
-                else "NONE"
-            ),
-            "network_authority": "NONE",
-            "external_order_authority": "NONE",
-            "capital_authority": "NONE",
-        }
-        return NautilusDifferentialResult(
-            differential_id=_content_id(
-                "nautilus-execution-differential",
-                payload,
-            ),
+            "Nautilus live adapters are outside Stage 12 scope",
+        ) + sequence_mismatches
+        result = NautilusDifferentialResult(
+            differential_id="",
             reference_result_id=reference_result.result_id,
             nautilus_result_id=nautilus_result.result_id,
             reference_run_id=reference_run.run_id,
@@ -815,6 +1270,8 @@ class NautilusDifferentialEngine:
             replay_dataset_id=reference_run.replay_dataset_id,
             simulation_policy_id=reference_run.simulation_policy_id,
             economic_intent_fingerprint=economics_fingerprint,
+            contract_id=contract.contract_id,
+            behavior=contract.behavior,
             nautilus_version=nautilus_result.engine_version,
             adapter_version=ADAPTER_VERSION,
             state=state,
@@ -822,8 +1279,13 @@ class NautilusDifferentialEngine:
             fill_count_match=fill_count_match,
             quantity_match=quantity_match,
             price_match=price_match,
+            fee_match=fee_match,
+            fill_sequence_match=fill_sequence_match,
             reference_final_state=reference_result.final_state,
             nautilus_final_state=nautilus_result.final_state,
+            nautilus_raw_terminal_state=(
+                nautilus_result.raw_terminal_state
+            ),
             reference_filled_quantity=reference_result.filled_quantity,
             nautilus_filled_quantity=nautilus_result.filled_quantity,
             quantity_error=quantity_error,
@@ -834,6 +1296,8 @@ class NautilusDifferentialEngine:
                 nautilus_result.volume_weighted_average_price
             ),
             absolute_vwap_error=price_error,
+            reference_total_fees=reference_result.total_fees,
+            nautilus_total_fees=nautilus_result.total_fees,
             diagnostics=diagnostics,
             trust_authority=(
                 "REFERENCE_MATCH_ONLY"
@@ -844,6 +1308,7 @@ class NautilusDifferentialEngine:
             external_order_authority="NONE",
             capital_authority="NONE",
         )
+        return _with_differential_identity(result)
 
 
 class NautilusDifferentialStore:
@@ -912,6 +1377,19 @@ class NautilusDifferentialStore:
         self._con.close()
 
 
+def nautilus_equivalence_contract_payload(
+    contract: NautilusEquivalenceContract,
+) -> dict[str, object]:
+    return {
+        "behavior": contract.behavior.value,
+        "stage": contract.stage,
+        "scope": list(contract.scope),
+        "mapping": list(contract.mapping),
+        "compared_fields": list(contract.compared_fields),
+        "known_divergences": list(contract.known_divergences),
+    }
+
+
 def nautilus_execution_result_payload(
     result: NautilusExecutionResult,
 ) -> dict[str, object]:
@@ -922,8 +1400,11 @@ def nautilus_execution_result_payload(
         "engine_name": result.engine_name,
         "engine_version": result.engine_version,
         "adapter_version": result.adapter_version,
+        "contract_id": result.contract_id,
+        "behavior": result.behavior.value,
         "config_fingerprint": result.config_fingerprint,
         "final_state": result.final_state.value,
+        "raw_terminal_state": result.raw_terminal_state.value,
         "fill_count": result.fill_count,
         "filled_quantity": str(result.filled_quantity),
         "remaining_quantity": str(result.remaining_quantity),
@@ -932,12 +1413,20 @@ def nautilus_execution_result_payload(
             if result.volume_weighted_average_price is not None
             else None
         ),
+        "total_fees": str(result.total_fees),
+        "fill_times": [
+            item.isoformat() for item in result.fill_times
+        ],
         "fill_prices": [
             str(item) for item in result.fill_prices
         ],
         "fill_quantities": [
             str(item) for item in result.fill_quantities
         ],
+        "fill_fees": [
+            str(item) for item in result.fill_fees
+        ],
+        "fill_liquidity_sides": list(result.fill_liquidity_sides),
         "source_quote_event_ids": list(
             result.source_quote_event_ids
         ),
@@ -970,6 +1459,8 @@ def nautilus_differential_result_payload(
         "economic_intent_fingerprint": (
             result.economic_intent_fingerprint
         ),
+        "contract_id": result.contract_id,
+        "behavior": result.behavior.value,
         "nautilus_version": result.nautilus_version,
         "adapter_version": result.adapter_version,
         "state": result.state.value,
@@ -977,8 +1468,13 @@ def nautilus_differential_result_payload(
         "fill_count_match": result.fill_count_match,
         "quantity_match": result.quantity_match,
         "price_match": result.price_match,
+        "fee_match": result.fee_match,
+        "fill_sequence_match": result.fill_sequence_match,
         "reference_final_state": result.reference_final_state.value,
         "nautilus_final_state": result.nautilus_final_state.value,
+        "nautilus_raw_terminal_state": (
+            result.nautilus_raw_terminal_state.value
+        ),
         "reference_filled_quantity": str(
             result.reference_filled_quantity
         ),
@@ -1001,6 +1497,8 @@ def nautilus_differential_result_payload(
             if result.absolute_vwap_error is not None
             else None
         ),
+        "reference_total_fees": str(result.reference_total_fees),
+        "nautilus_total_fees": str(result.nautilus_total_fees),
         "diagnostics": list(result.diagnostics),
         "trust_authority": result.trust_authority,
         "network_authority": result.network_authority,
@@ -1016,6 +1514,161 @@ def nautilus_differential_result_identity(
         "nautilus-execution-differential",
         nautilus_differential_result_payload(result),
     )
+
+
+def _with_result_identity(
+    result: NautilusExecutionResult,
+) -> NautilusExecutionResult:
+    return replace(
+        result,
+        result_id=nautilus_execution_result_identity(result),
+    )
+
+
+def _with_differential_identity(
+    result: NautilusDifferentialResult,
+) -> NautilusDifferentialResult:
+    return replace(
+        result,
+        differential_id=nautilus_differential_result_identity(result),
+    )
+
+
+def _require_frozen_contract(
+    contract: NautilusEquivalenceContract,
+) -> None:
+    frozen = NAUTILUS_EQUIVALENCE_CONTRACTS.get(contract.behavior)
+    if frozen is None or frozen != contract:
+        raise ValueError(
+            "Nautilus differential requires a frozen equivalence contract"
+        )
+
+
+def _quote_arrivals(
+    *,
+    dataset: HistoricalReplayDataset,
+    instrument: ExecutionInstrument,
+    market_latency_ms: int,
+) -> tuple[tuple[TopOfBookQuote, datetime], ...]:
+    latency = timedelta(milliseconds=market_latency_ms)
+    arrivals = tuple(
+        (event, event.knowledge_time + latency)
+        for event in dataset.events
+        if isinstance(event, TopOfBookQuote)
+        and event.execution_instrument_id
+        == instrument.execution_instrument_id
+        and event.knowledge_time + latency <= dataset.end_time
+    )
+    times = [available_at for _, available_at in arrivals]
+    if len(times) != len(set(times)):
+        raise ValueError(
+            "Nautilus differential requires unique quote arrival times"
+        )
+    if times != sorted(times):
+        raise AssertionError(
+            "mapped quote arrivals are not monotonic"
+        )
+    return arrivals
+
+
+def _single_arrival(
+    arrivals: tuple[tuple[TopOfBookQuote, datetime], ...],
+    at: datetime,
+    message: str,
+) -> TopOfBookQuote:
+    matches = tuple(
+        quote for quote, available_at in arrivals if available_at == at
+    )
+    if len(matches) != 1:
+        raise ValueError(message)
+    return matches[0]
+
+
+def _contra_touch(
+    side: ExecutionSide,
+    quote: TopOfBookQuote,
+) -> tuple[Decimal, Decimal]:
+    if side is ExecutionSide.BUY:
+        return quote.ask_price, quote.ask_quantity
+    return quote.bid_price, quote.bid_quantity
+
+
+def _is_marketable(
+    intent: SimulationOrderIntent,
+    touch_price: Decimal,
+) -> bool:
+    if intent.order_type is ExecutionOrderType.MARKET:
+        return True
+    assert intent.limit_price is not None
+    if intent.side is ExecutionSide.BUY:
+        return touch_price <= intent.limit_price
+    return touch_price >= intent.limit_price
+
+
+def _require_exact_commission(
+    *,
+    quantity: Decimal,
+    price: Decimal,
+    commission_bps: Decimal,
+    currency: Currency,
+) -> None:
+    precision = CURRENCY_PRECISION.get(currency)
+    if precision is None:
+        raise ValueError(
+            "fee differential currency has no frozen precision"
+        )
+    commission = quantity * price * commission_bps / Decimal("10000")
+    quantum = Decimal(1).scaleb(-precision)
+    if commission != commission.quantize(quantum):
+        raise ValueError(
+            "DETERMINISTIC_FEES requires commission exactly representable "
+            "at currency precision; Nautilus would round it"
+        )
+
+
+def _fill_sequence_mismatches(
+    reference_fills: tuple[SimulatedFill, ...],
+    nautilus_result: NautilusExecutionResult,
+) -> tuple[str, ...]:
+    nautilus_fills = tuple(
+        zip(
+            nautilus_result.fill_times,
+            nautilus_result.fill_quantities,
+            nautilus_result.fill_prices,
+            nautilus_result.fill_fees,
+        )
+    )
+    mismatches: list[str] = []
+    if len(reference_fills) != len(nautilus_fills):
+        mismatches.append(
+            "fill sequence length reference="
+            + str(len(reference_fills))
+            + " nautilus="
+            + str(len(nautilus_fills))
+        )
+    for index, (reference, nautilus) in enumerate(
+        zip(reference_fills, nautilus_fills)
+    ):
+        for name, left, right in (
+            ("fill_time", reference.fill_time, nautilus[0]),
+            ("quantity", reference.quantity, nautilus[1]),
+            ("price", reference.price, nautilus[2]),
+            ("fee", reference.fee, nautilus[3]),
+        ):
+            if left != right:
+                mismatches.append(
+                    f"fill[{index}] {name} reference="
+                    + _render(left)
+                    + " nautilus="
+                    + _render(right)
+                )
+    return tuple(mismatches)
+
+
+def _render(value: object) -> str:
+    if isinstance(value, datetime):
+        return value.isoformat()
+    return str(value)
 
 
 def _economic_intent_payload(
@@ -1046,17 +1699,26 @@ def _plain_decimal(value: Decimal) -> str:
     return format(value, "f")
 
 
+_EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
+
+
 def _unix_nanos(value: datetime) -> int:
     if value.tzinfo is None:
         raise ValueError("timestamp must be timezone-aware")
-    utc = value.astimezone(timezone.utc)
-    epoch = datetime(1970, 1, 1, tzinfo=timezone.utc)
-    delta = utc - epoch
+    delta = value.astimezone(timezone.utc) - _EPOCH
     return (
         delta.days * 86_400 * 1_000_000_000
         + delta.seconds * 1_000_000_000
         + delta.microseconds * 1_000
     )
+
+
+def _from_unix_nanos(value: int) -> datetime:
+    if value % 1_000:
+        raise ValueError(
+            "Nautilus timestamp has sub-microsecond precision"
+        )
+    return _EPOCH + timedelta(microseconds=value // 1_000)
 
 
 def _content_id(prefix: str, payload: object) -> str:
