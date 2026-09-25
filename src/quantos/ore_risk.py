@@ -128,6 +128,26 @@ class OREInputBundle:
     pricing_engine_xml: str
     portfolio_xml: str
     market_lines: tuple[str, ...]
+    # Stage 14.3+ fields; defaults are omitted from identity so Stage 14.1
+    # swap bundle IDs are unchanged.
+    trade_id: str = ORE_TRADE_ID
+    base_currency: str = ""
+    analytics: tuple[str, ...] = ("NPV",)
+    sensitivity_sim_xml: str = ""
+    sensitivity_scenario_xml: str = ""
+    stress_sim_xml: str = ""
+    stress_scenario_xml: str = ""
+
+
+_BUNDLE_EXTENSION_DEFAULTS = {
+    "trade_id": ORE_TRADE_ID,
+    "base_currency": "",
+    "analytics": ("NPV",),
+    "sensitivity_sim_xml": "",
+    "sensitivity_scenario_xml": "",
+    "stress_sim_xml": "",
+    "stress_scenario_xml": "",
+}
 
 
 @dataclass(frozen=True)
@@ -397,7 +417,11 @@ class OREEngineRunner:
             )
         self.ore_version = ORE_PINNED_VERSION
 
-    def npv(self, bundle: OREInputBundle) -> Decimal:
+    def reports(
+        self,
+        bundle: OREInputBundle,
+        names: tuple[str, ...],
+    ) -> dict[str, dict[str, list]]:
         if bundle.bundle_id != ore_input_bundle_identity(bundle):
             raise ValueError("ORE input bundle identity mismatch")
         request = {
@@ -409,6 +433,12 @@ class OREEngineRunner:
             "pricing_engine_xml": bundle.pricing_engine_xml,
             "portfolio_xml": bundle.portfolio_xml,
             "market_lines": list(bundle.market_lines),
+            "analytics": list(bundle.analytics),
+            "reports": list(names),
+            "sensitivity_sim_xml": bundle.sensitivity_sim_xml,
+            "sensitivity_scenario_xml": bundle.sensitivity_scenario_xml,
+            "stress_sim_xml": bundle.stress_sim_xml,
+            "stress_scenario_xml": bundle.stress_scenario_xml,
         }
         with ORE_LOCK:
             completed = subprocess.run(
@@ -429,13 +459,18 @@ class OREEngineRunner:
             raise ValueError("ORE worker ran another ORE version")
         if response.get("errors"):
             raise ValueError(f"ORE reported errors: {response['errors']}")
-        if response.get("trade_ids") != [ORE_TRADE_ID]:
-            raise ValueError(
-                f"ORE NPV report has unexpected trades {response.get('trade_ids')}"
-            )
-        if response.get("currency") != [_bundle_currency(bundle)]:
+        return response["reports"]
+
+    def npv(self, bundle: OREInputBundle) -> Decimal:
+        report = self.reports(bundle, ("npv",))["npv"]
+        headers = report["headers"]
+        rows = report["rows"]
+        trade_ids = [row[headers.index("TradeId")] for row in rows]
+        if trade_ids != [bundle.trade_id]:
+            raise ValueError(f"ORE NPV report has unexpected trades {trade_ids}")
+        if rows[0][headers.index("NpvCurrency")] != _bundle_currency(bundle):
             raise ValueError("ORE reported NPV in another currency")
-        return Decimal(response["npv"][0])
+        return Decimal(rows[0][headers.index("NPV")])
 
 
 class OREFixedFloatSwapDifferential:
@@ -748,19 +783,29 @@ class OREDifferentialStore:
         self._con.close()
 
 
+def ore_input_bundle_payload(bundle: OREInputBundle) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "asof": bundle.asof.isoformat(),
+        "conventions_xml": bundle.conventions_xml,
+        "curve_config_xml": bundle.curve_config_xml,
+        "todays_market_xml": bundle.todays_market_xml,
+        "pricing_engine_xml": bundle.pricing_engine_xml,
+        "portfolio_xml": bundle.portfolio_xml,
+        "market_lines": list(bundle.market_lines),
+    }
+    for name, default in _BUNDLE_EXTENSION_DEFAULTS.items():
+        value = getattr(bundle, name)
+        if value != default:
+            payload[name] = list(value) if isinstance(value, tuple) else value
+    return payload
+
+
 def ore_input_bundle_identity(bundle: OREInputBundle) -> str:
-    return _content_id(
-        "ore-input-bundle",
-        {
-            "asof": bundle.asof.isoformat(),
-            "conventions_xml": bundle.conventions_xml,
-            "curve_config_xml": bundle.curve_config_xml,
-            "todays_market_xml": bundle.todays_market_xml,
-            "pricing_engine_xml": bundle.pricing_engine_xml,
-            "portfolio_xml": bundle.portfolio_xml,
-            "market_lines": list(bundle.market_lines),
-        },
-    )
+    return _content_id("ore-input-bundle", ore_input_bundle_payload(bundle))
+
+
+def with_bundle_identity(bundle: OREInputBundle) -> OREInputBundle:
+    return replace(bundle, bundle_id=ore_input_bundle_identity(bundle))
 
 
 def ore_differential_result_payload(result: OREDifferentialResult) -> dict[str, object]:
@@ -800,6 +845,8 @@ def ore_differential_result_identity(result: OREDifferentialResult) -> str:
 
 
 def _bundle_currency(bundle: OREInputBundle) -> str:
+    if bundle.base_currency:
+        return bundle.base_currency
     return bundle.market_lines[0].split(" ")[1].split("/")[2]
 
 
