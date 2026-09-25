@@ -1598,26 +1598,8 @@ class NautilusDifferentialEngine:
             else DifferentialState.MATCH
         )
         first = order_differentials[0]
-        payload = {
-            "replay_dataset_id": first.replay_dataset_id,
-            "simulation_policy_id": first.simulation_policy_id,
-            "contract_id": first.contract_id,
-            "order_differential_ids": list(ordered),
-            "execution_instrument_ids": list(instruments),
-            "state": state.value,
-            "mismatched_differential_ids": list(mismatched),
-            "trust_authority": (
-                "REFERENCE_MATCH_ONLY" if not mismatched else "NONE"
-            ),
-            "network_authority": "NONE",
-            "external_order_authority": "NONE",
-            "capital_authority": "NONE",
-        }
-        return NautilusScheduleDifferentialResult(
-            schedule_differential_id=_content_id(
-                "nautilus-schedule-differential",
-                payload,
-            ),
+        result = NautilusScheduleDifferentialResult(
+            schedule_differential_id="",
             replay_dataset_id=first.replay_dataset_id,
             simulation_policy_id=first.simulation_policy_id,
             contract_id=first.contract_id,
@@ -1625,10 +1607,18 @@ class NautilusDifferentialEngine:
             execution_instrument_ids=instruments,
             state=state,
             mismatched_differential_ids=mismatched,
-            trust_authority=payload["trust_authority"],
+            trust_authority=(
+                "REFERENCE_MATCH_ONLY" if not mismatched else "NONE"
+            ),
             network_authority="NONE",
             external_order_authority="NONE",
             capital_authority="NONE",
+        )
+        return replace(
+            result,
+            schedule_differential_id=(
+                nautilus_schedule_differential_identity(result)
+            ),
         )
 
 
@@ -1834,6 +1824,35 @@ def nautilus_differential_result_identity(
     return _content_id(
         "nautilus-execution-differential",
         nautilus_differential_result_payload(result),
+    )
+
+
+def nautilus_schedule_differential_payload(
+    result: NautilusScheduleDifferentialResult,
+) -> dict[str, object]:
+    return {
+        "replay_dataset_id": result.replay_dataset_id,
+        "simulation_policy_id": result.simulation_policy_id,
+        "contract_id": result.contract_id,
+        "order_differential_ids": list(result.order_differential_ids),
+        "execution_instrument_ids": list(result.execution_instrument_ids),
+        "state": result.state.value,
+        "mismatched_differential_ids": list(
+            result.mismatched_differential_ids
+        ),
+        "trust_authority": result.trust_authority,
+        "network_authority": result.network_authority,
+        "external_order_authority": result.external_order_authority,
+        "capital_authority": result.capital_authority,
+    }
+
+
+def nautilus_schedule_differential_identity(
+    result: NautilusScheduleDifferentialResult,
+) -> str:
+    return _content_id(
+        "nautilus-schedule-differential",
+        nautilus_schedule_differential_payload(result),
     )
 
 

@@ -255,10 +255,25 @@ class ExecutionScheduleResult:
     capital_authority: str
 
 
+@dataclass(frozen=True)
+class ExecutionScheduleRun:
+    """A schedule result together with the per-order evidence behind it."""
+
+    result: ExecutionScheduleResult
+    order_results: tuple[ReferenceExecutionResult, ...]
+    fills_by_intent: tuple[tuple[str, tuple[SimulatedFill, ...]], ...]
+
+    def fills_for(self, intent_id: str) -> tuple[SimulatedFill, ...]:
+        return dict(self.fills_by_intent)[intent_id]
+
+
 class ExecutionScheduleEngine:
     """Runs a schedule through the reference engine and reconciles books."""
 
-    def execute(
+    def execute(self, **kwargs) -> ExecutionScheduleResult:
+        return self.run(**kwargs).result
+
+    def run(
         self,
         *,
         run: ExecutionSimulationRunManifest,
@@ -269,7 +284,7 @@ class ExecutionScheduleEngine:
         instruments: tuple[ExecutionInstrument, ...],
         intents: tuple[SimulationOrderIntent, ...],
         ledger: SimulationOrderLedger,
-    ) -> ExecutionScheduleResult:
+    ) -> ExecutionScheduleRun:
         if schedule.schedule_id != execution_schedule_identity(schedule):
             raise ValueError("execution schedule identity mismatch")
         if schedule.run_id != run.run_id:
@@ -289,6 +304,7 @@ class ExecutionScheduleEngine:
         working_until: dict[str, datetime] = {}
         order_results: list[ReferenceExecutionResult] = []
         fills: list[SimulatedFill] = []
+        fills_by_intent: list[tuple[str, tuple[SimulatedFill, ...]]] = []
         for intent_id in schedule.intent_ids:
             intent = intents_by_id[intent_id]
             busy_until = working_until.get(intent.execution_instrument_id)
@@ -316,14 +332,20 @@ class ExecutionScheduleEngine:
             )
             order_results.append(result)
             fills.extend(order_fills)
+            fills_by_intent.append((intent.intent_id, order_fills))
 
-        return self._reconcile(
+        result = self._reconcile(
             run=run,
             schedule=schedule,
             schedule_policy=schedule_policy,
             instruments=by_instrument,
             order_results=tuple(order_results),
             fills=tuple(fills),
+        )
+        return ExecutionScheduleRun(
+            result=result,
+            order_results=tuple(order_results),
+            fills_by_intent=tuple(fills_by_intent),
         )
 
     @staticmethod
