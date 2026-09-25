@@ -667,7 +667,16 @@ def _statement_payload(statement: FinancialStatement) -> dict[str, object]:
         "currency": statement.currency,
         "period": _canonical_period(statement.period),
         "filing": _canonical_filing(statement.filing),
-        "items": _canonical_items(statement.items),
+        "items": [
+            {
+                "key": item.key,
+                "value": str(item.value),
+                "source_artifact_ids": list(item.source_artifact_ids),
+                "source_locator": item.source_locator,
+                "claim_ids": list(item.claim_ids),
+            }
+            for item in statement.items
+        ],
     }
 
 
