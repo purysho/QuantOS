@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=69"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,10 +7,16 @@ name = "first-current-quant-os"
 version = "0.12.4"
 description = "High-assurance point-in-time professional research intelligence prototype"
 requires-python = ">=3.11"
+license = "LicenseRef-Proprietary"
+license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md"]
+classifiers = [
+  "Private :: Do Not Upload",
+]
 dependencies = [
   "cvxpy>=1.6,<2",
   "duckdb>=1.4,<2",
   "numpy>=2,<3",
+  "packaging>=24",
   "nautilus_trader==2.0.0rc5; python_version >= '3.12'",
   "QuantLib>=1.43,<2",
   "pytz>=2025.2",

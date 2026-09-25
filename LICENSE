@@ -1,0 +1,36 @@
+First Current Quant OS — Proprietary License
+
+Copyright (c) 2026 purysho. All rights reserved.
+
+This repository and all source code, documentation, tests, data fixtures
+and other materials in it (the "Software") are proprietary and
+confidential.
+
+1. No license is granted. Except as expressly permitted in a separate
+   written agreement signed by the copyright holder, no person may use,
+   copy, modify, merge, publish, distribute, sublicense, sell, host,
+   train models on, or create derivative works of the Software, in whole
+   or in part.
+
+2. Access is not a license. Being granted access to the repository (for
+   example as a collaborator or reviewer) permits only the use needed to
+   perform the work you were asked to perform, and ends when that access
+   ends.
+
+3. Third-party components. The Software depends on third-party packages
+   that are distributed under their own licenses and are not covered by
+   this license. Those packages are installed separately and are not
+   modified or redistributed by this repository. See
+   THIRD_PARTY_NOTICES.md.
+
+4. No investment advice or authority. The Software is a research
+   prototype. Nothing it produces is investment advice, a recommendation,
+   or an authorization to trade, and it provides no live-capital path.
+
+5. No warranty. THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY
+   KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+   OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+   NONINFRINGEMENT. IN NO EVENT SHALL THE COPYRIGHT HOLDER BE LIABLE FOR
+   ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+   CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+   WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
