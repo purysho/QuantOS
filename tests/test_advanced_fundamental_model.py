@@ -316,12 +316,8 @@ class AdvancedFundamentalModelTests(unittest.TestCase):
                 plan=(first, bad_second),
             )
 
-    def test_maturity_and_sweep_change_projection_identity(self):
+    def test_unfunded_maturity_fails_minimum_cash_gate(self):
         base = first_plan()
-        standard = AdvancedFundamentalModelEngine().project(
-            source_statements=source_statements(),
-            plan=(base,),
-        )
         matured = AdvancedProjectionPlanPeriod(
             period=base.period,
             operating_assumptions=base.operating_assumptions,
@@ -333,10 +329,49 @@ class AdvancedFundamentalModelTests(unittest.TestCase):
             cash_sweep_policy=base.cash_sweep_policy,
             shares=base.shares,
         )
+        with self.assertRaises(ValueError):
+            AdvancedFundamentalModelEngine().project(
+                source_statements=source_statements(),
+                plan=(matured,),
+            )
+
+    def test_funded_maturity_changes_projection_identity(self):
+        base = first_plan()
+        standard = AdvancedFundamentalModelEngine().project(
+            source_statements=source_statements(),
+            plan=(base,),
+        )
+        replacement_facility = DebtTranche(
+            tranche_id="rcf",
+            beginning_balance=Decimal("0"),
+            rate_type=InterestRateType.FLOATING,
+            maturity_date=date(2030, 12, 31),
+            scheduled_repayment=Decimal("0"),
+            new_borrowing=Decimal("20"),
+            spread=Decimal("0.02"),
+            evidence_references=("artifact:replacement-facility",),
+        )
+        matured = AdvancedProjectionPlanPeriod(
+            period=base.period,
+            operating_assumptions=base.operating_assumptions,
+            debt_tranches=(
+                tranche("30", maturity=date(2026, 6, 30)),
+                replacement_facility,
+            ),
+            floating_base_rate=base.floating_base_rate,
+            tax=base.tax,
+            cash_sweep_policy=CashSweepPolicy(
+                minimum_cash=base.cash_sweep_policy.minimum_cash,
+                sweep_percent=base.cash_sweep_policy.sweep_percent,
+                tranche_priority=("rcf", "term-a"),
+            ),
+            shares=base.shares,
+        )
         changed = AdvancedFundamentalModelEngine().project(
             source_statements=source_statements(),
             plan=(matured,),
         )
+        changed.projections[0].require_valid()
         self.assertNotEqual(
             standard.projections[0].projection_id,
             changed.projections[0].projection_id,
