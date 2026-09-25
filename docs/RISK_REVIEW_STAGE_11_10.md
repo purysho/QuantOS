@@ -1,6 +1,6 @@
 # Stage 11.10 — Exception Independence & Risk Review Dossier
 
-Stage 11.10 closes First Current's independent Stage 11 risk layer before any OpenSourceRisk/Engine adapter is trusted.
+Stage 11.10 closes QuantOS's independent Stage 11 risk layer before any OpenSourceRisk/Engine adapter is trusted.
 
 ## Exception independence
 
@@ -52,4 +52,4 @@ Every risk-review dossier records approval_authority = NONE, live_authority = NO
 
 ## Next step
 
-With this independent baseline in place, a later Stage 11.x adapter may integrate OpenSourceRisk/Engine as a separately versioned comparator. ORE outputs should be accepted only after exact input mapping, engine/version provenance and differential checks against First Current deterministic stress and supported distributional-risk fixtures.
+With this independent baseline in place, a later Stage 11.x adapter may integrate OpenSourceRisk/Engine as a separately versioned comparator. ORE outputs should be accepted only after exact input mapping, engine/version provenance and differential checks against QuantOS deterministic stress and supported distributional-risk fixtures.

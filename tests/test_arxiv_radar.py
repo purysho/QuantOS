@@ -59,14 +59,14 @@ class ArxivRadarTests(unittest.TestCase):
             return FEED, "application/atom+xml"
 
         adapter = ArxivRadarAdapter(
-            user_agent="First Current Quant OS test@example.com",
+            user_agent="QuantOS test@example.com",
             transport=transport,
         )
         adapter.fetch(categories=("q-fin.PM",), max_results=1)
         self.assertTrue(seen["url"].startswith("https://export.arxiv.org/api/query?"))
         self.assertEqual(
             seen["headers"],
-            {"user-agent": "First Current Quant OS test@example.com"},
+            {"user-agent": "QuantOS test@example.com"},
         )
 
     def test_feed_parses_revision_and_metadata(self):
@@ -96,7 +96,7 @@ class ArxivRadarTests(unittest.TestCase):
             )
             radar = ResearchRadarStore(Path(tmp) / "radar.duckdb")
             adapter = ArxivRadarAdapter(
-                user_agent="First Current Quant OS test@example.com",
+                user_agent="QuantOS test@example.com",
                 transport=transport,
             )
             fetched = adapter.fetch(
@@ -124,7 +124,7 @@ class ArxivRadarTests(unittest.TestCase):
             return FEED, "application/atom+xml"
 
         adapter = ArxivRadarAdapter(
-            user_agent="First Current Quant OS test@example.com",
+            user_agent="QuantOS test@example.com",
             transport=transport,
             clock=fake.clock,
             sleeper=fake.sleep,

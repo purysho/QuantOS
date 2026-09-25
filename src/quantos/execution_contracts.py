@@ -1056,15 +1056,23 @@ class SimulationOrderLedger:
             SELECT payload_json
             FROM simulated_fills
             WHERE intent_id = ?
-            ORDER BY fill_time, fill_id
             """,
             [intent_id],
         ).fetchall()
+        # Execution order: fills at the same instant (a sweep through
+        # several levels) are ordered by how much had filled, never by
+        # their content hashes.
         return tuple(
-            simulated_fill_from_payload(
-                json.loads(str(row[0]))
+            sorted(
+                (
+                    simulated_fill_from_payload(json.loads(str(row[0])))
+                    for row in rows
+                ),
+                key=lambda fill: (
+                    fill.fill_time,
+                    fill.cumulative_filled_quantity,
+                ),
             )
-            for row in rows
         )
 
     def close(self) -> None:

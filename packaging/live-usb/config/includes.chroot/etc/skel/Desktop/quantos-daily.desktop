@@ -1,6 +1,6 @@
 [Desktop Entry]
 Type=Application
-Name=First Current: update data
+Name=QuantOS: update data
 Comment=Fetch new data and refresh the terminal
 Exec=xfce4-terminal --hold -e 'quantos daily'
 Terminal=false

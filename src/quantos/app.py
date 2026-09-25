@@ -1,4 +1,4 @@
-"""Stage 22 — the First Current desktop app (browser-based control center).
+"""Stage 22 — the QuantOS desktop app (browser-based control center).
 
 ``quantos app`` starts one loopback-only HTTP server and opens the user's
 own browser:
@@ -49,7 +49,7 @@ from urllib.parse import unquote, urlsplit
 
 from . import __version__
 
-APP_NAME = "FirstCurrent"
+APP_NAME = "QuantOS"
 MAX_BODY = 64_000
 CONTROL_CSP = (
     "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; "
@@ -63,7 +63,7 @@ CONTROL_CSP = (
 def desktop_home() -> Path:
     """Where the desktop app keeps its data when QUANTOS_HOME is not set.
 
-    Portable mode: a ``FirstCurrent-data`` folder next to the executable
+    Portable mode: a ``QuantOS-data`` folder next to the executable
     (e.g. on a USB stick) is used when it exists. Otherwise the OS's
     per-user application-data folder.
     """
@@ -161,7 +161,7 @@ class AppServer(ThreadingHTTPServer):
 
 class AppHandler(BaseHTTPRequestHandler):
     server: AppServer
-    server_version = "FirstCurrent"
+    server_version = "QuantOS"
     sys_version = ""
 
     def log_message(self, format, *args):  # quiet
@@ -384,7 +384,7 @@ def app_command(*, port: int = 0, open_browser: bool = True, smoke_test: bool = 
     if not smoke_test and port == 0:
         existing = _running_instance(home)
         if existing:
-            print(f"First Current is already running: {existing.split('#')[0]}", flush=True)
+            print(f"QuantOS is already running: {existing.split('#')[0]}", flush=True)
             if open_browser:
                 webbrowser.open(existing)
             else:
@@ -394,10 +394,10 @@ def app_command(*, port: int = 0, open_browser: bool = True, smoke_test: bool = 
         server = AppServer(port)
     except OSError as exc:
         raise SystemExit(f"quantos app: port {port} is not available ({exc.strerror}); "
-                         "another First Current may already be running, or omit --port") from None
+                         "another QuantOS may already be running, or omit --port") from None
     if smoke_test:
         return _smoke_test(server)
-    print(f"First Current {__version__} — home: {home}", flush=True)
+    print(f"QuantOS {__version__} — home: {home}", flush=True)
     print(f"Control center: {server.origin}/  (this window must stay open; press Ctrl+C to quit)", flush=True)
     if open_browser:
         threading.Timer(0.4, lambda: webbrowser.open(server.launch_url)).start()
@@ -493,7 +493,7 @@ def _smoke_test(server: AppServer) -> int:
     try:
         _exercise_runtime_paths()
         page = opener.open(server.origin + "/").read()
-        assert b"First Current" in page, "control center page missing"
+        assert b"QuantOS" in page, "control center page missing"
         request = urllib.request.Request(server.origin + "/api/status", headers={"X-Quantos-Token": server.token})
         status = json.loads(opener.open(request).read())
         unauthorized = urllib.request.Request(server.origin + "/api/status")

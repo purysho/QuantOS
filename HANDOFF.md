@@ -1,10 +1,10 @@
-# First Current Quant OS — Handoff
+# QuantOS — Handoff
 
-> Comprehensive implementation handoff for the First Current Quant OS prototype.
+> Comprehensive implementation handoff for the QuantOS prototype.
 >
 > This document is intended to let a new ChatGPT/Codex/engineer session continue the project without reconstructing the architecture from chat history.
 >
-> **Repository:** purysho/First-Current-Quant-OS-prototype  
+> **Repository:** purysho/QuantOS  
 > **Repository visibility:** public (Apache-2.0)  
 > **Current package version:** 0.20.0  
 > **Implementation baseline for this handoff:** Stages 12.4–22 on branch `claude/stoic-cerf-mts7pn` (execution program and Nautilus divergence resolution, Security Master, exchange calendars and return panels, ORE products and analytics, research sources, observability/security, market-data pipeline, Perspective terminal, keyless data and first-run setup, container and live-USB packaging, company analysis, desktop app with Windows/macOS/Linux downloads, Apache-2.0 licensing, locked environment)  
@@ -14,7 +14,7 @@
 
 # 1. Project mission
 
-First Current Quant OS is intended to become a professional-grade investment research, valuation, quantitative research, portfolio, risk, and execution operating system.
+QuantOS is intended to become a professional-grade investment research, valuation, quantitative research, portfolio, risk, and execution operating system.
 
 The target is not “AI picks stocks.”
 
@@ -122,27 +122,27 @@ Do not silently:
 
 Research, valuation, portfolio construction, risk, and execution are separate domains.
 
-External libraries sit behind First Current contracts.
+External libraries sit behind QuantOS contracts.
 
 They must not become the operating system’s source of truth.
 
 Current examples:
 
-- skfolio behind First Current portfolio contracts;
-- QuantLib behind First Current pricing/risk contracts;
-- NautilusTrader behind First Current simulation/execution contracts;
+- skfolio behind QuantOS portfolio contracts;
+- QuantLib behind QuantOS pricing/risk contracts;
+- NautilusTrader behind QuantOS simulation/execution contracts;
 - future OpenSourceRisk/Engine must follow the same rule.
 
 ## 2.5 Independent differential validation
 
-Whenever an external engine is introduced, First Current should own a simpler independently specified reference implementation for the overlapping domain.
+Whenever an external engine is introduced, QuantOS should own a simpler independently specified reference implementation for the overlapping domain.
 
 Existing pattern:
 
 - closed-form Black-Scholes reference vs QuantLib;
 - independent bond cash-flow reference vs QuantLib;
 - independent swap reference vs QuantLib;
-- First Current deterministic top-of-book fill engine vs NautilusTrader.
+- QuantOS deterministic top-of-book fill engine vs NautilusTrader.
 
 A differential match proves only the frozen overlap being tested.
 
@@ -297,7 +297,7 @@ VALUATION ENGINE                              │
 - OpenSourceRisk/Engine 1.8.17.0 (`open-source-risk-engine`) as the optional `ore` extra, x86-64 Linux/Windows only, run in an isolated child process.
 - requests/pytz for external intake and time support.
 - Parquet export exists in the earlier point-in-time data layer.
-- exchange_calendars for exchange session semantics (reference for the frozen First Current calendar).
+- exchange_calendars for exchange session semantics (reference for the frozen QuantOS calendar).
 - uv for locking and syncing exact environments.
 - FINOS Perspective 3.8.0 in the browser (jsDelivr, SRI-pinned; not a Python dependency) for the read-only terminal.
 
@@ -686,7 +686,7 @@ Completed and documented as v0.10.10.
 - solver status;
 - no silent fallback;
 - mandatory baseline lineage;
-- explicit First Current portfolio-level one-way turnover.
+- explicit QuantOS portfolio-level one-way turnover.
 
 ### 10.4 Common OOS comparison
 
@@ -863,7 +863,7 @@ Reference: docs/STAGE_11_COMPLETE.md
 
 Reference: docs/EXECUTION_CONTRACTS_STAGE_12_1.md
 
-### 12.2 Deterministic First Current reference fill engine — built
+### 12.2 Deterministic QuantOS reference fill engine — built
 
 - top-of-book only;
 - explicit order activation time;
@@ -1028,7 +1028,7 @@ Reference: docs/CORPORATE_ACTIONS_STAGE_13_2.md
 
 ### 13.3 Exchange calendars — built
 
-- a frozen First Current XNYS rule calendar for 2010–2030: 09:30–16:00 New York, 13:00 early closes, Juneteenth from 2022, and unscheduled closures such as Sandy, the Bush and Carter funerals;
+- a frozen QuantOS XNYS rule calendar for 2010–2030: 09:30–16:00 New York, 13:00 early closes, Juneteenth from 2022, and unscheduled closures such as Sandy, the Bush and Carter funerals;
 - an `exchange_calendars` adapter and a differential: an exact match over 5,279 sessions;
 - navigation outside the frozen range fails closed.
 
@@ -1057,7 +1057,7 @@ Reference: docs/ORE_DIFFERENTIAL_STAGE_14.md
 - 14.3 fixed-rate bonds (`DiscountingRiskyBondEngine`) versus the Stage 11.4 reference: about 5e-13. Refused: issue day > 28, a cash flow inside the settlement window, and extrapolating curves;
 - 14.4 European equity options (`AnalyticEuropeanEngine`) versus a closed-form Black–Scholes–Merton reference: about 2e-14;
 - 14.5 ORE sensitivity analytics on a pillar-aligned grid versus single-pillar +1bp Stage 11.6 revaluations: about 1e-11;
-- 14.6 ORE stress tests (absolute zero-rate shocks) versus First Current revaluation: about 2e-10.
+- 14.6 ORE stress tests (absolute zero-rate shocks) versus QuantOS revaluation: about 2e-10.
 
 Reference: docs/ORE_PRODUCTS_AND_ANALYTICS_STAGE_14_3.md
 
@@ -1231,7 +1231,7 @@ The first CI run also exercises the new `astral-sh/setup-uv` step and the 77 MB 
 Keep the pattern that every new stage used:
 
 - a frozen, content-addressed contract or policy;
-- an independent First Current reference;
+- an independent QuantOS reference;
 - a fail-closed scope;
 - mismatches preserved;
 - adversarial tests;
@@ -1242,7 +1242,7 @@ For NautilusTrader, the recorded Stage 12.4 divergences are still open. Resolve 
 
 ## 3. Preserve the Python compatibility boundary
 
-- Python 3.11 remains a supported First Current runtime without NautilusTrader v2;
+- Python 3.11 remains a supported QuantOS runtime without NautilusTrader v2;
 - NautilusTrader 2.0.0rc5 is installed only on Python 3.12+;
 - generic imports and tests must remain safe on 3.11;
 - 3.12/3.13 must execute the actual Nautilus differential runtime tests.
@@ -1251,7 +1251,7 @@ For NautilusTrader, the recorded Stage 12.4 divergences are still open. Resolve 
 
 For every new overlap fixture compare the same economic order through:
 
-- FIRST_CURRENT_REFERENCE;
+- QUANTOS_REFERENCE;
 - NAUTILUS_TRADER.
 
 At minimum preserve comparison of:
@@ -1556,7 +1556,7 @@ Role:
 
 Architecture rule:
 
-First Current owns constraints, identities, OOS comparison, robustness and authority.
+QuantOS owns constraints, identities, OOS comparison, robustness and authority.
 
 ### QuantLib
 
@@ -1571,7 +1571,7 @@ Role:
 
 Architecture rule:
 
-First Current owns contracts and independent references.
+QuantOS owns contracts and independent references.
 
 QuantLib mutable global evaluation date must remain contained by the shared lock/runtime boundary.
 
@@ -1611,7 +1611,7 @@ Target role:
 
 Integration rule:
 
-ORE should be an adapter behind First Current contracts and validated against the independent Stage 11 baseline.
+ORE should be an adapter behind QuantOS contracts and validated against the independent Stage 11 baseline.
 
 ### Perspective
 
@@ -1951,7 +1951,7 @@ The version is frozen, the process boundary exists, swap mapping and input linea
 3. VaR/ES comparison only where the semantics truly match;
 4. XVA only after broader mapping is proven.
 
-ORE must not replace First Current's risk contracts.
+ORE must not replace QuantOS's risk contracts.
 
 ## Broader pricing/risk
 
@@ -2101,7 +2101,7 @@ Stages 12.3–18 are built (see section 5). Recommended next:
 2. Owner decision on a licensed market-data provider (Tiingo, Polygon or another), followed by one live Stage 17 capture and reconciliation.
 3. Stage 12.x: multi-quote partial fills and cancel/replace with explicit shared-liquidity semantics.
 4. Real-universe research: Stage 17 closes → Stage 13.4 panels → Stage 9 walk-forward, with a stored backtest artifact for the terminal.
-5. ORE beyond the current overlaps: CDS, swaptions, XVA. Each needs a First Current reference first.
+5. ORE beyond the current overlaps: CDS, swaptions, XVA. Each needs a QuantOS reference first.
 6. Cross-engine orchestration / application services.
 7. Performance and scale hardening.
 8. Remaining operational readiness: disaster recovery, SBOM, provider health dashboards, broker sandbox separation.
@@ -2514,7 +2514,7 @@ Do not turn any of the following into stronger claims than they are:
 - statistical non-rejection ≠ model approval.
 - historical Nautilus differential match ≠ live execution validation.
 - research recommendation ≠ external order authority.
-- provider-adjusted price ≠ First Current fact (only raw closes plus the reviewed ledger).
+- provider-adjusted price ≠ QuantOS fact (only raw closes plus the reviewed ledger).
 - regulator press release in the radar ≠ verified fact.
 - terminal display ≠ authority (exports declare `authority: NONE`).
 - kill switch released ≠ permission to trade.
@@ -2585,7 +2585,7 @@ The existing reasoning/evidence architecture exists specifically to prevent thes
 
 # 25. Completion criteria for the broader prototype
 
-A serious “Quant OS prototype complete” claim should require at least:
+A serious “QuantOS prototype complete” claim should require at least:
 
 - verified research intake beyond one source family;
 - full Security Master and corporate actions;
@@ -2634,7 +2634,7 @@ A separate production/live program would require materially more.
 
 Required pattern, unchanged:
 
-> extend the First Current reference semantics first → freeze the contract or policy → map the external engine or provider explicitly → run differential or adversarial fixtures → preserve mismatches explicitly → require the full Python 3.11/3.12/3.13 CI matrix to remain green.
+> extend the QuantOS reference semantics first → freeze the contract or policy → map the external engine or provider explicitly → run differential or adversarial fixtures → preserve mismatches explicitly → require the full Python 3.11/3.12/3.13 CI matrix to remain green.
 
 Do not combine several new behaviors into one change.
 
@@ -2642,7 +2642,7 @@ Do not combine several new behaviors into one change.
 
 # 27. One-sentence handoff
 
-First Current Quant OS has already built a strict point-in-time evidence → reasoning → fundamentals → valuation → quant research → portfolio → pricing/risk pipeline and now adds:
+QuantOS has already built a strict point-in-time evidence → reasoning → fundamentals → valuation → quant research → portfolio → pricing/risk pipeline and now adds:
 
 - a complete historical execution program: twelve frozen Nautilus contracts with the divergences resolved as explicit reference modes, schedules, a replay-quality gate, TCA and a two-person execution review;
 - a bitemporal Security Master with corporate-action economics;

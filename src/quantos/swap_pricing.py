@@ -590,11 +590,11 @@ class QuantLibFixedFloatSwapAdapter:
                 )
                 if ql_fixed_dates != fixed_schedule_dates:
                     raise ValueError(
-                        "QuantLib fixed schedule differs from First Current schedule"
+                        "QuantLib fixed schedule differs from QuantOS schedule"
                     )
                 if ql_float_dates != floating_schedule_dates:
                     raise ValueError(
-                        "QuantLib floating schedule differs from First Current schedule"
+                        "QuantLib floating schedule differs from QuantOS schedule"
                     )
                 npv = Decimal(str(swap.NPV()))
                 fixed_leg_npv = Decimal(str(swap.fixedLegNPV()))

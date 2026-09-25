@@ -1,6 +1,6 @@
 # Stage 11.4 — Fixed-Rate Bond Pricing
 
-Stage 11.4 prices a deliberately narrow fixed-rate bond contract from the frozen Stage 11.3 discount curve and requires QuantLib to agree with an independent First Current cash-flow reference.
+Stage 11.4 prices a deliberately narrow fixed-rate bond contract from the frozen Stage 11.3 discount curve and requires QuantLib to agree with an independent QuantOS cash-flow reference.
 
 ## Supported contract
 
@@ -16,7 +16,7 @@ A bond whose maturity exceeds a non-extrapolating curve is rejected.
 
 ## Independent reference pricer
 
-First Current generates the regular coupon schedule itself, calculates ACT/365F coupon cash flows and redemption, discounts post-settlement cash flows with the frozen curve and independently calculates:
+QuantOS generates the regular coupon schedule itself, calculates ACT/365F coupon cash flows and redemption, discounts post-settlement cash flows with the frozen curve and independently calculates:
 
 - NPV at the curve valuation date;
 - dirty price per 100 at settlement;
@@ -48,4 +48,4 @@ Results keep order_authority = NONE and capital_authority = NONE.
 
 ## Next slice
 
-Stage 11.5 should add a fixed/floating swap adapter. It should separate discount and forwarding curves even when a single-curve fixture is used initially, preserve fixing assumptions, and differential-test NPV and fixed-leg DV01 against a First Current cash-flow reference before scenario aggregation.
+Stage 11.5 should add a fixed/floating swap adapter. It should separate discount and forwarding curves even when a single-curve fixture is used initially, preserve fixing assumptions, and differential-test NPV and fixed-leg DV01 against a QuantOS cash-flow reference before scenario aggregation.

@@ -1,17 +1,17 @@
 """Stages 14.3–14.6 — broader ORE differential coverage.
 
 * 14.3 fixed-rate bond NPV versus the Stage 11.4 independent reference;
-* 14.4 European equity option NPV versus a First Current closed-form
+* 14.4 European equity option NPV versus a QuantOS closed-form
   Black-Scholes-Merton reference and the Stage 11.2 QuantLib result;
 * 14.5 ORE's own SENSITIVITY analytic (bucketed zero-rate deltas) versus
-  First Current single-pillar scenario revaluations;
+  QuantOS single-pillar scenario revaluations;
 * 14.6 ORE's own STRESS analytic versus a Stage 11.6 scenario revaluation.
 
 Every comparison uses a content-addressed ORE input bundle, runs ORE only in
 the isolated worker process, and preserves mismatches. For 14.5 and 14.6
-ORE's simulation-market grid is set to exactly the First Current curve
+ORE's simulation-market grid is set to exactly the QuantOS curve
 pillars, so ORE's zero-rate shifts at grid points are economically the same
-as First Current shocking the pillar quote and rebuilding the curve; a curve
+as QuantOS shocking the pillar quote and rebuilding the curve; a curve
 whose pillars are not tenor-aligned is refused.
 """
 
@@ -270,7 +270,7 @@ def black_scholes_merton_npv(
     volatility: Decimal,
     time_years: Decimal,
 ) -> Decimal:
-    """First Current closed-form European BSM price per unit (independent)."""
+    """QuantOS closed-form European BSM price per unit (independent)."""
 
     if time_years <= 0 or volatility <= 0:
         raise ValueError("BSM requires positive time and volatility")

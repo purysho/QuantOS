@@ -1,10 +1,10 @@
 # Stage 12.1 — Simulation & Execution Contracts
 
-Stage 12 begins the Simulation & Execution Engine by freezing First Current's execution semantics before NautilusTrader is introduced.
+Stage 12 begins the Simulation & Execution Engine by freezing QuantOS's execution semantics before NautilusTrader is introduced.
 
 ## Engine boundary
 
-NautilusTrader will be an adapter behind these contracts. Native Nautilus order objects, event models and account state will not become First Current's source of truth.
+NautilusTrader will be an adapter behind these contracts. Native Nautilus order objects, event models and account state will not become QuantOS's source of truth.
 
 ## Execution instruments
 
@@ -61,4 +61,4 @@ Stage 12.1 contains no broker connector, no network permission, no live-order ty
 
 ## Next slice
 
-Stage 12.2 should add an independent deterministic First Current reference fill engine for top-of-book historical replay. Market and limit orders must respect order latency, market-data knowledge time, top-of-book liquidity, participation caps, tick/lot increments and the frozen fee/slippage/impact policy. That reference engine should become the differential oracle for the later NautilusTrader adapter.
+Stage 12.2 should add an independent deterministic QuantOS reference fill engine for top-of-book historical replay. Market and limit orders must respect order latency, market-data knowledge time, top-of-book liquidity, participation caps, tick/lot increments and the frozen fee/slippage/impact policy. That reference engine should become the differential oracle for the later NautilusTrader adapter.

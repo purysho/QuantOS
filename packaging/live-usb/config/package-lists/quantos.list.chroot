@@ -12,7 +12,7 @@ network-manager-gnome
 firefox-esr
 fonts-dejavu
 mousepad
-# First Current runtime
+# QuantOS runtime
 python3
 python3-venv
 python3-pip

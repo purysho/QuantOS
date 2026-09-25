@@ -6,7 +6,7 @@ The purpose is not to produce another optimizer ranking. It asks whether portfol
 
 ## Adjacent-fold weight stability
 
-For every active method, First Current compares consecutive frozen portfolio solutions using half-L1 weight distance.
+For every active method, QuantOS compares consecutive frozen portfolio solutions using half-L1 weight distance.
 
 Large adjacent changes are surfaced as instability even if the method's average OOS return looks attractive.
 
@@ -29,7 +29,7 @@ The engine therefore detects portfolios whose allocation changes materially just
 The dossier records:
 
 - minimum headroom to the maximum position-weight constraint;
-- minimum headroom to the First Current total turnover constraint when one exists;
+- minimum headroom to the QuantOS total turnover constraint when one exists;
 - count of minimum-variance fits reported as optimal_inaccurate.
 
 Near-boundary or inaccurate solutions can require review even when their headline OOS statistics are acceptable.

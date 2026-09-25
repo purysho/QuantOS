@@ -1,4 +1,4 @@
-"""Builds the First Current desktop download for the current platform.
+"""Builds the QuantOS desktop download for the current platform.
 
     uv sync --locked --no-dev --group desktop --no-editable
     uv run --no-sync python packaging/desktop/build.py
@@ -8,9 +8,9 @@ Steps:
 2. PyInstaller build;
 3. run the built app's ``--smoke-test`` from a clean home;
 4. package it:
-   - Windows: ``FirstCurrent-Windows-x64.zip`` (portable folder);
-   - macOS: ``FirstCurrent-macOS-arm64.dmg`` (``First Current.app``);
-   - Linux: ``FirstCurrent-Linux-x86_64.AppImage``;
+   - Windows: ``QuantOS-Windows-x64.zip`` (portable folder);
+   - macOS: ``QuantOS-macOS-arm64.dmg`` (``QuantOS.app``);
+   - Linux: ``QuantOS-Linux-x86_64.AppImage``;
 5. write a ``.sha256`` file next to the artifact.
 
 Output goes to ``build/desktop/out``.
@@ -71,18 +71,18 @@ def main() -> int:
     if system == "Darwin":
         make_icns(HERE / "icon.png", HERE / "icon.icns")
     env = {**os.environ, "FC_VENDOR_DIR": str(vendor), "FC_VERSION": version}
-    run([sys.executable, "-m", "PyInstaller", HERE / "first_current.spec", "--noconfirm", "--log-level", "WARN",
+    run([sys.executable, "-m", "PyInstaller", HERE / "quantos.spec", "--noconfirm", "--log-level", "WARN",
          "--distpath", WORK / "dist", "--workpath", WORK / "pyi"], env=env, cwd=WORK)
 
     if system == "Windows":
-        app_dir = WORK / "dist" / "FirstCurrent"
-        executable = app_dir / "FirstCurrent.exe"
+        app_dir = WORK / "dist" / "QuantOS"
+        executable = app_dir / "QuantOS.exe"
     elif system == "Darwin":
-        app_dir = WORK / "dist" / "First Current.app"
-        executable = app_dir / "Contents" / "MacOS" / "FirstCurrent"
+        app_dir = WORK / "dist" / "QuantOS.app"
+        executable = app_dir / "Contents" / "MacOS" / "QuantOS"
     else:
-        app_dir = WORK / "dist" / "FirstCurrent"
-        executable = app_dir / "FirstCurrent"
+        app_dir = WORK / "dist" / "QuantOS"
+        executable = app_dir / "QuantOS"
 
     # 3. the built app must pass its own self-test from a clean profile
     if not args.skip_smoke_test:
@@ -95,13 +95,13 @@ def main() -> int:
 
     # 4. package
     if system == "Windows":
-        artifact = WORK / "out" / "FirstCurrent-Windows-x64.zip"
+        artifact = WORK / "out" / "QuantOS-Windows-x64.zip"
         package_zip(app_dir, artifact, version)
     elif system == "Darwin":
-        artifact = WORK / "out" / "FirstCurrent-macOS-arm64.dmg"
+        artifact = WORK / "out" / "QuantOS-macOS-arm64.dmg"
         package_dmg(app_dir, artifact)
     else:
-        artifact = WORK / "out" / "FirstCurrent-Linux-x86_64.AppImage"
+        artifact = WORK / "out" / "QuantOS-Linux-x86_64.AppImage"
         package_appimage(app_dir, artifact, version)
 
     # 5. checksum
@@ -112,22 +112,22 @@ def main() -> int:
 
 def package_zip(app_dir: Path, artifact: Path, version: str) -> None:
     readme = (
-        f"First Current {version} for Windows\n\n"
+        f"QuantOS {version} for Windows\n\n"
         "1. Extract this whole folder (right-click the zip, Extract All).\n"
-        "2. Open the FirstCurrent folder and double-click FirstCurrent.exe.\n"
+        "2. Open the QuantOS folder and double-click QuantOS.exe.\n"
         "3. Your browser opens the control center. Keep the small black window open while you work;\n"
         "   close it (or press Quit) to stop.\n\n"
         "Windows SmartScreen may warn the first time because the app is not code-signed yet:\n"
         "choose More info, then Run anyway.\n\n"
-        "Portable use (e.g. a USB stick): create a folder named FirstCurrent-data next to\n"
-        "FirstCurrent.exe and your data will be kept there.\n\n"
+        "Portable use (e.g. a USB stick): create a folder named QuantOS-data next to\n"
+        "QuantOS.exe and your data will be kept there.\n\n"
         "Free, open-source software (Apache-2.0). It never trades; nothing it produces is investment advice.\n"
     )
     with zipfile.ZipFile(artifact, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as archive:
-        archive.writestr("FirstCurrent/README.txt", readme.replace("\n", "\r\n"))
+        archive.writestr("QuantOS/README.txt", readme.replace("\n", "\r\n"))
         for path in sorted(app_dir.rglob("*")):
             if path.is_file():
-                archive.write(path, Path("FirstCurrent") / path.relative_to(app_dir))
+                archive.write(path, Path("QuantOS") / path.relative_to(app_dir))
 
 
 def make_icns(png: Path, icns: Path) -> None:
@@ -144,23 +144,23 @@ def package_dmg(app_dir: Path, artifact: Path) -> None:
     staging.mkdir()
     shutil.copytree(app_dir, staging / app_dir.name, symlinks=True)
     os.symlink("/Applications", staging / "Applications")
-    run(["hdiutil", "create", "-volname", "First Current", "-srcfolder", staging, "-ov", "-format", "UDZO", artifact])
+    run(["hdiutil", "create", "-volname", "QuantOS", "-srcfolder", staging, "-ov", "-format", "UDZO", artifact])
 
 
 def package_appimage(app_dir: Path, artifact: Path, version: str) -> None:
-    appdir = WORK / "FirstCurrent.AppDir"
-    shutil.copytree(app_dir, appdir / "usr" / "lib" / "FirstCurrent", symlinks=True)
+    appdir = WORK / "QuantOS.AppDir"
+    shutil.copytree(app_dir, appdir / "usr" / "lib" / "QuantOS", symlinks=True)
     apprun = appdir / "AppRun"
     apprun.write_text('#!/bin/sh\nHERE="$(dirname "$(readlink -f "$0")")"\n'
-                      'exec "$HERE/usr/lib/FirstCurrent/FirstCurrent" "$@"\n')
+                      'exec "$HERE/usr/lib/QuantOS/QuantOS" "$@"\n')
     apprun.chmod(apprun.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
-    (appdir / "first-current.desktop").write_text(
-        "[Desktop Entry]\nType=Application\nName=First Current\n"
+    (appdir / "quantos.desktop").write_text(
+        "[Desktop Entry]\nType=Application\nName=QuantOS\n"
         "Comment=Free, open-source point-in-time investment research\n"
-        "Exec=FirstCurrent\nIcon=first-current\nTerminal=true\nCategories=Office;Finance;\n"
+        "Exec=QuantOS\nIcon=quantos\nTerminal=true\nCategories=Office;Finance;\n"
         f"X-AppImage-Version={version}\n"
     )
-    shutil.copy(HERE / "icon.png", appdir / "first-current.png")
+    shutil.copy(HERE / "icon.png", appdir / "quantos.png")
     tool = WORK / "appimagetool"
     urllib.request.urlretrieve(APPIMAGETOOL_URL, tool)
     if sha256(tool) != APPIMAGETOOL_SHA256:

@@ -14,7 +14,7 @@ Every position/scenario pair has a RiskCoverageCell.
 
 A complete cube requires exactly one unambiguous ScenarioRevaluationResult for every instrument/scenario cell. Missing cells are persisted as explicit uncovered cells.
 
-When any cell for a scenario is missing, that scenario's portfolio P&L is `None`. First Current does not sum the covered subset and present it as a portfolio result.
+When any cell for a scenario is missing, that scenario's portfolio P&L is `None`. QuantOS does not sum the covered subset and present it as a portfolio result.
 
 Unexpected instruments, unexpected scenarios, duplicate revaluation identities, ambiguous instrument/scenario cells, mixed base snapshots and mixed reporting currencies all fail closed.
 
@@ -46,4 +46,4 @@ Stage 11.7 does not compute VaR or expected shortfall and does not assign probab
 
 ## Next slice
 
-Stage 11.8 should introduce a controlled distributional-risk layer only after defining scenario-return history, observation windows, weighting, missing-data semantics and backtesting requirements. ORE integration should remain behind a compatibility boundary and be differential-tested against First Current deterministic stress aggregation before its VaR or XVA outputs are trusted.
+Stage 11.8 should introduce a controlled distributional-risk layer only after defining scenario-return history, observation windows, weighting, missing-data semantics and backtesting requirements. ORE integration should remain behind a compatibility boundary and be differential-tested against QuantOS deterministic stress aggregation before its VaR or XVA outputs are trusted.

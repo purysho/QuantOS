@@ -3,13 +3,13 @@ requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "first-current-quant-os"
+name = "quantos"
 version = "0.20.0"
 description = "Free, open-source, point-in-time investment research operating system: evidence, fundamentals, valuation, portfolio, risk and execution research with no live-capital path"
 requires-python = ">=3.11"
 license = "Apache-2.0"
 license-files = ["LICENSE", "NOTICE", "THIRD_PARTY_NOTICES.md"]
-authors = [{ name = "purysho and the First Current Quant OS contributors" }]
+authors = [{ name = "purysho and the QuantOS contributors" }]
 readme = "README.md"
 keywords = ["quantitative finance", "investment research", "point-in-time", "valuation", "portfolio", "risk"]
 classifiers = [
@@ -42,9 +42,9 @@ ore = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/purysho/First-Current-Quant-OS-prototype"
-Documentation = "https://github.com/purysho/First-Current-Quant-OS-prototype/tree/main/docs"
-Issues = "https://github.com/purysho/First-Current-Quant-OS-prototype/issues"
+Homepage = "https://github.com/purysho/QuantOS"
+Documentation = "https://github.com/purysho/QuantOS/tree/main/docs"
+Issues = "https://github.com/purysho/QuantOS/issues"
 
 [project.scripts]
 quantos = "quantos.cli:main"

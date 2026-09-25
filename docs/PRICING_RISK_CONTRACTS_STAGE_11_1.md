@@ -2,7 +2,7 @@
 
 Stage 11 begins the Pricing & Risk Engine with contracts rather than library bindings.
 
-The rule is deliberate: QuantLib and ORE will be adapters behind First Current domain objects. Their native object graphs are not allowed to become the operating system's source of truth.
+The rule is deliberate: QuantLib and ORE will be adapters behind QuantOS domain objects. Their native object graphs are not allowed to become the operating system's source of truth.
 
 ## Point-in-time market snapshots
 

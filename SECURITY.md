@@ -6,7 +6,7 @@ Please report vulnerabilities **privately**, through GitHub's "Report a vulnerab
 
 ## Scope and design
 
-First Current Quant OS is research software with **no live-capital path**. Security controls that are in scope:
+QuantOS is research software with **no live-capital path**. Security controls that are in scope:
 
 - **Secrets:** API keys come from `QUANTOS_SECRET_<NAME>` or a private secrets directory. Group- or world-readable secret files are refused. Secrets are redacted from logs and exports and are never placed in URLs.
 - **Egress:** every outbound request passes a host allowlist and the operator kill switch (`quantos kill-switch`).

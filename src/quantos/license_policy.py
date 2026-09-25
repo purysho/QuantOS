@@ -1,4 +1,4 @@
-"""Dependency license policy for First Current Quant OS (Apache-2.0).
+"""Dependency license policy for QuantOS (Apache-2.0).
 
 Every distribution in the locked runtime closure must be listed here with
 its reviewed SPDX license expression, and that expression must be allowed.
@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from enum import Enum
 from importlib.metadata import PackageNotFoundError, distribution
 
-PROJECT_DISTRIBUTION = "first-current-quant-os"
+PROJECT_DISTRIBUTION = "quantos"
 
 
 class LicenseTreatment(str, Enum):
@@ -70,7 +70,7 @@ REVIEWED_DEPENDENCY_LICENSES: dict[str, ReviewedDependencyLicense] = {
         ReviewedDependencyLicense("cvxpy", "Apache-2.0"),
         ReviewedDependencyLicense("cvxpy-base", "Apache-2.0"),
         ReviewedDependencyLicense("duckdb", "MIT"),
-        ReviewedDependencyLicense("exchange-calendars", "Apache-2.0", "external calendar engine behind First Current rules"),
+        ReviewedDependencyLicense("exchange-calendars", "Apache-2.0", "external calendar engine behind QuantOS rules"),
         ReviewedDependencyLicense("highspy", "MIT"),
         ReviewedDependencyLicense("idna", "BSD-3-Clause"),
         ReviewedDependencyLicense("jinja2", "BSD-3-Clause"),
@@ -228,7 +228,7 @@ def render_third_party_notices() -> str:
     lines = [
         "# Third-Party Notices",
         "",
-        "First Current Quant OS is licensed under Apache-2.0 (see LICENSE "
+        "QuantOS is licensed under Apache-2.0 (see LICENSE "
         "and NOTICE). The source repository does not vendor or modify the "
         "packages below; they are installed from their own distributions "
         "under their own licenses. Container and live-USB images do "
@@ -245,7 +245,7 @@ def render_third_party_notices() -> str:
         "These are allowed only while unmodified, installed as separate "
         "packages and imported dynamically, so a user can replace them with "
         "another compatible version. If any of them is ever modified, "
-        "vendored, statically linked or shipped inside a First Current "
+        "vendored, statically linked or shipped inside a QuantOS "
         "distribution, the obligations of its license (source availability "
         "of the modified component, license text, replaceability) must be "
         "reviewed before release.",

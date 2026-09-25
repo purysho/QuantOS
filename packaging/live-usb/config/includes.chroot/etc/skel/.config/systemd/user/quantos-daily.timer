@@ -1,5 +1,5 @@
 [Unit]
-Description=Run the First Current daily update after the US market close
+Description=Run the QuantOS daily update after the US market close
 
 [Timer]
 OnCalendar=Mon..Fri *-*-* 22:30:00 UTC

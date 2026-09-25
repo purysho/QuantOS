@@ -24,7 +24,7 @@ from quantos.execution_contracts import (
     TopOfBookQuote,
     TradePrint,
 )
-from quantos.execution_reference import FirstCurrentReferenceFillEngine
+from quantos.execution_reference import QuantOSReferenceFillEngine
 from quantos.pricing_risk_contracts import Currency
 
 UTC = timezone.utc
@@ -98,7 +98,7 @@ def simulate(events, p, **order):
         portfolio_solution_id="portfolio-solution:" + "p" * 64,
         replay_dataset=data,
         simulation_policy=p,
-        engine_name="FIRST_CURRENT_REFERENCE",
+        engine_name="QUANTOS_REFERENCE",
         engine_version="12.2",
         code_revision="git:stage12.8",
         created_at=AT,
@@ -117,7 +117,7 @@ def simulate(events, p, **order):
     with tempfile.TemporaryDirectory() as tmp:
         ledger = SimulationOrderLedger(Path(tmp) / "l.duckdb")
         try:
-            result = FirstCurrentReferenceFillEngine().simulate(
+            result = QuantOSReferenceFillEngine().simulate(
                 run=r, dataset=data, policy=p, instrument=A, intent=intent, ledger=ledger
             )
             fills = ledger.fills(intent.intent_id)

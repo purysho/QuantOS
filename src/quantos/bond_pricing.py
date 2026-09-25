@@ -210,7 +210,7 @@ class QuantLibFixedRateBondAdapter:
 
         if quantlib["settlement_date"] != settlement_date:
             raise ValueError(
-                "QuantLib settlement date differs from First Current contract"
+                "QuantLib settlement date differs from QuantOS contract"
             )
 
         differences = {

@@ -1,6 +1,6 @@
 # Stage 14 — OpenSourceRisk/Engine Differential Adapter
 
-Stage 11 deliberately stopped before OpenSourceRisk/Engine (ORE). Stage 14 introduces ORE only as an **independent comparison engine** behind First Current contracts. It is never the source of truth.
+Stage 11 deliberately stopped before OpenSourceRisk/Engine (ORE). Stage 14 introduces ORE only as an **independent comparison engine** behind QuantOS contracts. It is never the source of truth.
 
 ## 1. Frozen version and build
 
@@ -14,7 +14,7 @@ Stage 11 deliberately stopped before OpenSourceRisk/Engine (ORE). Stage 14 intro
 
 ORE's SWIG bindings share the SWIG runtime type table with the QuantLib Python package. With both loaded in one process, objects from one library are destroyed through the other's wrappers, and the interpreter crashes. This was observed on the second ORE run after QuantLib objects were created. ORE also keeps process-global QuantLib state and a global logger.
 
-First Current therefore runs ORE only in a child process, `python -m quantos.ore_worker`, which never imports QuantLib or First Current modules. It exchanges one JSON request and one JSON response. `OREEngineRunner`:
+QuantOS therefore runs ORE only in a child process, `python -m quantos.ore_worker`, which never imports QuantLib or QuantOS modules. It exchanges one JSON request and one JSON response. `OREEngineRunner`:
 
 - serializes launches;
 - enforces a timeout;

@@ -53,7 +53,7 @@ class AppServerTests(unittest.TestCase):
         with self.opener.open(self.server.origin + "/") as response:
             page = response.read().decode()
             csp = response.headers["Content-Security-Policy"]
-        self.assertIn("First Current", page)
+        self.assertIn("QuantOS", page)
         self.assertNotIn("<script>", page, "no inline scripts")
         self.assertIn("script-src 'self'", csp)
         self.assertIn("#token=", self.server.launch_url)
@@ -122,12 +122,12 @@ class AppServerTests(unittest.TestCase):
 class DesktopHomeTests(unittest.TestCase):
     def test_platform_home_and_portable_mode(self):
         with mock.patch("sys.platform", "linux"), mock.patch.dict(os.environ, {"XDG_DATA_HOME": "/xdg"}):
-            self.assertEqual(desktop_home(), Path("/xdg/FirstCurrent"))
+            self.assertEqual(desktop_home(), Path("/xdg/QuantOS"))
         with tempfile.TemporaryDirectory() as tmp:
-            exe = Path(tmp) / "FirstCurrent.exe"
-            (Path(tmp) / "FirstCurrent-data").mkdir()
+            exe = Path(tmp) / "QuantOS.exe"
+            (Path(tmp) / "QuantOS-data").mkdir()
             with mock.patch("sys.frozen", True, create=True), mock.patch("sys.executable", str(exe)):
-                self.assertEqual(desktop_home(), Path(tmp).resolve() / "FirstCurrent-data")
+                self.assertEqual(desktop_home(), Path(tmp).resolve() / "QuantOS-data")
 
 
 if __name__ == "__main__":

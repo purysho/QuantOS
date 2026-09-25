@@ -7,7 +7,7 @@ cross-checks, and hand-off to the Stage 13.4 research panel.
 
 Rules:
 
-* raw, unadjusted prices only are stored as facts; First Current applies its
+* raw, unadjusted prices only are stored as facts; QuantOS applies its
   own corporate actions (Stage 13.2). Provider-adjusted fields are kept for
   reconciliation, never used as truth;
 * a bar is known at capture time; a later capture that differs is a new

@@ -162,7 +162,7 @@ def ingest_sec(*, cik: int, db: str) -> int:
     user_agent = os.environ.get("SEC_USER_AGENT")
     if not user_agent:
         raise SystemExit(
-            "SEC_USER_AGENT is required, e.g. 'First Current Quant OS contact@example.com'"
+            "SEC_USER_AGENT is required, e.g. 'QuantOS contact@example.com'"
         )
     store = _store(db)
     try:
@@ -191,7 +191,7 @@ def capture_sec_document(
     user_agent = os.environ.get("SEC_USER_AGENT")
     if not user_agent:
         raise SystemExit(
-            "SEC_USER_AGENT is required, e.g. 'First Current Quant OS contact@example.com'"
+            "SEC_USER_AGENT is required, e.g. 'QuantOS contact@example.com'"
         )
 
     store = _store(db)
@@ -374,10 +374,10 @@ def _main() -> int:
 
     parser = argparse.ArgumentParser(
         prog="quantos",
-        description="First Current Quant OS: point-in-time investment research. "
+        description="QuantOS: point-in-time investment research. "
         "Start with `quantos setup`, then `quantos doctor` and `quantos daily`.",
     )
-    parser.add_argument("--version", action="version", version=f"First Current Quant OS {__version__}")
+    parser.add_argument("--version", action="version", version=f"QuantOS {__version__}")
     sub = parser.add_subparsers(dest="command", required=True)
 
     setup = sub.add_parser("setup", help="first-run setup: contact email, universe, optional free API keys")
@@ -398,7 +398,7 @@ def _main() -> int:
     analyze.add_argument("--as-of", default=None, help="knowledge time (ISO date or datetime, UTC); default now")
     analyze.add_argument("--years", type=int, default=10)
 
-    app = sub.add_parser("app", help="open the First Current control center in your browser")
+    app = sub.add_parser("app", help="open the QuantOS control center in your browser")
     app.add_argument("--port", type=int, default=0, help="loopback port (default: any free port)")
     app.add_argument("--no-browser", action="store_true", help="print the link instead of opening a browser")
     app.add_argument("--smoke-test", action="store_true", help="headless self-test (used by release builds)")

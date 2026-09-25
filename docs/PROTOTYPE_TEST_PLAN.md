@@ -1,4 +1,4 @@
-# Quant OS Prototype Test Plan
+# QuantOS Prototype Test Plan
 
 ## Objective
 

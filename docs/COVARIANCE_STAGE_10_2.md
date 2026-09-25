@@ -29,7 +29,7 @@ Changing the data, estimator, policy, security order, or library version changes
 
 ## Independent diagnostics
 
-After skfolio fits the estimator, First Current independently validates:
+After skfolio fits the estimator, QuantOS independently validates:
 
 - matrix shape;
 - finite values;

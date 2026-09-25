@@ -1,4 +1,4 @@
-// First Current control center. Talks only to this app's loopback API, with
+// QuantOS control center. Talks only to this app's loopback API, with
 // the per-launch token the app put in the URL fragment.
 const token = (() => {
   const match = location.hash.match(/token=([A-Za-z0-9_-]+)/);
@@ -63,7 +63,7 @@ function renderStatus(status) {
 }
 
 async function refresh() {
-  try { renderStatus(await api("status")); } catch (error) { notice(`Cannot reach the app: ${error.message}. Restart First Current.`, true); }
+  try { renderStatus(await api("status")); } catch (error) { notice(`Cannot reach the app: ${error.message}. Restart QuantOS.`, true); }
 }
 
 async function pollJob() {
@@ -134,9 +134,9 @@ $("doctor").addEventListener("click", async () => {
 
 $("quit").addEventListener("click", async () => {
   try { await api("quit", {}); } catch {}
-  document.body.replaceChildren(el("main", {}, el("div", { className: "card" }, el("h2", { textContent: "First Current has stopped." }),
+  document.body.replaceChildren(el("main", {}, el("div", { className: "card" }, el("h2", { textContent: "QuantOS has stopped." }),
     el("p", { className: "muted", textContent: "You can close this tab. Start the app again to continue." }))));
 });
 
-if (!token) notice("Open First Current from its app icon: this page needs the link the app opens for you.", true);
+if (!token) notice("Open QuantOS from its app icon: this page needs the link the app opens for you.", true);
 refresh().then(async () => { const job = await api("job").catch(() => null); if (job && job.running) pollJob(); });

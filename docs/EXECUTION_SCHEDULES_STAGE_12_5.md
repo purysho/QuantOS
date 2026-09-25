@@ -23,7 +23,7 @@ Stage 12.5 moves execution simulation from one order to a schedule: several simu
 
 ## Engine
 
-`ExecutionScheduleEngine` runs intents in submission order through the unchanged Stage 12.2 `FirstCurrentReferenceFillEngine`.
+`ExecutionScheduleEngine` runs intents in submission order through the unchanged Stage 12.2 `QuantOSReferenceFillEngine`.
 
 The reference model has no shared-liquidity semantics between orders. A later order on an instrument therefore may not be submitted before the earlier order on that instrument stopped working. Stop time is:
 

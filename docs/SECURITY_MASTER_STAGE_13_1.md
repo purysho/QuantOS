@@ -19,7 +19,7 @@ A ticker is never an identity. It is a time-bounded attribute of a listing, and 
 Every record carries:
 
 - `valid_from` / `valid_to`: world validity, with `valid_to` exclusive;
-- `knowledge_time`: when First Current learned the fact;
+- `knowledge_time`: when QuantOS learned the fact;
 - evidence references;
 - a logical `record_key`.
 

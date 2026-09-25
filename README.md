@@ -1,12 +1,12 @@
 <p align="center">
-  <a href="https://github.com/purysho/First-Current-Quant-OS-prototype/releases/latest"><img src="docs/images/hero.svg" alt="First Current: point-in-time investment research. Research what was known. Never trade." width="100%"></a>
+  <a href="https://github.com/purysho/QuantOS/releases/latest"><img src="docs/images/hero.svg" alt="QuantOS: point-in-time investment research. Research what was known. Never trade." width="100%"></a>
 </p>
 
 <p align="center">
-  <a href="https://github.com/purysho/First-Current-Quant-OS-prototype/releases/latest/download/FirstCurrent-Windows-x64.zip"><img alt="Download for Windows" src="https://img.shields.io/badge/Download-Windows-0078D6?style=for-the-badge&logo=windows&logoColor=white"></a>
-  <a href="https://github.com/purysho/First-Current-Quant-OS-prototype/releases/latest/download/FirstCurrent-macOS-arm64.dmg"><img alt="Download for macOS" src="https://img.shields.io/badge/Download-macOS-000000?style=for-the-badge&logo=apple&logoColor=white"></a>
-  <a href="https://github.com/purysho/First-Current-Quant-OS-prototype/releases/latest/download/FirstCurrent-Linux-x86_64.AppImage"><img alt="Download for Linux" src="https://img.shields.io/badge/Download-Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black"></a>
-  <a href="https://github.com/purysho/First-Current-Quant-OS-prototype/releases/latest/download/first-current-live-usb-amd64.iso"><img alt="Download the live USB" src="https://img.shields.io/badge/Download-Live%20USB-C9A44C?style=for-the-badge&logo=debian&logoColor=black"></a>
+  <a href="https://github.com/purysho/QuantOS/releases/latest/download/QuantOS-Windows-x64.zip"><img alt="Download for Windows" src="https://img.shields.io/badge/Download-Windows-0078D6?style=for-the-badge&logo=windows&logoColor=white"></a>
+  <a href="https://github.com/purysho/QuantOS/releases/latest/download/QuantOS-macOS-arm64.dmg"><img alt="Download for macOS" src="https://img.shields.io/badge/Download-macOS-000000?style=for-the-badge&logo=apple&logoColor=white"></a>
+  <a href="https://github.com/purysho/QuantOS/releases/latest/download/QuantOS-Linux-x86_64.AppImage"><img alt="Download for Linux" src="https://img.shields.io/badge/Download-Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black"></a>
+  <a href="https://github.com/purysho/QuantOS/releases/latest/download/quantos-live-usb-amd64.iso"><img alt="Download the live USB" src="https://img.shields.io/badge/Download-Live%20USB-C9A44C?style=for-the-badge&logo=debian&logoColor=black"></a>
 </p>
 
 <p align="center">
@@ -25,13 +25,13 @@
   <a href="CHANGELOG.md"><b>Changelog</b></a>
 </p>
 
-# First Current
+# QuantOS
 
 A free, open-source investment research workstation. It pulls official public data (SEC filings, US Treasury yields, ECB exchange rates, Federal Reserve data, Fama-French factors and new working papers) into one local, point-in-time database on your own computer. You then analyze it in a desktop app and a fast analytical terminal.
 
 Every number records where it came from and when it became knowable, so research never quietly uses information from the future. There's no account, no subscription and no API key, and it can never place a trade.
 
-![The First Current control center: one-button data updates and your setup](docs/images/app-control-center.png)
+![The QuantOS control center: one-button data updates and your setup](docs/images/app-control-center.png)
 
 ## Features
 
@@ -66,13 +66,13 @@ Every number records where it came from and when it became knowable, so research
 
 ## Download
 
-The buttons at the top always get the newest release; every file is also on the [Releases page](https://github.com/purysho/First-Current-Quant-OS-prototype/releases/latest). After installing, start with the **[User Guide](docs/USER_GUIDE.md)**.
+The buttons at the top always get the newest release; every file is also on the [Releases page](https://github.com/purysho/QuantOS/releases/latest). After installing, start with the **[User Guide](docs/USER_GUIDE.md)**.
 
-- **Windows 10/11:** unzip `FirstCurrent-Windows-x64.zip`, open the `FirstCurrent` folder and double-click `FirstCurrent.exe`. It needs no installation or admin rights, and it runs from a USB stick too (create a `FirstCurrent-data` folder beside the exe to keep your data with it).
-- **macOS 12+ (Apple Silicon):** open the `.dmg` and drag **First Current** to Applications.
-- **Linux (x86-64):** `chmod +x FirstCurrent-Linux-x86_64.AppImage`, then run it.
+- **Windows 10/11:** unzip `QuantOS-Windows-x64.zip`, open the `QuantOS` folder and double-click `QuantOS.exe`. It needs no installation or admin rights, and it runs from a USB stick too (create a `QuantOS-data` folder beside the exe to keep your data with it).
+- **macOS 12+ (Apple Silicon):** open the `.dmg` and drag **QuantOS** to Applications.
+- **Linux (x86-64):** `chmod +x QuantOS-Linux-x86_64.AppImage`, then run it.
 - **Any PC, nothing installed:** write the live-USB ISO to a stick with encrypted persistence ([guide](packaging/live-usb/README.md)).
-- **Docker/Podman:** `docker run --rm -it -v first-current:/quantos ghcr.io/purysho/first-current setup`, or use [`compose.yaml`](compose.yaml).
+- **Docker/Podman:** `docker run --rm -it -v quantos:/quantos ghcr.io/purysho/quantos setup`, or use [`compose.yaml`](compose.yaml).
 
 The app opens a control center in your browser. Everything runs on your own computer; nothing is hosted.
 
@@ -111,7 +111,7 @@ Keys stay on your machine in a private folder, never in URLs or logs. Each provi
   - QuantLib for pricing;
   - NautilusTrader for historical execution;
   - OpenSourceRisk/Engine for risk.
-  Each is checked against an independent First Current reference implementation, and disagreements are preserved.
+  Each is checked against an independent QuantOS reference implementation, and disagreements are preserved.
 - **FINOS Perspective** powers the terminal. The browser verifies every table's SHA-256 before showing it.
 - **Packaging:** a Debian 13 live-build image (free software only by default) and a hardened container that is non-root with a read-only root filesystem.
 - **Downloads** are built with PyInstaller on each OS's own runner. Each must pass its own self-test before a release is published, with checksums, an SBOM and provenance attestations.
@@ -131,4 +131,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the project's ground rules, and [SECU
 
 ## License
 
-[Apache-2.0](LICENSE). See [NOTICE](NOTICE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). First Current is research software; nothing it produces is investment advice.
+[Apache-2.0](LICENSE). See [NOTICE](NOTICE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). QuantOS is research software; nothing it produces is investment advice.

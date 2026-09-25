@@ -6,7 +6,7 @@ Stage 10.3 introduces the first optimizer that is allowed to choose portfolio we
 
 The MeanRisk optimizer does not estimate its own covariance. A private skfolio BaseCovariance adapter returns the exact Stage 10.2 CovarianceArtifact matrix.
 
-After fitting, First Current reads the covariance inside skfolio's fitted prior and compares it element-by-element with the frozen artifact. A mismatch fails closed.
+After fitting, QuantOS reads the covariance inside skfolio's fitted prior and compares it element-by-element with the frozen artifact. A mismatch fails closed.
 
 ## Objective
 
@@ -34,7 +34,7 @@ Minimum and maximum position weights are passed into MeanRisk and then independe
 
 Gross exposure and full-investment constraints are independently revalidated after solving.
 
-First Current's maximum_one_way_turnover is a **portfolio-level** turnover definition. skfolio's built-in max_turnover applies a limit to each asset's individual weight change, so Stage 10.3 does not substitute one for the other.
+QuantOS's maximum_one_way_turnover is a **portfolio-level** turnover definition. skfolio's built-in max_turnover applies a limit to each asset's individual weight change, so Stage 10.3 does not substitute one for the other.
 
 When a portfolio-level turnover limit is present, Stage 10.3 adds an explicit convex constraint:
 

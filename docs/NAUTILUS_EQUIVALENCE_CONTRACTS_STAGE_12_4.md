@@ -9,7 +9,7 @@ Stage 12.4 expands the Stage 12.3 NautilusTrader differential one behavior at a 
 - the single behavior it exercises;
 - its stage number;
 - its scope preconditions;
-- how First Current fields map to Nautilus;
+- how QuantOS fields map to Nautilus;
 - the fields the differential compares;
 - the reference/Nautilus divergences that were observed and are refused rather than tolerated.
 
@@ -70,7 +70,7 @@ Covers IOC and FOK orders that leave an unfilled remainder on the submission boo
 - FOK with a shortfall expires without any fill, whether or not partial fills are enabled.
 - Non-marketable IOC/FOK limit orders expire without any fill.
 
-Nautilus reports the venue cancel of an IOC/FOK remainder as `OrderCanceled`. The adapter maps it explicitly to First Current `EXPIRED` and keeps the raw Nautilus outcome in `raw_terminal_state = CANCELED`.
+Nautilus reports the venue cancel of an IOC/FOK remainder as `OrderCanceled`. The adapter maps it explicitly to QuantOS `EXPIRED` and keeps the raw Nautilus outcome in `raw_terminal_state = CANCELED`.
 
 **Observed divergence:** with partial fills disabled, the reference IOC takes nothing from a short book, while Nautilus IOC takes the displayed quantity. That fixture is refused.
 
@@ -79,7 +79,7 @@ Nautilus reports the venue cancel of an IOC/FOK remainder as `OrderCanceled`. Th
 Covers DAY/GTC limit orders that are not marketable on submission:
 
 - If a later quote reaches the limit exactly, with enough displayed liquidity for the whole order, both engines fill once at the limit price and at the time that quote arrives.
-- If no later quote makes the order marketable, the order is still working when the replay data ends. The adapter maps this to `EXPIRED` using the First Current horizon rule, and records `raw_terminal_state = OPEN_AT_HORIZON`.
+- If no later quote makes the order marketable, the order is still working when the replay data ends. The adapter maps this to `EXPIRED` using the QuantOS horizon rule, and records `raw_terminal_state = OPEN_AT_HORIZON`.
 - DAY fixtures may not cross a UTC date boundary.
 
 **Observed divergences, both refused:**

@@ -1,5 +1,5 @@
-# PyInstaller spec for the First Current desktop app (Windows, macOS, Linux).
-# Build: pyinstaller packaging/desktop/first_current.spec --noconfirm
+# PyInstaller spec for the QuantOS desktop app (Windows, macOS, Linux).
+# Build: pyinstaller packaging/desktop/quantos.spec --noconfirm
 # Env:   FC_VENDOR_DIR  offline Perspective assets (from `quantos terminal vendor`)
 import os
 import sys
@@ -28,7 +28,7 @@ hidden = [m for m in collect_submodules("quantos")
 hidden += ["pytz"]  # imported by DuckDB at runtime, invisible to static analysis
 
 a = Analysis(
-    [str(HERE / "first_current_app.py")],
+    [str(HERE / "quantos_app.py")],
     pathex=[str(ROOT / "src")],
     datas=datas,
     hiddenimports=hidden,
@@ -42,22 +42,22 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name="FirstCurrent",
+    name="QuantOS",
     console=sys.platform != "darwin",  # Windows/Linux: a small status window; closing it quits
     icon=icon if Path(icon).exists() else None,
     upx=False,
 )
-coll = COLLECT(exe, a.binaries, a.datas, name="FirstCurrent", upx=False)
+coll = COLLECT(exe, a.binaries, a.datas, name="QuantOS", upx=False)
 if sys.platform == "darwin":
     app = BUNDLE(
         coll,
-        name="First Current.app",
+        name="QuantOS.app",
         icon=icon if Path(icon).exists() else None,
-        bundle_identifier="io.github.purysho.firstcurrent",
+        bundle_identifier="io.github.purysho.quantos",
         info_plist={
             "CFBundleShortVersionString": os.environ.get("FC_VERSION", "0.0.0"),
             "CFBundleVersion": os.environ.get("FC_VERSION", "0.0.0"),
-            "NSHumanReadableCopyright": "Apache-2.0 · First Current Quant OS contributors",
+            "NSHumanReadableCopyright": "Apache-2.0 · QuantOS contributors",
             "LSMinimumSystemVersion": "12.0",
         },
     )

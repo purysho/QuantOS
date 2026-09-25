@@ -1,6 +1,6 @@
-# First Current Quant OS — container image (Apache-2.0).
+# QuantOS — container image (Apache-2.0).
 #
-#   docker build -t first-current -f Containerfile .
+#   docker build -t quantos -f Containerfile .
 #   docker compose run --rm quantos setup        # first run
 #   docker compose run --rm quantos daily
 #   docker compose up terminal                   # http://127.0.0.1:8765/
@@ -42,18 +42,18 @@ RUN --mount=type=secret,id=ca,required=false \
 
 FROM ${BASE_IMAGE}
 ARG VERSION=0.20.0
-LABEL org.opencontainers.image.title="First Current Quant OS" \
+LABEL org.opencontainers.image.title="QuantOS" \
       org.opencontainers.image.description="Free, open-source, point-in-time investment research OS (no live-capital path)" \
       org.opencontainers.image.licenses="Apache-2.0" \
       org.opencontainers.image.version="${VERSION}" \
-      org.opencontainers.image.source="https://github.com/purysho/First-Current-Quant-OS-prototype"
+      org.opencontainers.image.source="https://github.com/purysho/QuantOS"
 RUN apt-get update \
  && apt-get install -y --no-install-recommends ca-certificates tzdata tini \
  && rm -rf /var/lib/apt/lists/* \
  && useradd --create-home --uid 10001 --shell /usr/sbin/nologin quantos \
  && mkdir -p /quantos && chown quantos:quantos /quantos
 COPY --from=build /opt/quantos /opt/quantos
-COPY LICENSE NOTICE THIRD_PARTY_NOTICES.md /usr/share/doc/first-current-quant-os/
+COPY LICENSE NOTICE THIRD_PARTY_NOTICES.md /usr/share/doc/quantos/
 ENV PATH=/opt/quantos/venv/bin:$PATH \
     QUANTOS_HOME=/quantos \
     QUANTOS_VENDOR_DIR=/opt/quantos/vendor \

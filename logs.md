@@ -1,16 +1,16 @@
-# First Current Quant OS — Project Log
+# QuantOS — Project Log
 
 > The previous front-page README, kept for reference. The current front page is [README.md](README.md); the full build history is in [HANDOFF.md](HANDOFF.md) and [CHANGELOG.md](CHANGELOG.md).
 
 ---
 
-# First Current Quant OS
+# QuantOS
 
 **A free, open-source investment research operating system that can never trade.**
 
-First Current is a point-in-time research OS for fundamentals, valuation, portfolio, risk and execution research. Every number it shows can be traced to its source and to the moment it became knowable. It runs with **no API keys at all**, from a bootable USB stick, a container, or a plain Python install. It is licensed under Apache-2.0.
+QuantOS is a point-in-time research OS for fundamentals, valuation, portfolio, risk and execution research. Every number it shows can be traced to its source and to the moment it became knowable. It runs with **no API keys at all**, from a bootable USB stick, a container, or a plain Python install. It is licensed under Apache-2.0.
 
-![First Current terminal showing point-in-time SEC fundamentals](docs/images/terminal-fundamentals.png)
+![QuantOS terminal showing point-in-time SEC fundamentals](docs/images/terminal-fundamentals.png)
 
 <sub>Apple's reported total assets from SEC EDGAR, fetched without a key. Each row carries the filing it came from and the moment it became knowable. The FY2015 value was restated a year later, and both versions are kept.</sub>
 
@@ -20,7 +20,7 @@ First Current is a point-in-time research OS for fundamentals, valuation, portfo
 
 - **Point in time, always.** Every fact carries *event time* and *knowledge time*. A backtest can use only what was known then; a restatement is a new version, never an overwrite.
 - **Fail closed.** Missing, ambiguous or inconsistent data is reported, never guessed or filled.
-- **Independently verified engines.** QuantLib, NautilusTrader and OpenSourceRisk/Engine each sit behind a First Current contract and are checked against an independent reference implementation. Disagreements are preserved.
+- **Independently verified engines.** QuantLib, NautilusTrader and OpenSourceRisk/Engine each sit behind a QuantOS contract and are checked against an independent reference implementation. Disagreements are preserved.
 - **No capital path.** No broker connection, no order routing and no credentials for either exist in the code. Every artifact's authority is `NONE`.
 - **Free.** Official public sources work without signup. Optional free personal keys add stock prices and macro vintages.
 
@@ -82,7 +82,7 @@ The engine-by-engine inventory is in [docs/CAPABILITIES.md](docs/CAPABILITIES.md
 - `REFERENCE_MATCH_ONLY` means an engine reproduced a frozen historical fixture, not that live execution is validated.
 - `NO_TRADE`, `UNKNOWN`, `INCOMPLETE` and `INSUFFICIENT_EVIDENCE` are valid outcomes.
 
-Nothing First Current produces is investment advice.
+Nothing QuantOS produces is investment advice.
 
 ## Development
 

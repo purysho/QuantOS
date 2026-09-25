@@ -1,6 +1,6 @@
 # Stage 4 Complete — Research Intake v0.5.0
 
-Stage 4 turns First Current Quant OS into a live research-discovery system while preserving a strict separation between **interesting**, **verified source identity**, and **trusted claim**.
+Stage 4 turns QuantOS into a live research-discovery system while preserving a strict separation between **interesting**, **verified source identity**, and **trusted claim**.
 
 ## Proven flow
 

@@ -1,6 +1,6 @@
 # Contributing
 
-Thank you for helping. First Current Quant OS is Apache-2.0 licensed. By submitting a contribution you agree that it is licensed under the same terms (Apache-2.0, section 5), and that you have the right to submit it.
+Thank you for helping. QuantOS is Apache-2.0 licensed. By submitting a contribution you agree that it is licensed under the same terms (Apache-2.0, section 5), and that you have the right to submit it.
 
 ## Ground rules
 
@@ -9,7 +9,7 @@ These rules are what make the project trustworthy. Pull requests that weaken the
 1. **Point in time.** Every fact carries event time *and* knowledge time. Nothing may use information that was not known at the decision time.
 2. **Fail closed.** Missing, ambiguous or inconsistent input raises or is reported. It is never guessed, filled or silently skipped.
 3. **Content-addressed identity.** Artifacts are immutable and identified by a hash of their canonical content.
-4. **Independent validation.** An external engine (QuantLib, NautilusTrader, ORE, a data provider) sits behind a First Current contract and is checked against an independent reference. Mismatches are preserved, never tolerated.
+4. **Independent validation.** An external engine (QuantLib, NautilusTrader, ORE, a data provider) sits behind a QuantOS contract and is checked against an independent reference. Mismatches are preserved, never tolerated.
 5. **No live-capital path.** No code may place orders, hold broker credentials or grant external-order authority. Every artifact's authority stays `NONE`.
 
 ## Workflow

@@ -10,7 +10,7 @@ The worker now returns any requested ORE report (NPV, sensitivity, stress) as st
 
 ## 14.3 Fixed-rate bond
 
-`OREBondDifferential` maps a Stage 11.4 bond and its frozen curve to an ORE `Bond` trade. The trade has no credit curve, no security spread, the reference curve set to the First Current curve, NullCalendar and an Unadjusted Forward schedule. ORE is priced with `DiscountingRiskyBondEngine`.
+`OREBondDifferential` maps a Stage 11.4 bond and its frozen curve to an ORE `Bond` trade. The trade has no credit curve, no security spread, the reference curve set to the QuantOS curve, NullCalendar and an Unadjusted Forward schedule. ORE is priced with `DiscountingRiskyBondEngine`.
 
 ORE's NPV is compared with **both** the independent Stage 11.4 cash-flow reference and QuantLib.
 
@@ -33,15 +33,15 @@ Refused:
 
 The underlying's name is an opaque hash, so identifiers never break ORE's quote keys.
 
-ORE is compared with **both** a new First Current closed-form Black-Scholes-Merton reference (`black_scholes_merton_npv`, calls and puts, × multiplier) and QuantLib.
+ORE is compared with **both** a new QuantOS closed-form Black-Scholes-Merton reference (`black_scholes_merton_npv`, calls and puts, × multiplier) and QuantLib.
 
 ## 14.5 ORE SENSITIVITY versus single-pillar revaluations
 
 `ORESwapRiskAnalytics.sensitivity` runs ORE's own bucketed zero-rate sensitivity analytic, with 1bp absolute shifts on the discount and index curves.
 
-ORE's simulation-market grid is set to **exactly** the First Current pillar tenors. The curves must have identical, tenor-aligned pillars, and otherwise the run is refused. With that grid, ORE's zero shift at a grid point is economically identical to First Current shocking the pillar quote and rebuilding the curve.
+ORE's simulation-market grid is set to **exactly** the QuantOS pillar tenors. The curves must have identical, tenor-aligned pillars, and otherwise the run is refused. With that grid, ORE's zero shift at a grid point is economically identical to QuantOS shocking the pillar quote and rebuilding the curve.
 
-The caller supplies one Stage 11.6 revaluation per pillar, each a single absolute +1bp shock, covering every pillar of both curves exactly once. Each revaluation is re-verified, down to its rebuilt shocked curves. Each ORE `Delta` is then compared with the matching First Current scenario P&L.
+The caller supplies one Stage 11.6 revaluation per pillar, each a single absolute +1bp shock, covering every pillar of both curves exactly once. Each revaluation is re-verified, down to its rebuilt shocked curves. Each ORE `Delta` is then compared with the matching QuantOS scenario P&L.
 
 ## 14.6 ORE STRESS versus a Stage 11.6 scenario
 

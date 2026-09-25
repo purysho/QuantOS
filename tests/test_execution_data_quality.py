@@ -113,7 +113,7 @@ def intent(data, submitted_offset_ms):
         portfolio_solution_id="portfolio-solution:" + "p" * 64,
         replay_dataset=data,
         simulation_policy=p,
-        engine_name="FIRST_CURRENT_REFERENCE",
+        engine_name="QUANTOS_REFERENCE",
         engine_version="12.2",
         code_revision="git:stage12.7",
         created_at=AT,

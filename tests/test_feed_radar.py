@@ -257,7 +257,7 @@ class SSRNTests(unittest.TestCase):
 @unittest.skipUnless(os.environ.get("QUANTOS_LIVE_FEEDS") == "1", "set QUANTOS_LIVE_FEEDS=1 for the live smoke check")
 class LiveFeedSmokeTests(unittest.TestCase):
     def test_every_registered_feed_parses(self):
-        adapter = FeedRadarAdapter(user_agent="First Current Quant OS smoke (+https://github.com/purysho/First-Current-Quant-OS-prototype)")
+        adapter = FeedRadarAdapter(user_agent="QuantOS smoke (+https://github.com/purysho/QuantOS)")
         for source in FEED_REGISTRY:
             with self.subTest(source.source_id):
                 fetched = adapter.fetch(source_id=source.source_id, max_items=5)

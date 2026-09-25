@@ -1,6 +1,6 @@
 # Stage 10 Complete — Portfolio Construction & Shadow PAPER Controls
 
-Stage 10 builds the portfolio-construction layer on top of the Stage 9 Research Lab while preserving First Current's fail-closed authority model.
+Stage 10 builds the portfolio-construction layer on top of the Stage 9 Research Lab while preserving QuantOS's fail-closed authority model.
 
 ## 10.1 — Baseline construction
 
@@ -26,7 +26,7 @@ Stage 10 builds the portfolio-construction layer on top of the Stage 9 Research 
 - solver diagnostics preserved;
 - no optimizer fallback;
 - mandatory EqualWeight and InverseVolatility comparison lineage;
-- First Current portfolio-level one-way turnover enforced independently.
+- QuantOS portfolio-level one-way turnover enforced independently.
 
 ## 10.4 — Common out-of-sample comparison
 

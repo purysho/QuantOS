@@ -9,7 +9,7 @@ quantos terminal serve  --out data/terminal --port 8765       # http://127.0.0.1
 
 ## Design rule
 
-The terminal consumes immutable domain artifacts. It holds no business logic and has no write path. Every number shown was computed and stored by a First Current module; the UI only lays it out, using Perspective's pivot, filter, sort and chart tools on the exported rows.
+The terminal consumes immutable domain artifacts. It holds no business logic and has no write path. Every number shown was computed and stored by a QuantOS module; the UI only lays it out, using Perspective's pivot, filter, sort and chart tools on the exported rows.
 
 ## Export
 

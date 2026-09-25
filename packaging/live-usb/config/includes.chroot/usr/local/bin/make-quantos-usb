@@ -1,19 +1,19 @@
 #!/bin/sh
-# Writes the First Current ISO to a USB stick and adds an encrypted
+# Writes the QuantOS ISO to a USB stick and adds an encrypted
 # persistence partition in the remaining space.
 #
-#   sudo make-first-current-usb first-current-quant-os.iso /dev/sdX
+#   sudo make-quantos-usb quantos.iso /dev/sdX
 #
 # EVERYTHING ON THE TARGET DEVICE IS ERASED.
 set -eu
-ISO="${1:?usage: make-first-current-usb ISO DEVICE}"
-DEV="${2:?usage: make-first-current-usb ISO DEVICE}"
+ISO="${1:?usage: make-quantos-usb ISO DEVICE}"
+DEV="${2:?usage: make-quantos-usb ISO DEVICE}"
 [ "$(id -u)" = 0 ] || { echo "run as root (sudo)"; exit 1; }
 [ -b "$DEV" ] || { echo "$DEV is not a block device"; exit 1; }
 case "$DEV" in *[0-9]) echo "give the whole device (e.g. /dev/sdb), not a partition"; exit 1;; esac
 if grep -qs "^$DEV" /proc/mounts; then echo "$DEV is mounted; unmount it first"; exit 1; fi
 lsblk -o NAME,SIZE,MODEL,TRAN "$DEV"
-printf "\nErase %s and write First Current? Type YES: " "$DEV"; read answer; [ "$answer" = YES ] || exit 1
+printf "\nErase %s and write QuantOS? Type YES: " "$DEV"; read answer; [ "$answer" = YES ] || exit 1
 
 dd if="$ISO" of="$DEV" bs=4M conv=fsync status=progress
 sync

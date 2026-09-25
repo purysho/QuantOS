@@ -20,7 +20,7 @@ These choices are recorded in a content-addressed HierarchicalAllocationPolicy.
 
 HRP and HERC receive the exact Stage 10.2 covariance through the same FrozenCovarianceEstimator used by Stage 10.3.
 
-After fitting, First Current independently reads the fitted prior covariance and verifies that it equals the frozen artifact. A mismatch fails closed.
+After fitting, QuantOS independently reads the fitted prior covariance and verifies that it equals the frozen artifact. A mismatch fails closed.
 
 ## Cluster lineage
 
@@ -42,7 +42,7 @@ Every HierarchicalPortfolioSolution records:
 
 Stage 10.5 remains fully invested and long only.
 
-Weight, exposure, and optional First Current total one-way-turnover constraints are independently checked after allocation. HRP/HERC do not silently substitute a library-specific turnover concept for the operating-system policy.
+Weight, exposure, and optional QuantOS total one-way-turnover constraints are independently checked after allocation. HRP/HERC do not silently substitute a library-specific turnover concept for the operating-system policy.
 
 ## Common OOS evaluation
 

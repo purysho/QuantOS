@@ -22,7 +22,7 @@ Each paper carries three distinct clocks:
 
 - `published_at` — first arXiv publication timestamp;
 - `updated_at` — timestamp for the retrieved revision;
-- `discovered_at` — when First Current observed the feed.
+- `discovered_at` — when QuantOS observed the feed.
 
 The radar's deterministic discovery identity is based on provider + canonical paper ID + revision update timestamp. New revisions therefore create new discovery records rather than silently rewriting history.
 

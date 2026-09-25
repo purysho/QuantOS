@@ -100,7 +100,7 @@ def run():
         portfolio_solution_id="portfolio-solution:" + "p" * 64,
         replay_dataset=dataset(),
         simulation_policy=policy(),
-        engine_name="FIRST_CURRENT_REFERENCE",
+        engine_name="QUANTOS_REFERENCE",
         engine_version="12.1",
         code_revision="git:stage12.1",
         created_at=AT,
