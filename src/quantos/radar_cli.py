@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import argparse
 import os
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Protocol
 
 from .adapters.arxiv_radar import ARXIV_FINANCE_CATEGORIES, ArxivRadarAdapter, ArxivRadarFetch
+from .adapters.crossref_radar import FINANCE_JOURNAL_ISSNS, CrossrefRadarAdapter
 from .artifacts import SourceArtifactStore
 from .radar_triage import RadarTriageEngine, RadarTriageStore, TriageResult
 from .research_catalog import ResearchCatalog
@@ -45,6 +46,94 @@ def scan_arxiv(
     print_limit: int = 10,
     adapter: RadarAdapter | None = None,
 ) -> tuple[TriageResult, ...]:
+    def fetch(artifacts: SourceArtifactStore):
+        client = adapter or ArxivRadarAdapter(
+            user_agent=os.environ.get("ARXIV_USER_AGENT", DEFAULT_USER_AGENT)
+        )
+        return client.fetch(
+            categories=categories,
+            max_results=max_results,
+            start=0,
+            artifact_store=artifacts,
+        )
+
+    return _scan(
+        provider="arxiv",
+        label="ARXIV_RADAR",
+        fetch=fetch,
+        radar_db=radar_db,
+        artifact_root=artifact_root,
+        artifact_db=artifact_db,
+        triage_db=triage_db,
+        review_db=review_db,
+        queue_threshold=queue_threshold,
+        print_limit=print_limit,
+    )
+
+
+def scan_crossref(
+    *,
+    issns: tuple[str, ...],
+    from_index_date: date,
+    query: str | None,
+    max_results: int,
+    radar_db: str,
+    artifact_root: str,
+    artifact_db: str,
+    triage_db: str,
+    review_db: str,
+    queue_threshold: float = 0.50,
+    print_limit: int = 10,
+    adapter: CrossrefRadarAdapter | None = None,
+) -> tuple[TriageResult, ...]:
+    def fetch(artifacts: SourceArtifactStore):
+        if adapter is not None:
+            client = adapter
+        else:
+            mailto = os.environ.get("CROSSREF_MAILTO", "")
+            if not mailto:
+                raise SystemExit(
+                    "set CROSSREF_MAILTO to a contact address (Crossref etiquette)"
+                )
+            client = CrossrefRadarAdapter(
+                mailto=mailto,
+                user_agent=os.environ.get("CROSSREF_USER_AGENT", DEFAULT_USER_AGENT),
+            )
+        return client.fetch(
+            issns=issns,
+            from_index_date=from_index_date,
+            query=query,
+            max_results=max_results,
+            artifact_store=artifacts,
+        )
+
+    return _scan(
+        provider="crossref",
+        label="CROSSREF_RADAR",
+        fetch=fetch,
+        radar_db=radar_db,
+        artifact_root=artifact_root,
+        artifact_db=artifact_db,
+        triage_db=triage_db,
+        review_db=review_db,
+        queue_threshold=queue_threshold,
+        print_limit=print_limit,
+    )
+
+
+def _scan(
+    *,
+    provider: str,
+    label: str,
+    fetch,
+    radar_db: str,
+    artifact_root: str,
+    artifact_db: str,
+    triage_db: str,
+    review_db: str,
+    queue_threshold: float,
+    print_limit: int,
+) -> tuple[TriageResult, ...]:
     if not 1 <= print_limit <= 100:
         raise ValueError("print_limit must be between 1 and 100")
     if not 0.0 <= queue_threshold <= 1.0:
@@ -56,16 +145,8 @@ def scan_arxiv(
     triage = RadarTriageStore(triage_db)
     review = ResearchReviewQueue(review_db)
     try:
-        prior = list(radar.latest(provider="arxiv", limit=1000))
-        client = adapter or ArxivRadarAdapter(
-            user_agent=os.environ.get("ARXIV_USER_AGENT", DEFAULT_USER_AGENT)
-        )
-        fetched = client.fetch(
-            categories=categories,
-            max_results=max_results,
-            start=0,
-            artifact_store=artifacts,
-        )
+        prior = list(radar.latest(provider=provider, limit=1000))
+        fetched = fetch(artifacts)
         ingest = radar.ingest(fetched.items)
 
         engine = RadarTriageEngine()
@@ -98,7 +179,7 @@ def scan_arxiv(
             else "none"
         )
         print(
-            "ARXIV_RADAR",
+            label,
             f"fetched={len(fetched.items)}",
             f"inserted={ingest.inserted}",
             f"skipped={ingest.skipped_identical}",
@@ -304,6 +385,31 @@ def main() -> int:
     scan.add_argument("--print-limit", type=int, default=10)
 
 
+    crossref = sub.add_parser(
+        "scan-crossref",
+        help="scan Crossref DOI metadata for journal articles (needs CROSSREF_MAILTO)",
+    )
+    crossref.add_argument(
+        "--issn",
+        action="append",
+        dest="issns",
+        help="explicit journal ISSN; repeat for multiple journals",
+    )
+    crossref.add_argument(
+        "--from-index-date",
+        required=True,
+        help="only works (re)indexed by Crossref on or after this date (YYYY-MM-DD)",
+    )
+    crossref.add_argument("--query", default=None)
+    crossref.add_argument("--max-results", type=int, default=50)
+    crossref.add_argument("--radar-db", default="data/research-radar.duckdb")
+    crossref.add_argument("--artifact-root", default="data/artifacts")
+    crossref.add_argument("--artifact-db", default="data/artifacts.duckdb")
+    crossref.add_argument("--triage-db", default="data/radar-triage.duckdb")
+    crossref.add_argument("--review-db", default="data/research-review.duckdb")
+    crossref.add_argument("--queue-threshold", type=float, default=0.50)
+    crossref.add_argument("--print-limit", type=int, default=10)
+
     review_list = sub.add_parser("review-list", help="list research review queue items")
     review_list.add_argument("--review-db", default="data/research-review.duckdb")
     review_list.add_argument("--status", default="QUEUED")
@@ -399,6 +505,21 @@ def main() -> int:
             verifier=args.verifier,
             notes=args.notes,
         )
+    if args.command == "scan-crossref":
+        scan_crossref(
+            issns=tuple(args.issns) if args.issns else FINANCE_JOURNAL_ISSNS,
+            from_index_date=date.fromisoformat(args.from_index_date),
+            query=args.query,
+            max_results=args.max_results,
+            radar_db=args.radar_db,
+            artifact_root=args.artifact_root,
+            artifact_db=args.artifact_db,
+            triage_db=args.triage_db,
+            review_db=args.review_db,
+            queue_threshold=args.queue_threshold,
+            print_limit=args.print_limit,
+        )
+        return 0
     if args.command == "scan-arxiv":
         categories = (
             tuple(args.categories)
