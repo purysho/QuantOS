@@ -324,6 +324,43 @@ def audit_verify(*, db: str) -> int:
     return 0 if result.valid else 1
 
 
+def capture_market_data(
+    *,
+    provider: str,
+    symbol: str,
+    security_id: str,
+    start: str,
+    end: str,
+    db: str,
+    artifact_root: str,
+    artifact_db: str,
+) -> int:
+    from datetime import date
+
+    from .market_data import BarStore, PolygonDailyAdapter, TiingoEodAdapter
+    from .observability import span
+
+    adapter = {"tiingo": TiingoEodAdapter, "polygon": PolygonDailyAdapter}[provider]()
+    artifacts = SourceArtifactStore(artifact_root, artifact_db)
+    store = BarStore(db)
+    try:
+        with span("market-data", f"{provider}-capture", symbol=symbol):
+            capture = adapter.capture(
+                symbol=symbol,
+                security_id=security_id,
+                start=date.fromisoformat(start),
+                end=date.fromisoformat(end),
+                artifacts=artifacts,
+            )
+        counts = store.add(capture)
+    finally:
+        store.close()
+    print(f"capture_id={capture.capture_id}")
+    print(f"raw_artifact_id={capture.raw_artifact_id}")
+    print(f"bars={len(capture.bars)} " + " ".join(f"{k}={v}" for k, v in counts.items()))
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(prog="quantos")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -388,7 +425,30 @@ def main() -> int:
     audit = sub.add_parser("audit-verify", help="verify the hash chain of the audit log")
     audit.add_argument("--db", default="data/audit.duckdb")
 
+    market = sub.add_parser(
+        "market-data", help="capture raw daily bars from a licensed provider"
+    )
+    market.add_argument("--provider", choices=("tiingo", "polygon"), required=True)
+    market.add_argument("--symbol", required=True)
+    market.add_argument("--security-id", required=True)
+    market.add_argument("--start", required=True)
+    market.add_argument("--end", required=True)
+    market.add_argument("--db", default="data/market_data.duckdb")
+    market.add_argument("--artifact-root", default="data/artifacts")
+    market.add_argument("--artifact-db", default="data/artifacts.duckdb")
+
     args = parser.parse_args()
+    if args.command == "market-data":
+        return capture_market_data(
+            provider=args.provider,
+            symbol=args.symbol,
+            security_id=args.security_id,
+            start=args.start,
+            end=args.end,
+            db=args.db,
+            artifact_root=args.artifact_root,
+            artifact_db=args.artifact_db,
+        )
     if args.command == "kill-switch":
         return kill_switch_command(action=args.action, actor=args.actor, reason=args.reason, audit_db=args.audit_db)
     if args.command == "ops-report":
