@@ -290,6 +290,7 @@ class ModelRegistryState:
 @dataclass(frozen=True)
 class ModelTransition:
     transition_id: str
+    ordinal: int
     model_id: str
     manifest_id: str
     from_stage: ModelLifecycleStage
@@ -322,6 +323,7 @@ class ModelRegistry:
             """
             CREATE TABLE IF NOT EXISTS research_model_transitions (
                 transition_id VARCHAR PRIMARY KEY,
+                ordinal BIGINT NOT NULL,
                 model_id VARCHAR NOT NULL,
                 manifest_id VARCHAR NOT NULL,
                 from_stage VARCHAR NOT NULL,
@@ -359,10 +361,12 @@ class ModelRegistry:
         if current.manifest_id == manifest.manifest_id:
             return current
 
+        ordinal = self._next_transition_ordinal(manifest.model_id)
         reset = ModelTransition(
             transition_id=_transition_id(
                 model_id=manifest.model_id,
                 manifest_id=manifest.manifest_id,
+                ordinal=ordinal,
                 from_stage=current.stage,
                 to_stage=ModelLifecycleStage.RESEARCH,
                 transitioned_at=registered_at,
@@ -370,6 +374,7 @@ class ModelRegistry:
                 reason="MANIFEST_CHANGED_RESET",
                 evidence_references=(manifest.manifest_id,),
             ),
+            ordinal=ordinal,
             model_id=manifest.model_id,
             manifest_id=manifest.manifest_id,
             from_stage=current.stage,
@@ -446,10 +451,12 @@ class ModelRegistry:
                     "manifest lacks artifacts required for requested stage"
                 )
 
+        ordinal = self._next_transition_ordinal(manifest.model_id)
         transition = ModelTransition(
             transition_id=_transition_id(
                 model_id=manifest.model_id,
                 manifest_id=manifest.manifest_id,
+                ordinal=ordinal,
                 from_stage=current.stage,
                 to_stage=to_stage,
                 transitioned_at=transitioned_at,
@@ -457,6 +464,7 @@ class ModelRegistry:
                 reason=reason.strip(),
                 evidence_references=evidence_references,
             ),
+            ordinal=ordinal,
             model_id=manifest.model_id,
             manifest_id=manifest.manifest_id,
             from_stage=current.stage,
@@ -499,27 +507,28 @@ class ModelRegistry:
     def history(self, model_id: str) -> tuple[ModelTransition, ...]:
         rows = self._con.execute(
             """
-            SELECT transition_id, model_id, manifest_id, from_stage, to_stage,
-                   transitioned_at, transitioned_by, reason,
+            SELECT transition_id, ordinal, model_id, manifest_id, from_stage,
+                   to_stage, transitioned_at, transitioned_by, reason,
                    evidence_references_json
             FROM research_model_transitions
             WHERE model_id = ?
-            ORDER BY transitioned_at, transition_id
+            ORDER BY ordinal
             """,
             [model_id],
         ).fetchall()
         return tuple(
             ModelTransition(
                 transition_id=str(row[0]),
-                model_id=str(row[1]),
-                manifest_id=str(row[2]),
-                from_stage=ModelLifecycleStage(str(row[3])),
-                to_stage=ModelLifecycleStage(str(row[4])),
-                transitioned_at=row[5],
-                transitioned_by=str(row[6]),
-                reason=str(row[7]),
+                ordinal=int(row[1]),
+                model_id=str(row[2]),
+                manifest_id=str(row[3]),
+                from_stage=ModelLifecycleStage(str(row[4])),
+                to_stage=ModelLifecycleStage(str(row[5])),
+                transitioned_at=row[6],
+                transitioned_by=str(row[7]),
+                reason=str(row[8]),
                 evidence_references=tuple(
-                    json.loads(str(row[8]))
+                    json.loads(str(row[9]))
                 ),
             )
             for row in rows
@@ -566,7 +575,7 @@ class ModelRegistry:
     def _write_transition(self, transition: ModelTransition) -> None:
         existing = self._con.execute(
             """
-            SELECT model_id, manifest_id, from_stage, to_stage,
+            SELECT ordinal, model_id, manifest_id, from_stage, to_stage,
                    transitioned_at, transitioned_by, reason,
                    evidence_references_json
             FROM research_model_transitions
@@ -575,6 +584,7 @@ class ModelRegistry:
             [transition.transition_id],
         ).fetchone()
         expected = (
+            transition.ordinal,
             transition.model_id,
             transition.manifest_id,
             transition.from_stage.value,
@@ -586,14 +596,15 @@ class ModelRegistry:
         )
         if existing is not None:
             observed = (
-                str(existing[0]),
+                int(existing[0]),
                 str(existing[1]),
                 str(existing[2]),
                 str(existing[3]),
-                existing[4],
-                str(existing[5]),
+                str(existing[4]),
+                existing[5],
                 str(existing[6]),
                 str(existing[7]),
+                str(existing[8]),
             )
             if observed != expected:
                 raise ValueError("model transition identity conflict")
@@ -605,6 +616,17 @@ class ModelRegistry:
             """,
             [transition.transition_id, *expected],
         )
+
+    def _next_transition_ordinal(self, model_id: str) -> int:
+        row = self._con.execute(
+            """
+            SELECT COALESCE(MAX(ordinal), 0)
+            FROM research_model_transitions
+            WHERE model_id = ?
+            """,
+            [model_id],
+        ).fetchone()
+        return int(row[0]) + 1
 
     @staticmethod
     def _validate_actor_time(at: datetime, actor: str) -> None:
@@ -621,6 +643,7 @@ def _transition_id(
     *,
     model_id: str,
     manifest_id: str,
+    ordinal: int,
     from_stage: ModelLifecycleStage,
     to_stage: ModelLifecycleStage,
     transitioned_at: datetime,
@@ -633,6 +656,7 @@ def _transition_id(
         {
             "model_id": model_id,
             "manifest_id": manifest_id,
+            "ordinal": ordinal,
             "from_stage": from_stage.value,
             "to_stage": to_stage.value,
             "transitioned_at": transitioned_at.isoformat(),
