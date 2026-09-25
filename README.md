@@ -1,4 +1,4 @@
-# First Current Quant OS — Prototype v0.15.1
+# First Current Quant OS — Prototype v0.18.0
 
 A high-assurance quantitative research and valuation operating-system prototype built around one rule:
 
@@ -6,7 +6,7 @@ A high-assurance quantitative research and valuation operating-system prototype 
 
 The repository is research-only. It can ingest live information, construct reviewed evidence, build professional research cases, create point-in-time financial models, value businesses through multiple controlled frameworks, and run prospective shadow evaluation controls, but **live order authorization is disabled by construction**.
 
-## What v0.15.1 proves
+## What v0.18.0 proves
 
 ### Point-in-time foundation
 - separate event time and knowledge time
@@ -19,6 +19,8 @@ The repository is research-only. It can ingest live information, construct revie
 ### Research intake and claim trust
 - live arXiv metadata radar
 - Crossref DOI journal radar (finance journals, mandatory contact etiquette, precision-preserving dates)
+- SSRN working papers through Crossref (DOI prefix 10.2139, posted-date filter, mandatory query)
+- frozen feed registry for NBER, Federal Reserve (FEDS, IFDP, press releases, speeches), SEC press releases, BIS (working papers, central-bank speeches) and ECB (working papers, press releases); undated items are stamped first-seen and never back-dated; DOCTYPE/entity XML refused
 - immutable raw-feed provenance
 - deterministic attention triage and review quarantine
 - exact-source SHA-256 verification
@@ -246,7 +248,7 @@ Examples:
 - statistical non-rejection never becomes model approval;
 - no regulatory classification is inferred.
 
-### Simulation & Execution Engine — v0.12.9 baseline
+### Simulation & Execution Engine — v0.12.10 baseline
 
 **Execution contracts and reference oracle**
 - canonical execution instruments separate from venue symbols;
@@ -261,7 +263,8 @@ Examples:
 - exact comparison of final state, fill count, quantity, VWAP, total fees and the per-fill time/quantity/price/fee sequence;
 - observed reference/Nautilus divergences are recorded on each contract and refused rather than tolerated;
 - a match grants only `REFERENCE_MATCH_ONLY`; no network, external-order or capital authority;
-- a seventh contract runs one order per instrument across several instruments in one backtest and aggregates per-order differentials.
+- a seventh contract runs one order per instrument across several instruments in one backtest and aggregates per-order differentials;
+- Stage 12.10 resolves the recorded divergences by making each Nautilus behavior an explicit, non-default reference mode (next-quote activation, one-tick L1 market sweep, resting-limit fills at the limit price with per-level liquidity memory, half-even minor-unit fee rounding, IOC always-partial), each proven by its own frozen contract; twelve contracts in total, including a 120-trial randomized resting-limit differential.
 
 **Execution research and review**
 - multi-order execution schedules reconciled into inventory and cash; concurrent orders on one book fail closed; cash/short breaches preserved;
@@ -275,11 +278,29 @@ Examples:
 - corrections supersede by knowledge time and never leak backward;
 - corporate-action economics (dividends, splits, spin-offs, mergers, delistings) with split-only or total-return adjustment factors, total-return series and position transformations; missing prior closes, counterparty prices, delisting proceeds and spin-off basis allocations are reported, never inferred.
 
-### OpenSourceRisk/Engine differential — v0.14 baseline
+### Exchange calendars and research return panels — v0.13.4 baseline
+- frozen XNYS session calendar (2010–2030, early closes, unscheduled closures) matching `exchange_calendars` exactly over 5,279 sessions;
+- point-in-time research return panels from raw session closes and the reviewed corporate-action ledger: split-only or total-return, close-to-close in UTC, incomplete histories excluded rather than filled.
+
+### OpenSourceRisk/Engine differential — v0.14.6 baseline
 - pinned `open-source-risk-engine==1.8.17.0` as an optional `ore` extra behind First Current contracts;
 - ORE isolated in a child process (its SWIG bindings crash when sharing a process with QuantLib);
 - content-addressed ORE input bundles generated from frozen swap and curve artifacts;
-- swap NPV compared with the Stage 11.5 reference and QuantLib; Stage 11.6 scenario P&L compared cell by cell and across a cube.
+- swap NPV compared with the Stage 11.5 reference and QuantLib; Stage 11.6 scenario P&L compared cell by cell and across a cube;
+- fixed-rate bonds against the Stage 11.4 reference, European equity options against a closed-form Black–Scholes–Merton reference, and ORE's own sensitivity and stress analytics against single-pillar First Current revaluations.
+
+### Observability and security — v0.16 baseline
+- run and span tracing, redacted JSON-line events, error taxonomy, metrics and `quantos ops-report`;
+- secret provider (environment or private secrets directory), outbound egress allowlist enforced for every adapter, operator kill switch (`quantos kill-switch`), and a hash-chained audit log (`quantos audit-verify`).
+
+### Market-data provider pipeline — v0.17 baseline
+- Tiingo and Polygon end-of-day adapters (raw, unadjusted prices only), with keys from the secret provider sent in headers and exact responses archived;
+- revision-preserving bitemporal bar store, calendar completeness, staleness, OHLC and intraday-capture checks;
+- cross-provider close reconciliation and provider corporate-action cross-checks against the reviewed ledger; closes feed the research return panel.
+
+### Perspective terminal — v0.18 baseline
+- `quantos terminal export` writes an immutable, content-addressed, read-only export of every DuckDB store, mapped to the HANDOFF workspaces (Markets, Research Radar, Evidence, Financials, Valuation, Portfolio, Risk, Strategy Lab, PAPER, Execution, P&L/TCA, Audit);
+- `quantos terminal serve` serves it on loopback only, GET only, with a strict CSP; Perspective 3.8.0 is pinned with SRI, and the browser verifies every table's SHA-256 before display.
 
 ### Reproducibility and licensing
 - `uv.lock` universal lockfile plus hashed `requirements.lock`, enforced in CI;
@@ -388,7 +409,21 @@ CROSSREF_MAILTO=you@example.com quantos-radar scan-crossref --from-index-date 20
 quantos-radar review-list --status QUEUED
 ```
 
-A separate live smoke workflow makes a small real arXiv metadata request and stores only disposable CI artifacts.
+```bash
+CROSSREF_MAILTO=you@example.com quantos-radar scan-ssrn --query "factor momentum" --from-posted-date 2026-09-01
+quantos-radar scan-feeds                       # NBER, Fed, BIS and ECB working papers
+quantos-radar scan-feeds --source sec-press --source fed-press
+```
+
+A separate live smoke workflow makes a small real arXiv metadata request, parses every registered institutional feed, and stores only disposable CI artifacts.
+
+## Market data and terminal
+
+```bash
+QUANTOS_SECRET_TIINGO_API_KEY=... quantos market-data --provider tiingo --symbol SPY \
+    --security-id <id> --start 2026-01-02 --end 2026-09-24
+quantos terminal export && quantos terminal serve    # http://127.0.0.1:8765/
+```
 
 ## Safety semantics
 
