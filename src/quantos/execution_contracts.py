@@ -227,6 +227,10 @@ class HistoricalReplayDatasetBuilder:
             raise ValueError(
                 "historical replay event lies outside dataset interval"
             )
+        if any(item.knowledge_time > end_time for item in events):
+            raise ValueError(
+                "historical replay market data becomes known after dataset end"
+            )
         sequence_keys = [
             (item.execution_instrument_id, item.sequence)
             for item in events
@@ -1112,6 +1116,29 @@ def historical_replay_dataset_identity(
     )
 
 
+def execution_simulation_run_identity(
+    run: ExecutionSimulationRunManifest,
+) -> str:
+    return _content_id(
+        "execution-simulation-run",
+        {
+            "mode": run.mode.value,
+            "research_run_manifest_id": run.research_run_manifest_id,
+            "portfolio_solution_id": run.portfolio_solution_id,
+            "replay_dataset_id": run.replay_dataset_id,
+            "simulation_policy_id": run.simulation_policy_id,
+            "engine_name": run.engine_name,
+            "engine_version": run.engine_version,
+            "code_revision": run.code_revision,
+            "created_at": run.created_at.isoformat(),
+            "evidence_references": list(run.evidence_references),
+            "network_authority": run.network_authority,
+            "external_order_authority": run.external_order_authority,
+            "capital_authority": run.capital_authority,
+        },
+    )
+
+
 def simulation_order_intent_payload(
     intent: SimulationOrderIntent,
 ) -> dict[str, object]:
@@ -1179,7 +1206,7 @@ def simulated_fill_from_payload(
     payload: dict[str, object],
 ) -> SimulatedFill:
     return SimulatedFill(
-        fill_id=str(payload["fill_id"]),
+        fill_id=_content_id("simulated-fill", payload),
         run_id=str(payload["run_id"]),
         intent_id=str(payload["intent_id"]),
         execution_instrument_id=str(
