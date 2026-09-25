@@ -109,6 +109,20 @@ class ExportTests(unittest.TestCase):
         self.assertEqual(doc["schema"]["fiscal_year"], "string", "years are labels")
         self.assertEqual(doc["schema"]["label"], "string")
 
+    def test_default_views_are_shipped_only_when_every_column_exists(self):
+        from quantos.terminal import DEFAULT_VIEWS, _valid_view
+
+        export = self.export()
+        bars = next(t for t in export.tables if t.name == "daily_bars")
+        doc = json.loads((export.out_dir / bars.file).read_text())
+        self.assertEqual(doc["view"]["plugin"], "Y Line")
+        self.assertEqual(_valid_view({"columns": ["missing"]}, {"a": "float"}), None)
+        self.assertEqual(_valid_view({"expressions": {"X": '"nope" * 2'}, "columns": ["X"]}, {"a": "float"}), None)
+        self.assertIsNotNone(_valid_view({"expressions": {"X": '"a" * 2'}, "columns": ["X", "a"]}, {"a": "float"}))
+        for name, view in DEFAULT_VIEWS.items():
+            self.assertIn(name, TABLE_WORKSPACE, f"default view for unknown table {name}")
+            self.assertIn(view.get("plugin"), {"Datagrid", "Y Line", "Y Bar"})
+
     def test_secrets_are_scrubbed_and_row_limit_marks_truncation(self):
         export = self.export(row_limit=3)
         text = "".join(p.read_text() for p in (export.out_dir / "tables").iterdir())

@@ -34,7 +34,7 @@ async function loadTable(entry) {
   const doc = JSON.parse(new TextDecoder().decode(buffer));
   const table = await worker.table(doc.schema);
   if (doc.rows.length) await table.update(doc.rows);
-  const result = { table, columns: doc.columns || Object.keys(doc.schema) };
+  const result = { table, columns: doc.columns || Object.keys(doc.schema), view: doc.view || null };
   loaded.set(entry.file, result);
   return result;
 }
@@ -43,11 +43,18 @@ async function showTable(entry, button) {
   for (const b of $("tables").children) b.setAttribute("aria-selected", String(b === button));
   status(`Loading ${entry.name} …`);
   try {
-    const { table, columns } = await loadTable(entry);
-    // Apply the column order in the same draw as the load, so the datagrid
-    // measures widths for the columns it actually shows.
+    const { table, columns, view } = await loadTable(entry);
+    const base = { title: `${entry.workspace} · ${entry.name}`, columns, plugin: "Datagrid", plugin_config: { columns: {} },
+                   group_by: [], split_by: [], filter: [], sort: [], aggregates: {} };
+    // Apply the view in the same draw as the load, so the datagrid measures
+    // widths for the columns it actually shows. A view is presentation only;
+    // if it cannot be applied, the plain grid is shown instead.
     const loading = viewer.load(table);
-    await viewer.restore({ title: `${entry.workspace} · ${entry.name}`, columns, plugin_config: { columns: {} } });
+    try {
+      await viewer.restore(view ? { ...base, ...view } : base);
+    } catch (error) {
+      await viewer.restore(base);
+    }
     await loading;
     await viewer.flush();
     status(`${entry.name} — ${entry.rows} row(s)${entry.truncated ? " (truncated)" : ""} · source ${entry.source}`);

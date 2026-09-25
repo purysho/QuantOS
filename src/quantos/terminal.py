@@ -85,7 +85,7 @@ WORKSPACES: dict[str, tuple[str, ...]] = {
     ),
     "P&L / TCA": ("transaction_cost_reports",),
     "Audit / Lineage": (
-        "audit_log", "source_artifacts", "artifact_observations", "event_artifacts",
+        "artifact_observations", "audit_log", "source_artifacts", "event_artifacts",
         "environment_manifests", "spans",
     ),
 }
@@ -161,7 +161,7 @@ class TerminalExporter:
                     tables.append(self._export_table(con, name, relative, tables_dir))
             finally:
                 con.close()
-        tables.sort(key=lambda t: (t.workspace, t.name, t.source))
+        tables.sort(key=lambda t: (t.workspace, _table_rank(t), t.name, t.source))
         export_id = "terminal-export:" + hashlib.sha256(
             json.dumps([[t.file, t.sha256] for t in tables], sort_keys=True).encode()
         ).hexdigest()
@@ -205,7 +205,8 @@ class TerminalExporter:
         ]
         _flatten_payloads(schema, rows)
         _promote_numeric_text(schema, rows)
-        document = {"table": name, "source": source, "schema": schema, "columns": _column_order(schema, rows), "rows": rows}
+        document = {"table": name, "source": source, "schema": schema, "columns": _column_order(schema, rows),
+                    "view": _valid_view(DEFAULT_VIEWS.get(name), schema), "rows": rows}
         body = REDACTOR.redact(json.dumps(document, sort_keys=True, separators=(",", ":"), allow_nan=False)).encode()
         stem = source.removesuffix(".duckdb").replace("/", "__")
         file = f"tables/{stem}__{name}.json"
@@ -219,6 +220,62 @@ class TerminalExporter:
             truncated=total > len(rows),
             sha256=hashlib.sha256(body).hexdigest(),
         )
+
+
+def _table_rank(table: "TerminalTable") -> int:
+    order = WORKSPACES.get(table.workspace, ())
+    return order.index(table.name) if table.name in order else len(order)
+
+
+# Opening views: presentation only (a Perspective config), never data changes.
+_SERIES_LINE = {"plugin": "Y Line", "group_by": ["observation_date"], "split_by": ["series_id"],
+                "columns": ["value"], "aggregates": {"value": "avg"}, "sort": [["observation_date", "asc"]]}
+DEFAULT_VIEWS: dict[str, dict] = {
+    "public_observations": {**_SERIES_LINE, "filter": [
+        ["source", "==", "us-treasury"], ["series_id", "in", ["UST_PAR_3M", "UST_PAR_2Y", "UST_PAR_10Y", "UST_PAR_30Y"]]]},
+    "daily_bars": {"plugin": "Y Line", "group_by": ["session_date"], "split_by": ["provider_symbol"],
+                   "columns": ["close"], "aggregates": {"close": "last"}, "sort": [["session_date", "asc"]]},
+    "company_metrics": {"plugin": "Datagrid", "expressions": {
+        "Revenue $bn": '"revenue" / 1000000000',
+        "Growth %": '"revenue_growth" * 100',
+        "Gross margin %": '"gross_margin" * 100',
+        "Operating margin %": '"operating_margin" * 100',
+        "Net margin %": '"net_margin" * 100',
+        "FCF $bn": '"free_cash_flow" / 1000000000',
+        "ROE %": '"return_on_equity" * 100',
+    }, "columns": [
+        "ticker", "fiscal_year_end", "Revenue $bn", "Growth %", "Gross margin %", "Operating margin %",
+        "Net margin %", "eps_diluted", "FCF $bn", "ROE %", "debt_to_equity", "current_ratio", "validation_errors"],
+        "sort": [["ticker", "asc"], ["fiscal_year_end", "desc"]]},
+    "statement_validation_issues": {"plugin": "Datagrid", "columns": [
+        "ticker", "fiscal_year_end", "severity", "code", "message", "accession"],
+        "sort": [["ticker", "asc"], ["fiscal_year_end", "desc"]]},
+    "xbrl_facts": {"plugin": "Datagrid", "columns": [
+        "cik", "concept", "fiscal_year", "fiscal_period", "period_end", "value", "unit", "form", "filed",
+        "knowledge_time"], "filter": [["form", "==", "10-K"]], "sort": [["filed", "desc"]]},
+    "radar_items": {"plugin": "Datagrid", "columns": ["provider", "title", "published_at", "authors_json", "status"],
+                    "sort": [["published_at", "desc"]]},
+    "radar_triage": {"plugin": "Datagrid", "sort": [["attention_score", "desc"]]},
+    "research_review_queue": {"plugin": "Datagrid", "sort": [["queued_at", "desc"]]},
+    "artifact_observations": {"plugin": "Datagrid", "columns": ["source_uri", "fetched_at", "media_type", "artifact_id"],
+                              "sort": [["fetched_at", "desc"]]},
+    "audit_log": {"plugin": "Datagrid", "sort": [["sequence", "desc"]]},
+    "spans": {"plugin": "Datagrid", "sort": [["started_at", "desc"]]},
+}
+
+
+def _valid_view(view: dict | None, schema: dict[str, str]) -> dict | None:
+    """Drops a view that names a column the exported table does not have."""
+
+    if not view:
+        return None
+    named = set(view.get("columns", [])) | set(view.get("group_by", [])) | set(view.get("split_by", []))
+    named |= {entry[0] for entry in view.get("sort", [])} | {entry[0] for entry in view.get("filter", [])}
+    named |= set(view.get("aggregates", {}))
+    expressions = view.get("expressions", {})
+    referenced = {name for formula in expressions.values() for name in re.findall(r'"([^"]+)"', formula)}
+    available = set(schema) | set(expressions)
+    return dict(view) if named <= available and referenced <= set(schema) else None
 
 
 def _promote_numeric_text(schema: dict[str, str], rows: list[dict]) -> None:
