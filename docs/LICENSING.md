@@ -24,6 +24,8 @@ The copyright line names the GitHub owner (`purysho`). Replace it with a legal p
 - AGPL, GPL, PolyForm Noncommercial, BUSL and SSPL are prohibited for the core. That matches the earlier research on OpenBB, SilvioBaratto/optimizer and ArcticDB.
 - `THIRD_PARTY_NOTICES.md` is generated from the policy table, and a test keeps the two identical.
 
-Future integrations such as OpenSourceRisk/Engine (modified BSD), Perspective (Apache-2.0), Polars (MIT), Pandera (MIT) and exchange_calendars (Apache-2.0) must be added to the table when they enter the lockfile. Re-verify each license at that time.
+OpenSourceRisk/Engine (modified BSD) and exchange_calendars (Apache-2.0) are now in the lockfile and listed in the table. Future integrations such as Polars (MIT) and Pandera (MIT) must be added to the table when they enter the lockfile. Re-verify each license at that time.
+
+Browser assets (Stage 18): the terminal loads FINOS Perspective 3.8.0 (`@finos/perspective`, `-viewer`, `-viewer-datagrid`, `-viewer-d3fc`; all Apache-2.0) from jsDelivr at runtime. Nothing from it is vendored into the repository or the Python distribution. The files are pinned by exact version and SRI hash, so a version bump requires re-verifying the license and regenerating the hashes. Vendoring the assets for offline use would make them redistributed code and require including their NOTICE files.
 
 This is an engineering policy, not legal advice. Have counsel review it before any commercial distribution.

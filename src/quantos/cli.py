@@ -437,7 +437,26 @@ def main() -> int:
     market.add_argument("--artifact-root", default="data/artifacts")
     market.add_argument("--artifact-db", default="data/artifacts.duckdb")
 
+    terminal = sub.add_parser("terminal", help="export or serve the read-only Perspective terminal")
+    terminal.add_argument("action", choices=("export", "serve"))
+    terminal.add_argument("--data-dir", default="data")
+    terminal.add_argument("--out", default="data/terminal")
+    terminal.add_argument("--host", default="127.0.0.1")
+    terminal.add_argument("--port", type=int, default=8765)
+    terminal.add_argument("--row-limit", type=int, default=50_000)
+
     args = parser.parse_args()
+    if args.command == "terminal":
+        from .terminal import terminal_command
+
+        return terminal_command(
+            action=args.action,
+            data_dir=args.data_dir,
+            out_dir=args.out,
+            host=args.host,
+            port=args.port,
+            row_limit=args.row_limit,
+        )
     if args.command == "market-data":
         return capture_market_data(
             provider=args.provider,

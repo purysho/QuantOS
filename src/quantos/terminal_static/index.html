@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>First Current Terminal</title>
+  <!-- Perspective 3.8.0, pinned; entry modules are integrity-checked (SRI). -->
+  <link rel="stylesheet" crossorigin="anonymous"
+        href="https://cdn.jsdelivr.net/npm/@finos/perspective-viewer@3.8.0/dist/css/themes.css"
+        integrity="sha384-5qzqPjMwYSnjmvakeUS0mtfKXBkqiEURO0MZ2p6sPdHFtnEPxW5ISowTHCs3Qgsp">
+  <link rel="modulepreload" crossorigin="anonymous"
+        href="https://cdn.jsdelivr.net/npm/@finos/perspective@3.8.0/dist/cdn/perspective.js"
+        integrity="sha384-9DwYUQD2zOIB8DUho2rCVGOmM/ImKXOhdHBFN2ZuxKUMrADGFZA8llgN6uoP8ccV">
+  <script type="module" crossorigin="anonymous"
+          src="https://cdn.jsdelivr.net/npm/@finos/perspective-viewer@3.8.0/dist/cdn/perspective-viewer.js"
+          integrity="sha384-023uNhMc+BUAhqrqGNvSTM9enihEheHaNGABLBVslutlU0FOC72FXsfz8IRQNj0X"></script>
+  <script type="module" crossorigin="anonymous"
+          src="https://cdn.jsdelivr.net/npm/@finos/perspective-viewer-datagrid@3.8.0/dist/cdn/perspective-viewer-datagrid.js"
+          integrity="sha384-r66GjTqv+8z9jwf3TWKqNxAvhyYqBPjOUEv1FFin7G881EO7Vk+O0ZH2xSp20LfB"></script>
+  <script type="module" crossorigin="anonymous"
+          src="https://cdn.jsdelivr.net/npm/@finos/perspective-viewer-d3fc@3.8.0/dist/cdn/perspective-viewer-d3fc.js"
+          integrity="sha384-hse7ROsH2xcwWfT/vDX9pms643i97XVmvftM5wRsv5IFG8yJCbC5erf4WJCHamsc"></script>
+  <link rel="stylesheet" href="terminal.css">
+  <script type="module" src="terminal.js"></script>
+</head>
+<body>
+  <header>
+    <strong>First Current Terminal</strong>
+    <span class="badge" id="authority">READ-ONLY · AUTHORITY NONE</span>
+    <span id="export-id" class="muted"></span>
+    <span id="integrity" class="muted"></span>
+  </header>
+  <div id="layout">
+    <nav id="workspaces" aria-label="Workspaces"></nav>
+    <main>
+      <div id="tables" role="tablist" aria-label="Tables"></div>
+      <div id="status" class="muted" role="status"></div>
+      <perspective-viewer id="viewer" theme="Pro Light"></perspective-viewer>
+    </main>
+  </div>
+</body>
+</html>
