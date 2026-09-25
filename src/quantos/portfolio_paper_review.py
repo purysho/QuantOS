@@ -245,7 +245,7 @@ class PortfolioPaperReviewEngine:
             )
         )
 
-        oos_periods = len(selected.fold_outcomes)
+        oos_periods = len(comparison.fold_ids)
         if oos_periods < 1:
             raise ValueError("selected OOS evaluation contains no folds")
         oos_gmean = _geometric_mean_from_cumulative(
@@ -534,6 +534,26 @@ class PortfolioPaperReviewEngine:
             raise ValueError(
                 "authorized selected method is absent from OOS comparison"
             )
+        for evaluation in comparison.evaluations:
+            if tuple(
+                item.fold_id for item in evaluation.fold_outcomes
+            ) != comparison.fold_ids:
+                raise ValueError(
+                    "OOS evaluation fold outcomes differ from dossier fold IDs"
+                )
+            if tuple(
+                item.solution_id for item in evaluation.fold_outcomes
+            ) != evaluation.solution_ids:
+                raise ValueError(
+                    "OOS evaluation solution IDs differ from fold outcomes"
+                )
+            if any(
+                item.method is not evaluation.method
+                for item in evaluation.fold_outcomes
+            ):
+                raise ValueError(
+                    "OOS fold outcome method differs from evaluation method"
+                )
 
         ordered_observations = tuple(
             sorted(observations, key=lambda item: item.period_start)
