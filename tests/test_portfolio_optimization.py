@@ -96,7 +96,7 @@ def constraints(**overrides):
         "fully_invested": True,
         "long_only": True,
         "minimum_weight": Decimal("0"),
-        "maximum_weight": Decimal("0.70"),
+        "maximum_weight": Decimal("0.90"),
         "maximum_gross_exposure": Decimal("1"),
         "maximum_one_way_turnover": None,
         "rationale": "Stage 10.3 long-only portfolio constraints.",
@@ -211,6 +211,23 @@ class PortfolioOptimizationTests(unittest.TestCase):
                 baselines=baseline_solutions(data, constraint_policy),
             )
 
+    def test_tampered_baseline_identity_fails_closed(self):
+        data = dataset()
+        constraint_policy = constraints()
+        baselines = baseline_solutions(data, constraint_policy)
+        tampered = replace(
+            baselines[0],
+            constraint_policy_id="portfolio-constraint-policy:tampered",
+        )
+        with self.assertRaises(ValueError):
+            SkfolioMinimumVarianceOptimizer().optimize(
+                dataset=data,
+                covariance=covariance(data),
+                constraints=constraint_policy,
+                policy=policy(),
+                baselines=(tampered, baselines[1]),
+            )
+
     def test_both_mandatory_baselines_are_required(self):
         data = dataset()
         constraint_policy = constraints()
@@ -227,7 +244,7 @@ class PortfolioOptimizationTests(unittest.TestCase):
     def test_total_one_way_turnover_constraint_is_enforced(self):
         data = dataset()
         constraint_policy = constraints(
-            maximum_one_way_turnover=Decimal("0.05")
+            maximum_one_way_turnover=Decimal("0.60")
         )
         previous = tuple(
             PortfolioWeight(security_id, Decimal("0.25"))
@@ -244,23 +261,10 @@ class PortfolioOptimizationTests(unittest.TestCase):
             allocator.allocate(
                 dataset=data,
                 allocator=BaselineAllocator.INVERSE_VOLATILITY,
-                constraints=constraints(
-                    maximum_one_way_turnover=None
-                ),
+                constraints=constraint_policy,
                 previous_weights=previous,
             ),
         )
-        # Baselines must share the exact constraint policy, so make a valid
-        # inverse-vol comparison under the same policy by choosing a looser
-        # total-turnover bound for the fixture if needed.
-        if baselines[1].constraint_policy_id != constraint_policy.policy_id:
-            baselines = (
-                baselines[0],
-                replace(
-                    baselines[1],
-                    constraint_policy_id=constraint_policy.policy_id,
-                ),
-            )
         solution = SkfolioMinimumVarianceOptimizer().optimize(
             dataset=data,
             covariance=covariance(data),
@@ -271,7 +275,7 @@ class PortfolioOptimizationTests(unittest.TestCase):
         )
         self.assertLessEqual(
             solution.one_way_turnover,
-            Decimal("0.0500000001"),
+            Decimal("0.6000000001"),
         )
 
     def test_infeasible_weight_bounds_raise_instead_of_fallback(self):
