@@ -41,16 +41,22 @@ class FactorComponent:
 class FactorSpecification:
     name: str
     version: str
-    universe_id: str
+    universe_policy_id: str
     components: tuple[FactorComponent, ...]
     rationale: str
     evidence_references: tuple[str, ...]
+    pinned_universe_id: str | None = None
 
     def __post_init__(self) -> None:
         if not self.name.strip() or not self.version.strip():
             raise ValueError("factor name and version are required")
-        if not self.universe_id.startswith("investable-universe:"):
-            raise ValueError("factor must bind to an investable-universe ID")
+        if not self.universe_policy_id.startswith("universe-policy:"):
+            raise ValueError("factor must bind to a universe-policy ID")
+        if (
+            self.pinned_universe_id is not None
+            and not self.pinned_universe_id.startswith("investable-universe:")
+        ):
+            raise ValueError("pinned_universe_id must be an investable-universe ID")
         if not self.components:
             raise ValueError("factor requires at least one component")
         names = [item.feature_name for item in self.components]
@@ -76,7 +82,8 @@ class FactorSpecification:
             {
                 "name": self.name,
                 "version": self.version,
-                "universe_id": self.universe_id,
+                "universe_policy_id": self.universe_policy_id,
+                "pinned_universe_id": self.pinned_universe_id,
                 "components": [
                     {
                         "feature_name": item.feature_name,
@@ -193,8 +200,13 @@ class FactorEngine:
     ) -> FactorRun:
         if decision_time.tzinfo is None:
             raise ValueError("factor decision_time must be timezone-aware")
-        if specification.universe_id != universe.universe_id:
-            raise ValueError("factor specification is bound to another universe")
+        if specification.universe_policy_id != universe.policy_id:
+            raise ValueError("factor specification is bound to another universe policy")
+        if (
+            specification.pinned_universe_id is not None
+            and specification.pinned_universe_id != universe.universe_id
+        ):
+            raise ValueError("factor specification is pinned to another universe")
         if universe.as_of > decision_time:
             raise ValueError("factor decision_time cannot precede universe as_of")
         security_ids = universe.included_security_ids
