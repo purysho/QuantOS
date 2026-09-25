@@ -52,6 +52,9 @@ class _FrozenCovariance(BaseCovariance):
         return self
 
 
+FrozenCovarianceEstimator = _FrozenCovariance
+
+
 @dataclass(frozen=True)
 class MinimumVariancePolicy:
     solver: str
