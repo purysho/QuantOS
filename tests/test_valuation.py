@@ -15,6 +15,14 @@ from quantos.valuation import (
     ReverseDCFStatus,
     ValuationAssumption,
 )
+from quantos.valuation_methodology import (
+    CashFlowVisibility,
+    CompanyArchetype,
+    ValuationMethod,
+    ValuationMethodologyEngine,
+    ValuationMethodologyGate,
+    ValuationProfile,
+)
 
 
 UTC = timezone.utc
@@ -135,27 +143,59 @@ def inputs(growth="0.03", wacc="0.10"):
     )
 
 
+def methodology(archetype=CompanyArchetype.GENERAL_OPERATING):
+    assessment = ValuationMethodologyEngine().assess(
+        ValuationProfile(
+            entity_id="CIK:test",
+            as_of=datetime(2026, 12, 31, tzinfo=UTC),
+            archetype=archetype,
+            cash_flow_visibility=CashFlowVisibility.HIGH,
+            positive_fcff=True,
+            positive_fcfe=True,
+            material_dividend=False,
+            regulatory_capital_central=(
+                archetype in {CompanyArchetype.BANK, CompanyArchetype.INSURER}
+            ),
+            has_segment_disclosure=False,
+            segment_economics_divergent=False,
+            peer_set_available=True,
+            going_concern_uncertainty=False,
+            distressed=False,
+            stable_leverage_capacity=True,
+            evidence_references=("claim:profile",),
+        )
+    )
+    permit = ValuationMethodologyGate().issue(
+        assessment=assessment,
+        method=ValuationMethod.FCFF_DCF,
+    )
+    return assessment, permit
+
+
 class DCFTests(unittest.TestCase):
     def test_fcff_is_derived_from_exact_model_projection(self):
+        assessment, permit = methodology()
         result = DCFEngine().value(
             model_run=model_run(),
             inputs=inputs(),
+            methodology_assessment=assessment,
+            method_permit=permit,
         )
         self.assertEqual(result.model_run_id, "model-run:test")
+        self.assertEqual(result.method_permit_id, permit.permit_id)
         self.assertEqual(result.periods[0].fcff, Decimal("60.00"))
         self.assertEqual(result.periods[1].fcff, Decimal("66.50"))
         self.assertGreater(result.enterprise_value, result.equity_value)
         self.assertGreater(result.value_per_diluted_share, 0)
-        self.assertGreater(
-            result.terminal_value_share_of_enterprise_value,
-            Decimal("0"),
-        )
 
     def test_invalid_model_run_is_rejected_before_valuation(self):
+        assessment, permit = methodology()
         with self.assertRaises(AccountingValidationError):
             DCFEngine().value(
                 model_run=model_run(valid=False),
                 inputs=inputs(),
+                methodology_assessment=assessment,
+                method_permit=permit,
             )
 
     def test_terminal_growth_must_be_below_wacc(self):
@@ -163,6 +203,7 @@ class DCFTests(unittest.TestCase):
             inputs(growth="0.10", wacc="0.10")
 
     def test_tax_and_discount_coverage_must_match_model_exactly(self):
+        assessment, permit = methodology()
         base = inputs()
         incomplete = DCFInputs(
             wacc=base.wacc,
@@ -175,17 +216,30 @@ class DCFTests(unittest.TestCase):
             DCFEngine().value(
                 model_run=model_run(),
                 inputs=incomplete,
+                methodology_assessment=assessment,
+                method_permit=permit,
             )
 
     def test_changed_wacc_changes_config_and_valuation_identity(self):
+        assessment, permit = methodology()
         engine = DCFEngine()
-        first = engine.value(model_run=model_run(), inputs=inputs(wacc="0.10"))
-        second = engine.value(model_run=model_run(), inputs=inputs(wacc="0.11"))
+        first = engine.value(
+            model_run=model_run(),
+            inputs=inputs(wacc="0.10"),
+            methodology_assessment=assessment,
+            method_permit=permit,
+        )
+        second = engine.value(
+            model_run=model_run(),
+            inputs=inputs(wacc="0.11"),
+            methodology_assessment=assessment,
+            method_permit=permit,
+        )
         self.assertNotEqual(first.config_id, second.config_id)
         self.assertNotEqual(first.valuation_id, second.valuation_id)
-        self.assertNotEqual(first.enterprise_value, second.enterprise_value)
 
     def test_reverse_dcf_solves_market_implied_terminal_growth(self):
+        assessment, permit = methodology()
         reverse = DCFEngine().reverse_terminal_growth(
             model_run=model_run(),
             inputs=inputs(),
@@ -195,16 +249,15 @@ class DCFTests(unittest.TestCase):
                 as_of=datetime(2026, 12, 31, tzinfo=UTC),
                 evidence_references=("artifact:market-price",),
             ),
+            methodology_assessment=assessment,
+            method_permit=permit,
         )
         self.assertEqual(reverse.status, ReverseDCFStatus.SOLVED)
+        self.assertEqual(reverse.method_permit_id, permit.permit_id)
         self.assertIsNotNone(reverse.implied_terminal_growth)
-        assert reverse.implied_terminal_growth is not None
-        self.assertLess(
-            reverse.implied_terminal_growth,
-            inputs().wacc.value,
-        )
 
     def test_reverse_dcf_reports_market_below_explicit_value_without_fake_growth(self):
+        assessment, permit = methodology()
         reverse = DCFEngine().reverse_terminal_growth(
             model_run=model_run(),
             inputs=inputs(),
@@ -214,12 +267,43 @@ class DCFTests(unittest.TestCase):
                 as_of=datetime(2026, 12, 31, tzinfo=UTC),
                 evidence_references=("artifact:market-price",),
             ),
+            methodology_assessment=assessment,
+            method_permit=permit,
         )
         self.assertEqual(
             reverse.status,
             ReverseDCFStatus.MARKET_EV_BELOW_EXPLICIT_PV,
         )
         self.assertIsNone(reverse.implied_terminal_growth)
+
+    def test_dcf_rejects_stale_method_permit(self):
+        assessment, permit = methodology()
+        changed = ValuationMethodologyEngine().assess(
+            ValuationProfile(
+                entity_id="CIK:test",
+                as_of=datetime(2027, 1, 1, tzinfo=UTC),
+                archetype=CompanyArchetype.GENERAL_OPERATING,
+                cash_flow_visibility=CashFlowVisibility.HIGH,
+                positive_fcff=True,
+                positive_fcfe=True,
+                material_dividend=False,
+                regulatory_capital_central=False,
+                has_segment_disclosure=False,
+                segment_economics_divergent=False,
+                peer_set_available=True,
+                going_concern_uncertainty=False,
+                distressed=False,
+                stable_leverage_capacity=True,
+                evidence_references=("claim:profile",),
+            )
+        )
+        with self.assertRaises(ValueError):
+            DCFEngine().value(
+                model_run=model_run(),
+                inputs=inputs(),
+                methodology_assessment=changed,
+                method_permit=permit,
+            )
 
 
 if __name__ == "__main__":

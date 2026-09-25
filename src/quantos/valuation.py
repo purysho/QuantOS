@@ -9,6 +9,12 @@ from enum import Enum
 from typing import Protocol
 
 from .fundamental_schedules import ProjectionPeriod
+from .valuation_methodology import (
+    MethodPermit,
+    ValuationMethod,
+    ValuationMethodologyAssessment,
+    ValuationMethodologyGate,
+)
 
 
 class ValuationModelRun(Protocol):
@@ -156,6 +162,7 @@ class DCFResult:
     valuation_id: str
     model_run_id: str
     config_id: str
+    method_permit_id: str
     periods: tuple[FCFFPeriod, ...]
     terminal_value: Decimal
     present_value_terminal: Decimal
@@ -197,6 +204,7 @@ class ReverseDCFResult:
     reverse_valuation_id: str
     model_run_id: str
     config_id: str
+    method_permit_id: str
     status: ReverseDCFStatus
     market_equity_value: Decimal
     market_enterprise_value: Decimal
@@ -213,7 +221,14 @@ class DCFEngine:
         *,
         model_run: ValuationModelRun,
         inputs: DCFInputs,
+        methodology_assessment: ValuationMethodologyAssessment,
+        method_permit: MethodPermit,
     ) -> DCFResult:
+        ValuationMethodologyGate.validate(
+            assessment=methodology_assessment,
+            permit=method_permit,
+            required_method=ValuationMethod.FCFF_DCF,
+        )
         model_run.require_valid()
         projections = tuple(model_run.projections)
         if not projections:
@@ -313,6 +328,7 @@ class DCFEngine:
         valuation_id = make_valuation_id(
             model_run_id=model_run.model_run_id,
             config_id=config_id,
+            method_permit_id=method_permit.permit_id,
             enterprise_value=enterprise_value,
             equity_value=equity_value,
             per_share=per_share,
@@ -321,6 +337,7 @@ class DCFEngine:
             valuation_id=valuation_id,
             model_run_id=model_run.model_run_id,
             config_id=config_id,
+            method_permit_id=method_permit.permit_id,
             periods=ordered,
             terminal_value=terminal_value,
             present_value_terminal=pv_terminal,
@@ -337,8 +354,15 @@ class DCFEngine:
         model_run: ValuationModelRun,
         inputs: DCFInputs,
         market: MarketPriceReference,
+        methodology_assessment: ValuationMethodologyAssessment,
+        method_permit: MethodPermit,
     ) -> ReverseDCFResult:
-        forward = self.value(model_run=model_run, inputs=inputs)
+        forward = self.value(
+            model_run=model_run,
+            inputs=inputs,
+            methodology_assessment=methodology_assessment,
+            method_permit=method_permit,
+        )
         bridge = inputs.equity_bridge
         market_equity = market.price_per_share * market.diluted_shares
         market_ev = (
@@ -356,6 +380,7 @@ class DCFEngine:
         reverse_id_payload = {
             "model_run_id": model_run.model_run_id,
             "config_id": forward.config_id,
+            "method_permit_id": method_permit.permit_id,
             "market_price": str(market.price_per_share),
             "market_shares": str(market.diluted_shares),
             "market_as_of": market.as_of.isoformat(),
@@ -369,6 +394,7 @@ class DCFEngine:
                 ),
                 model_run_id=model_run.model_run_id,
                 config_id=forward.config_id,
+                method_permit_id=method_permit.permit_id,
                 status=ReverseDCFStatus.MARKET_EV_BELOW_EXPLICIT_PV,
                 market_equity_value=market_equity,
                 market_enterprise_value=market_ev,
@@ -406,6 +432,7 @@ class DCFEngine:
             ),
             model_run_id=model_run.model_run_id,
             config_id=forward.config_id,
+            method_permit_id=method_permit.permit_id,
             status=status,
             market_equity_value=market_equity,
             market_enterprise_value=market_ev,
@@ -484,6 +511,7 @@ def make_valuation_id(
     *,
     model_run_id: str,
     config_id: str,
+    method_permit_id: str,
     enterprise_value: Decimal,
     equity_value: Decimal,
     per_share: Decimal,
@@ -493,6 +521,7 @@ def make_valuation_id(
         {
             "model_run_id": model_run_id,
             "config_id": config_id,
+            "method_permit_id": method_permit_id,
             "enterprise_value": str(enterprise_value),
             "equity_value": str(equity_value),
             "per_share": str(per_share),
