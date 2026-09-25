@@ -307,7 +307,7 @@ class ExecutionScheduleEngine:
                 ledger=ledger,
             )
             order_fills = ledger.fills(intent.intent_id)
-            working_until[intent.execution_instrument_id] = _terminal_time(
+            working_until[intent.execution_instrument_id] = reference_order_terminal_time(
                 intent=intent,
                 result=result,
                 fills=order_fills,
@@ -521,7 +521,7 @@ def execution_schedule_result_identity(result: ExecutionScheduleResult) -> str:
     )
 
 
-def _terminal_time(
+def reference_order_terminal_time(
     *,
     intent: SimulationOrderIntent,
     result: ReferenceExecutionResult,
