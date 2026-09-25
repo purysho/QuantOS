@@ -1,1 +1,56 @@
-# Stage 10.4 — Common Out-of-Sample Portfolio Comparison\n\nStage 10.4 prevents portfolio-method selection from being driven by in-sample optimizer fit.\n\n## Common OOS folds\n\nEqualWeight, InverseVolatility, and MinimumVariance must be evaluated on the exact same frozen out-of-sample intervals and security returns.\n\nEach fold requires authentic content-addressed baseline and optimized solutions. The optimized solution must cite the exact two baseline IDs used in that fold.\n\nWithin a fold all three methods must share the same Stage 9 model/manifest, training PortfolioDataset, constraint policy, security set, and decision time. The decision must occur no later than the OOS period start.\n\nOOS periods must be chronological and non-overlapping.\n\n## Implementation economics\n\nOne common PortfolioComparisonPolicy supplies implementation cost in basis points per unit of security traded notional.\n\nSecurity traded notional is recomputed directly from target and prior weights. It is not inferred from an optimizer objective or silently replaced with a library-specific turnover definition.\n\nEvery method reports gross return, implementation cost, and net return per fold.\n\n## Realized OOS diagnostics\n\nFor each method the dossier reports:\n\n- cumulative OOS net return;\n- realized period-return volatility;\n- maximum drawdown;\n- historical expected-shortfall return at an explicit confidence;\n- total implementation-cost rate;\n- average one-way turnover;\n- average effective number of assets (1 / sum(w²));\n- maximum absolute weight;\n- market-benchmark-relative terminal wealth return.\n\nThese are realized OOS diagnostics. The MinimumVariance solver's in-sample objective value is not used as an OOS performance metric.\n\n## No automatic winner\n\nPortfolioComparisonDossier has no `selected_method` field.\n\nIt explicitly records:\n\n- `selection_authority = NONE`;\n- `capital_authority = NONE`.\n\nThe system therefore cannot promote MinimumVariance merely because it achieved the lowest in-sample variance.\n\n## Persistence\n\nPortfolioComparisonDossierStore persists the complete comparison artifact idempotently.\n\n## Next slice\n\nStage 10.5 should add hierarchical risk-based candidates (HRP and HERC) behind the same contracts, then require them to enter this identical common-OOS comparison process rather than introducing a separate evaluation path.
+# Stage 10.4 — Common Out-of-Sample Portfolio Comparison
+
+Stage 10.4 prevents portfolio-method selection from being driven by in-sample optimizer fit.
+
+## Common OOS folds
+
+EqualWeight, InverseVolatility, and MinimumVariance must be evaluated on the exact same frozen out-of-sample intervals and security returns.
+
+Each fold requires authentic content-addressed baseline and optimized solutions. The optimized solution must cite the exact two baseline IDs used in that fold.
+
+Within a fold all three methods must share the same Stage 9 model/manifest, training PortfolioDataset, constraint policy, security set, and decision time. The decision must occur no later than the OOS period start.
+
+OOS periods must be chronological and non-overlapping.
+
+## Implementation economics
+
+One common PortfolioComparisonPolicy supplies implementation cost in basis points per unit of security traded notional.
+
+Security traded notional is recomputed directly from target and prior weights. It is not inferred from an optimizer objective or silently replaced with a library-specific turnover definition.
+
+Every method reports gross return, implementation cost, and net return per fold.
+
+## Realized OOS diagnostics
+
+For each method the dossier reports:
+
+- cumulative OOS net return;
+- realized period-return volatility;
+- maximum drawdown;
+- historical expected-shortfall return at an explicit confidence;
+- total implementation-cost rate;
+- average one-way turnover;
+- average effective number of assets (1 / sum(w²));
+- maximum absolute weight;
+- market-benchmark-relative terminal wealth return.
+
+These are realized OOS diagnostics. The MinimumVariance solver's in-sample objective value is not used as an OOS performance metric.
+
+## No automatic winner
+
+PortfolioComparisonDossier has no `selected_method` field.
+
+It explicitly records:
+
+- `selection_authority = NONE`;
+- `capital_authority = NONE`.
+
+The system therefore cannot promote MinimumVariance merely because it achieved the lowest in-sample variance.
+
+## Persistence
+
+PortfolioComparisonDossierStore persists the complete comparison artifact idempotently.
+
+## Next slice
+
+Stage 10.5 should add hierarchical risk-based candidates (HRP and HERC) behind the same contracts, then require them to enter this identical common-OOS comparison process rather than introducing a separate evaluation path.

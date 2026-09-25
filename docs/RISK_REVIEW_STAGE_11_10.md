@@ -1,1 +1,55 @@
-# Stage 11.10 — Exception Independence & Risk Review Dossier\n\nStage 11.10 closes First Current's independent Stage 11 risk layer before any OpenSourceRisk/Engine adapter is trusted.\n\n## Exception independence\n\nStage 11.9 tests unconditional exception frequency. Stage 11.10 adds a Christoffersen first-order independence diagnostic for exception clustering.\n\nOnly exactly contiguous realized periods create transitions. Gaps split the sequence and do not become fabricated no-exception observations.\n\nThe diagnostic records n00, n01, n10 and n11 transition counts, LR_ind and its chi-square df=1 p-value.\n\nConditional-coverage LR_cc is the sum of the upstream Kupiec LR_uc and LR_ind. Its chi-square df=2 survival probability is also recorded.\n\nThe first structural floor is 19 contiguous transitions. A shorter or fragmented sequence remains INSUFFICIENT_EVIDENCE.\n\nStatistical non-rejection is called WITHIN_TEST_TOLERANCE, never APPROVED.\n\n## Two-person risk review\n\nRiskReviewDossier requires a named reviewer and a different independent challenger.\n\nIt binds:\n\n- one exact COMPLETE deterministic PortfolioRiskCube;\n- the current exact historical-simulation VaR/ES estimate;\n- its exact historical risk policy;\n- prospective unconditional-coverage calibration;\n- exception-independence / conditional-coverage diagnostic;\n- frozen concentration and deterministic worst-scenario-loss review thresholds;\n- explicit limitations;\n- challenger objections and unresolved objections;\n- evidence references.\n\n## Review states\n\nINSUFFICIENT_EVIDENCE applies when required prospective calibration or independence evidence has not reached its frozen minimum.\n\nREVIEW_REQUIRED applies when statistical calibration is flagged, concentration exceeds policy, deterministic worst scenario loss exceeds policy, a required ratio is unavailable, or the independent challenger has an unresolved objection.\n\nWITHIN_POLICY means only that the supplied research evidence did not breach those frozen rules.\n\n## Stress and concentration semantics\n\nMaximum concentration remains absolute base NPV share from Stage 11.7; it is not notional, delta or regulatory exposure.\n\nWorst deterministic scenario loss is the largest non-negative loss across the supplied stress set. Dividing it by gross base NPV produces a review ratio, not a probability or VaR measure.\n\n## Authority boundary\n\nEvery risk-review dossier records approval_authority = NONE, live_authority = NONE, order_authority = NONE and capital_authority = NONE.\n\n## Next step\n\nWith this independent baseline in place, a later Stage 11.x adapter may integrate OpenSourceRisk/Engine as a separately versioned comparator. ORE outputs should be accepted only after exact input mapping, engine/version provenance and differential checks against First Current deterministic stress and supported distributional-risk fixtures.
+# Stage 11.10 — Exception Independence & Risk Review Dossier
+
+Stage 11.10 closes First Current's independent Stage 11 risk layer before any OpenSourceRisk/Engine adapter is trusted.
+
+## Exception independence
+
+Stage 11.9 tests unconditional exception frequency. Stage 11.10 adds a Christoffersen first-order independence diagnostic for exception clustering.
+
+Only exactly contiguous realized periods create transitions. Gaps split the sequence and do not become fabricated no-exception observations.
+
+The diagnostic records n00, n01, n10 and n11 transition counts, LR_ind and its chi-square df=1 p-value.
+
+Conditional-coverage LR_cc is the sum of the upstream Kupiec LR_uc and LR_ind. Its chi-square df=2 survival probability is also recorded.
+
+The first structural floor is 19 contiguous transitions. A shorter or fragmented sequence remains INSUFFICIENT_EVIDENCE.
+
+Statistical non-rejection is called WITHIN_TEST_TOLERANCE, never APPROVED.
+
+## Two-person risk review
+
+RiskReviewDossier requires a named reviewer and a different independent challenger.
+
+It binds:
+
+- one exact COMPLETE deterministic PortfolioRiskCube;
+- the current exact historical-simulation VaR/ES estimate;
+- its exact historical risk policy;
+- prospective unconditional-coverage calibration;
+- exception-independence / conditional-coverage diagnostic;
+- frozen concentration and deterministic worst-scenario-loss review thresholds;
+- explicit limitations;
+- challenger objections and unresolved objections;
+- evidence references.
+
+## Review states
+
+INSUFFICIENT_EVIDENCE applies when required prospective calibration or independence evidence has not reached its frozen minimum.
+
+REVIEW_REQUIRED applies when statistical calibration is flagged, concentration exceeds policy, deterministic worst scenario loss exceeds policy, a required ratio is unavailable, or the independent challenger has an unresolved objection.
+
+WITHIN_POLICY means only that the supplied research evidence did not breach those frozen rules.
+
+## Stress and concentration semantics
+
+Maximum concentration remains absolute base NPV share from Stage 11.7; it is not notional, delta or regulatory exposure.
+
+Worst deterministic scenario loss is the largest non-negative loss across the supplied stress set. Dividing it by gross base NPV produces a review ratio, not a probability or VaR measure.
+
+## Authority boundary
+
+Every risk-review dossier records approval_authority = NONE, live_authority = NONE, order_authority = NONE and capital_authority = NONE.
+
+## Next step
+
+With this independent baseline in place, a later Stage 11.x adapter may integrate OpenSourceRisk/Engine as a separately versioned comparator. ORE outputs should be accepted only after exact input mapping, engine/version provenance and differential checks against First Current deterministic stress and supported distributional-risk fixtures.

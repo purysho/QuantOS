@@ -1,1 +1,64 @@
-# Stage 12.1 — Simulation & Execution Contracts\n\nStage 12 begins the Simulation & Execution Engine by freezing First Current's execution semantics before NautilusTrader is introduced.\n\n## Engine boundary\n\nNautilusTrader will be an adapter behind these contracts. Native Nautilus order objects, event models and account state will not become First Current's source of truth.\n\n## Execution instruments\n\nExecutionInstrument separates canonical instrument identity from venue and symbol identity and freezes asset class, quote currency, price increment, quantity increment, minimum quantity and contract multiplier.\n\nOrder quantities and limit prices must align exactly to configured increments.\n\n## Point-in-time market events\n\nStage 12.1 defines top-of-book quotes and trade prints with separate event_time and knowledge_time, per-instrument sequence and source fact IDs.\n\nMarket data cannot be known before it occurs. Locked/crossed top-of-book data fails closed.\n\nHistoricalReplayDataset canonicalizes events by knowledge chronology and preserves both event identities and a nested source-lineage fingerprint. Tampering with a nested event invalidates dataset identity.\n\n## Simulation policy\n\nExecutionSimulationPolicy freezes market latency, order latency, commission, slippage, market impact, maximum participation and partial-fill behavior with evidence references.\n\nNo randomness is hidden in the Stage 12.1 contract.\n\n## Run manifest\n\nExecutionSimulationRunManifest binds one Research Run Manifest, one portfolio solution, one exact historical replay dataset, one simulation policy, engine name/version and code revision.\n\nStage 12.1 supports HISTORICAL_REPLAY only. Every run records network_authority = NONE, external_order_authority = NONE and capital_authority = NONE.\n\n## Simulated order intent\n\nSimulationOrderIntent supports MARKET and LIMIT orders with BUY/SELL direction and DAY/GTC/IOC/FOK time-in-force.\n\nThese are simulation artifacts, not broker instructions. They carry simulation_authority = HISTORICAL_REPLAY_ONLY and explicitly carry no external-order or capital authority.\n\n## Fill chronology\n\nA SimulatedFill must bind the exact run, order intent and market event. It cannot predate order submission or use a market event before that event's knowledge_time.\n\nCumulative filled quantity cannot exceed original order quantity.\n\n## Order state machine\n\nThe immutable ledger enforces:\n\n- CREATED -> ACCEPTED or REJECTED;\n- ACCEPTED -> PARTIALLY_FILLED / FILLED / CANCELED / EXPIRED;\n- PARTIALLY_FILLED -> PARTIALLY_FILLED / FILLED / CANCELED / EXPIRED;\n- FILLED / CANCELED / REJECTED / EXPIRED are terminal.\n\nFill transitions are atomic with fill persistence.\n\n## Authority boundary\n\nStage 12.1 contains no broker connector, no network permission, no live-order type and no real-capital authority.\n\n## Next slice\n\nStage 12.2 should add an independent deterministic First Current reference fill engine for top-of-book historical replay. Market and limit orders must respect order latency, market-data knowledge time, top-of-book liquidity, participation caps, tick/lot increments and the frozen fee/slippage/impact policy. That reference engine should become the differential oracle for the later NautilusTrader adapter.
+# Stage 12.1 — Simulation & Execution Contracts
+
+Stage 12 begins the Simulation & Execution Engine by freezing First Current's execution semantics before NautilusTrader is introduced.
+
+## Engine boundary
+
+NautilusTrader will be an adapter behind these contracts. Native Nautilus order objects, event models and account state will not become First Current's source of truth.
+
+## Execution instruments
+
+ExecutionInstrument separates canonical instrument identity from venue and symbol identity and freezes asset class, quote currency, price increment, quantity increment, minimum quantity and contract multiplier.
+
+Order quantities and limit prices must align exactly to configured increments.
+
+## Point-in-time market events
+
+Stage 12.1 defines top-of-book quotes and trade prints with separate event_time and knowledge_time, per-instrument sequence and source fact IDs.
+
+Market data cannot be known before it occurs. Locked/crossed top-of-book data fails closed.
+
+HistoricalReplayDataset canonicalizes events by knowledge chronology and preserves both event identities and a nested source-lineage fingerprint. Tampering with a nested event invalidates dataset identity.
+
+## Simulation policy
+
+ExecutionSimulationPolicy freezes market latency, order latency, commission, slippage, market impact, maximum participation and partial-fill behavior with evidence references.
+
+No randomness is hidden in the Stage 12.1 contract.
+
+## Run manifest
+
+ExecutionSimulationRunManifest binds one Research Run Manifest, one portfolio solution, one exact historical replay dataset, one simulation policy, engine name/version and code revision.
+
+Stage 12.1 supports HISTORICAL_REPLAY only. Every run records network_authority = NONE, external_order_authority = NONE and capital_authority = NONE.
+
+## Simulated order intent
+
+SimulationOrderIntent supports MARKET and LIMIT orders with BUY/SELL direction and DAY/GTC/IOC/FOK time-in-force.
+
+These are simulation artifacts, not broker instructions. They carry simulation_authority = HISTORICAL_REPLAY_ONLY and explicitly carry no external-order or capital authority.
+
+## Fill chronology
+
+A SimulatedFill must bind the exact run, order intent and market event. It cannot predate order submission or use a market event before that event's knowledge_time.
+
+Cumulative filled quantity cannot exceed original order quantity.
+
+## Order state machine
+
+The immutable ledger enforces:
+
+- CREATED -> ACCEPTED or REJECTED;
+- ACCEPTED -> PARTIALLY_FILLED / FILLED / CANCELED / EXPIRED;
+- PARTIALLY_FILLED -> PARTIALLY_FILLED / FILLED / CANCELED / EXPIRED;
+- FILLED / CANCELED / REJECTED / EXPIRED are terminal.
+
+Fill transitions are atomic with fill persistence.
+
+## Authority boundary
+
+Stage 12.1 contains no broker connector, no network permission, no live-order type and no real-capital authority.
+
+## Next slice
+
+Stage 12.2 should add an independent deterministic First Current reference fill engine for top-of-book historical replay. Market and limit orders must respect order latency, market-data knowledge time, top-of-book liquidity, participation caps, tick/lot increments and the frozen fee/slippage/impact policy. That reference engine should become the differential oracle for the later NautilusTrader adapter.
