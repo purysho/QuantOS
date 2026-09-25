@@ -26,6 +26,7 @@ from .portfolio_construction import (
     calculate_one_way_turnover,
     validate_portfolio_constraints,
     validate_previous_weights,
+    portfolio_solution_identity,
 )
 
 
@@ -408,6 +409,8 @@ class SkfolioMinimumVarianceOptimizer:
         if len({item.solution_id for item in baselines}) != 2:
             raise ValueError("baseline solutions must be distinct")
         for baseline in baselines:
+            if baseline.solution_id != portfolio_solution_identity(baseline):
+                raise ValueError("baseline solution identity does not match content")
             if baseline.dataset_id != dataset.dataset_id:
                 raise ValueError("baseline belongs to another portfolio dataset")
             if baseline.manifest_id != dataset.manifest_id:
