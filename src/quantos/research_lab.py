@@ -6,6 +6,11 @@ from .backtest_economics import (
     BacktestResult,
     RebalancePeriod,
 )
+from .covariance import (
+    CovarianceArtifact,
+    CovarianceEstimationPolicy,
+    SkfolioCovarianceEstimator,
+)
 from .factor_contracts import (
     FactorEngine,
     FactorRun,
@@ -78,6 +83,7 @@ class ResearchLabService:
         self._prospective = ProspectiveReviewEngine()
         self._portfolio_datasets = PortfolioDatasetBuilder()
         self._baseline_allocator = SkfolioBaselineAllocator()
+        self._covariance = SkfolioCovarianceEstimator()
 
     def build_universe(
         self,
@@ -224,6 +230,17 @@ class ResearchLabService:
             allocator=allocator,
             constraints=constraints,
             previous_weights=previous_weights,
+        )
+
+    def estimate_covariance(
+        self,
+        *,
+        dataset: PortfolioDataset,
+        policy: CovarianceEstimationPolicy,
+    ) -> CovarianceArtifact:
+        return self._covariance.estimate(
+            dataset=dataset,
+            policy=policy,
         )
 
     def freeze_expectation(
