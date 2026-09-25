@@ -331,6 +331,16 @@ class ProspectiveReviewTests(unittest.TestCase):
             author="researcher",
             evidence_references=("seed:evidence",),
         )
+        with self.assertRaises(ValueError):
+            engine.make_revision_seed(
+                prior_case=research_case(
+                    case_id="research-case:" + "z" * 64
+                ),
+                comparison=review,
+                created_at=AT + timedelta(days=13),
+                author="researcher",
+                evidence_references=("seed:evidence",),
+            )
         revised = research_case(
             case_id="research-case:" + "n" * 64,
             supersedes=CASE_ID,
