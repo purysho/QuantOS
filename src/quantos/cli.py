@@ -17,6 +17,7 @@ from .claims import (
     EvidenceRetriever,
     make_claim_id,
 )
+from .environment_manifest import capture_environment_manifest
 from .gates import CapitalFirewall, LiveTradingDisabled
 from .ingestion import IngestionEngine
 from .models import EpistemicState, Event, OrderProposal
@@ -335,7 +336,19 @@ def main() -> int:
     state.add_argument("--entity", required=True)
     state.add_argument("--as-of", required=True)
 
+    env_manifest = sub.add_parser(
+        "env-manifest",
+        help="print the content-addressed runtime environment manifest",
+    )
+    env_manifest.add_argument(
+        "--db",
+        default=None,
+        help="optionally persist the manifest to this DuckDB store",
+    )
+
     args = parser.parse_args()
+    if args.command == "env-manifest":
+        return capture_environment_manifest(db=args.db)
     if args.command == "demo":
         return demo()
     if args.command == "edge-demo":
