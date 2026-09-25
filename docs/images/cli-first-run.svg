@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="478" viewBox="0 0 900 478" role="img" aria-label="First Current command line: setup, daily run and doctor">
+<rect width="900" height="478" rx="12" fill="#0d1117"/>
+<rect width="900" height="36" rx="12" fill="#161b22"/><rect y="24" width="900" height="12" fill="#161b22"/>
+<circle cx="22" cy="18" r="6" fill="#ff5f56"/><circle cx="42" cy="18" r="6" fill="#ffbd2e"/><circle cx="62" cy="18" r="6" fill="#27c93f"/>
+<text x="450" y="23" text-anchor="middle" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="13" fill="#8b949e">First Current Quant OS — keyless first run</text>
+<text x="24" y="58" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="14" fill="#e6edf3" xml:space="preserve">$ quantos setup --email you@example.org --universe AAPL,JPM,BRK.B</text>
+<text x="24" y="80" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="14" fill="#8b949e" xml:space="preserve">Saved ~/FirstCurrent/quantos.toml · Price provider: none (keyless mode)</text>
+<text x="24" y="102" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="14" fill="#e6edf3" xml:space="preserve"></text>
+<text x="24" y="124" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="14" fill="#e6edf3" xml:space="preserve">$ quantos daily --backfill-from 2025</text>
+<text x="24" y="146" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="14" fill="#ffffff" font-weight="700" xml:space="preserve">First Current daily run</text>
+<text x="24" y="168" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="14" fill="#3fb950" xml:space="preserve">  [ok  ] universe      3/3 tickers resolved, 12 new records</text>
+<text x="24" y="190" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="14" fill="#3fb950" xml:space="preserve">  [ok  ] fundamentals  97210 XBRL facts checked, 97210 new</text>
+<text x="24" y="212" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="14" fill="#3fb950" xml:space="preserve">  [ok  ] rates         inserted=70759, unchanged=0, revisions=0</text>
+<text x="24" y="234" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="14" fill="#d29922" xml:space="preserve">  [ok  ] prices        skipped: keyless mode (add a free Tiingo key for prices)</text>
+<text x="24" y="256" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="14" fill="#3fb950" xml:space="preserve">  [ok  ] research      99 items triaged from 5/5 feeds</text>
+<text x="24" y="278" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="14" fill="#3fb950" xml:space="preserve">  [ok  ] terminal      8 tables exported (terminal-export:257b188c961e…)</text>
+<text x="24" y="300" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="14" fill="#e6edf3" xml:space="preserve"></text>
+<text x="24" y="322" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="14" fill="#e6edf3" xml:space="preserve">$ quantos doctor --online</text>
+<text x="24" y="344" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="14" fill="#8b949e" xml:space="preserve">  [ok  ] online SEC tickers · SEC XBRL facts · US Treasury · ECB FX · FRED CSV</text>
+<text x="24" y="366" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="14" fill="#ffffff" font-weight="700" xml:space="preserve">0 failing, 4 warnings. Ready.</text>
+<text x="24" y="388" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="14" fill="#e6edf3" xml:space="preserve"></text>
+<text x="24" y="410" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="14" fill="#e6edf3" xml:space="preserve">$ quantos terminal serve</text>
+<text x="24" y="432" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="14" fill="#8b949e" xml:space="preserve">TERMINAL http://127.0.0.1:8765/  (read-only, Ctrl+C to stop)</text>
+</svg>

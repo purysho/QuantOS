@@ -95,6 +95,20 @@ class ExportTests(unittest.TestCase):
             self.assertTrue((export.out_dir / name).is_file())
         self.assertEqual(self.export().export_id, export.export_id, "export is deterministic")
 
+    def test_numeric_text_becomes_float_but_codes_stay_text(self):
+        con = duckdb.connect(str(self.data / "codes.duckdb"))
+        con.execute("CREATE TABLE quotes (value VARCHAR, zip VARCHAR, fiscal_year INTEGER, label VARCHAR)")
+        con.execute("INSERT INTO quotes VALUES ('4.25', '02139', 2026, 'x'), ('-0.5', '10001', 2025, '12a')")
+        con.close()
+        export = self.export()
+        entry = next(t for t in export.tables if t.name == "quotes")
+        doc = json.loads((export.out_dir / entry.file).read_text())
+        self.assertEqual(doc["schema"]["value"], "float")
+        self.assertEqual(sorted(r["value"] for r in doc["rows"]), [-0.5, 4.25])
+        self.assertEqual(doc["schema"]["zip"], "string", "leading-zero codes stay text")
+        self.assertEqual(doc["schema"]["fiscal_year"], "string", "years are labels")
+        self.assertEqual(doc["schema"]["label"], "string")
+
     def test_secrets_are_scrubbed_and_row_limit_marks_truncation(self):
         export = self.export(row_limit=3)
         text = "".join(p.read_text() for p in (export.out_dir / "tables").iterdir())

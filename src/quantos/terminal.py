@@ -93,6 +93,7 @@ TABLE_WORKSPACE = {table: ws for ws, tables in WORKSPACES.items() for table in t
 OTHER_WORKSPACE = "Other"
 
 _NUMERIC = re.compile(r"-?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?")
+_LEADING_ZERO = re.compile(r"^-?0\d")
 _HASHLIKE = re.compile(r"(?:^|:)[0-9a-f]{32,}$")
 RECENCY_COLUMNS = (  # business dates first: a backfill shares one capture time
     "session_date", "observation_date", "period_end", "filed", "published_at", "event_time",
@@ -203,6 +204,7 @@ class TerminalExporter:
             for row in raw_rows
         ]
         _flatten_payloads(schema, rows)
+        _promote_numeric_text(schema, rows)
         document = {"table": name, "source": source, "schema": schema, "columns": _column_order(schema, rows), "rows": rows}
         body = REDACTOR.redact(json.dumps(document, sort_keys=True, separators=(",", ":"), allow_nan=False)).encode()
         stem = source.removesuffix(".duckdb").replace("/", "__")
@@ -217,6 +219,25 @@ class TerminalExporter:
             truncated=total > len(rows),
             sha256=hashlib.sha256(body).hexdigest(),
         )
+
+
+def _promote_numeric_text(schema: dict[str, str], rows: list[dict]) -> None:
+    """Decimal values stored as exact text (prices, rates, amounts) become
+    floats for display and charting. Leading-zero codes such as "007" or
+    "0000320193" stay text, and the stored value is never changed."""
+
+    for column, kind in list(schema.items()):
+        if kind != "string" or _is_code(column):
+            continue
+        values = [r.get(column) for r in rows if r.get(column) is not None]
+        if not values or not all(isinstance(v, str) and _NUMERIC.fullmatch(v) and not _LEADING_ZERO.match(v)
+                                 for v in values):
+            continue
+        schema[column] = "float"
+        for row in rows:
+            if row.get(column) is not None:
+                number = float(row[column])
+                row[column] = number if math.isfinite(number) else None
 
 
 def _is_code(column: str) -> bool:
