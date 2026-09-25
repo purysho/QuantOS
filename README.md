@@ -1,4 +1,4 @@
-# First Current Quant OS — Prototype v0.10.10
+# First Current Quant OS — Prototype v0.11.10
 
 A high-assurance quantitative research and valuation operating-system prototype built around one rule:
 
@@ -6,7 +6,7 @@ A high-assurance quantitative research and valuation operating-system prototype 
 
 The repository is research-only. It can ingest live information, construct reviewed evidence, build professional research cases, create point-in-time financial models, value businesses through multiple controlled frameworks, and run prospective shadow evaluation controls, but **live order authorization is disabled by construction**.
 
-## What v0.10.10 proves
+## What v0.11.10 proves
 
 ### Point-in-time foundation
 - separate event time and knowledge time
@@ -210,6 +210,41 @@ Examples:
 - mandatory two-person postmortem;
 - no promotion, order or capital authority.
 
+### Pricing & Risk Engine — v0.11.10 baseline
+
+**Pricing contracts and QuantLib boundary**
+- point-in-time market snapshots with event/knowledge-time lineage;
+- typed equity, bond, European option and fixed/float swap contracts;
+- explicit model specifications and pricing requests;
+- QuantLib isolated behind First Current contracts and a shared global-state lock;
+- independent differential validation for Black-Scholes options, fixed-rate bonds and vanilla swaps;
+- frozen engine/version and exact market-input lineage.
+
+**Rates and derivatives**
+- content-addressed zero-rate / discount curves;
+- explicit interpolation, compounding, day-count and extrapolation policy;
+- fixed-rate bond NPV / clean / dirty / accrued / DV01;
+- separate discount and forwarding curves for future-starting fixed/float swaps;
+- no inferred historical fixings or hidden benchmark conventions.
+
+**Deterministic portfolio risk**
+- content-addressed market shocks and derived shocked snapshots;
+- scenario revaluation for equity, European options, bonds and swaps;
+- deterministic curve rebuilding under frozen policies;
+- explicit position × scenario coverage cube;
+- missing coverage remains `INCOMPLETE` and suppresses partial portfolio totals;
+- net/gross base NPV, NPV concentration and scenario P&L.
+
+**Distributional risk and prospective calibration**
+- equal-weight historical-simulation VaR / expected shortfall with explicit observation chronology;
+- nearest-rank empirical quantile and explicit tail-count convention;
+- prospective forecast-before-outcome backtesting;
+- Kupiec unconditional-coverage diagnostics;
+- Christoffersen exception-independence and combined conditional-coverage diagnostics;
+- two-person risk review with explicit limitations and challenger objections;
+- statistical non-rejection never becomes model approval;
+- no regulatory classification is inferred.
+
 ## Intelligence, modeling and valuation chain
 
 ```text
@@ -253,6 +288,26 @@ DCF / comps / SOTP / LBO
     ↓
 non-averaging triangulation
 
+portfolio research
+    ↓
+frozen construction candidates
+    ↓
+common OOS comparison
+    ↓
+robustness + human method review
+    ↓
+shadow-only PAPER controls
+    ↓
+point-in-time pricing / curves
+    ↓
+deterministic scenario revaluation
+    ↓
+portfolio risk cube
+    ↓
+historical VaR / ES
+    ↓
+prospective calibration + risk review
+
     ╳
 no automatic live-capital path
     ╳
@@ -290,6 +345,9 @@ A separate live smoke workflow makes a small real arXiv metadata request and sto
 - DCF/comps/SOTP/LBO output = valuation evidence, not an investment recommendation.
 - triangulation = preserved agreement/disagreement, not a synthetic fair value.
 - `MEASURED` = sample exists, not profitable.
+- historical-simulation VaR / ES = backward-looking empirical loss summaries, not guarantees or capital requirements.
+- `WITHIN_TEST_TOLERANCE` = a statistical null was not rejected under the frozen test, not model approval.
+- `WITHIN_POLICY` risk review = supplied evidence did not breach frozen research rules, not LIVE authority.
 - `NO_TRADE`, `UNKNOWN`, `QUARANTINED`, `INCOMPLETE`, and `INSUFFICIENT_EVIDENCE` are valid outcomes.
 
-See `docs/STAGE_7_COMPLETE.md` for the Fundamental Engine baseline, `docs/STAGE_8_COMPLETE.md` for the Valuation Engine baseline, and `docs/STAGE_10_COMPLETE.md` for the Portfolio Engine and shadow-PAPER control chain.
+See `docs/STAGE_7_COMPLETE.md` for the Fundamental Engine baseline, `docs/STAGE_8_COMPLETE.md` for the Valuation Engine baseline, `docs/STAGE_10_COMPLETE.md` for the Portfolio Engine and shadow-PAPER control chain, and `docs/STAGE_11_COMPLETE.md` for Pricing & Risk.
