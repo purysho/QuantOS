@@ -1,4 +1,4 @@
-# First Current Quant OS — Prototype v0.9.0
+# First Current Quant OS — Prototype v0.10.10
 
 A high-assurance quantitative research and valuation operating-system prototype built around one rule:
 
@@ -6,7 +6,7 @@ A high-assurance quantitative research and valuation operating-system prototype 
 
 The repository is research-only. It can ingest live information, construct reviewed evidence, build professional research cases, create point-in-time financial models, value businesses through multiple controlled frameworks, and run prospective shadow evaluation controls, but **live order authorization is disabled by construction**.
 
-## What v0.9.0 proves
+## What v0.10.10 proves
 
 ### Point-in-time foundation
 - separate event time and knowledge time
@@ -163,6 +163,53 @@ Examples:
 - no weighted synthetic fair value
 - LBO remains a sponsor-return cross-check and is never averaged into per-share value
 
+### Quant Research Lab — v0.9.x baseline
+
+- point-in-time investable-universe construction;
+- immutable factor specifications and feature observations;
+- walk-forward validation;
+- implementation-aware backtesting;
+- benchmark baselines;
+- performance analytics;
+- multiple-testing / backtest-overfitting diagnostics;
+- immutable Research Run Manifests;
+- explicit model lifecycle registry;
+- prospective PAPER monitoring and review controls.
+
+### Portfolio Engine — v0.10.10 baseline
+
+**Construction**
+- EqualWeight and InverseVolatility mandatory baselines;
+- frozen empirical / Ledoit-Wolf covariance artifacts;
+- constrained minimum-variance MeanRisk;
+- HRP and HERC hierarchical candidates;
+- exact portfolio-level one-way turnover semantics;
+- content-addressed solution lineage.
+
+**Common OOS comparison**
+- all candidate methods use identical frozen OOS periods;
+- common implementation-cost accounting;
+- realized volatility, drawdown, expected shortfall, turnover, concentration and market-relative wealth;
+- no automatic winner.
+
+**Robustness and human selection**
+- adjacent-fold weight stability;
+- clustering stability;
+- covariance-estimator sensitivity;
+- constraint and solver fragility;
+- two-person human research decision with explicit trade-offs and objections.
+
+**Shadow PAPER controls**
+- finite shadow-only portfolio authorization;
+- exact selected-solution binding;
+- mandatory runtime kill conditions;
+- irreversible suspension/termination/expiry for a given authorization;
+- implementation-cost assumption variance;
+- OOS-vs-shadow calibration;
+- benchmark-relative prospective review;
+- mandatory two-person postmortem;
+- no promotion, order or capital authority.
+
 ## Intelligence, modeling and valuation chain
 
 ```text
@@ -245,4 +292,4 @@ A separate live smoke workflow makes a small real arXiv metadata request and sto
 - `MEASURED` = sample exists, not profitable.
 - `NO_TRADE`, `UNKNOWN`, `QUARANTINED`, `INCOMPLETE`, and `INSUFFICIENT_EVIDENCE` are valid outcomes.
 
-See `docs/STAGE_7_COMPLETE.md` for the Fundamental Engine baseline and `docs/STAGE_8_COMPLETE.md` for the Valuation Engine baseline.
+See `docs/STAGE_7_COMPLETE.md` for the Fundamental Engine baseline, `docs/STAGE_8_COMPLETE.md` for the Valuation Engine baseline, and `docs/STAGE_10_COMPLETE.md` for the Portfolio Engine and shadow-PAPER control chain.
