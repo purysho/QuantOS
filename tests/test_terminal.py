@@ -85,7 +85,9 @@ class ExportTests(unittest.TestCase):
         self.assertEqual(bars["schema"]["session_date"], "date")
         self.assertEqual(bars["schema"]["knowledge_time"], "datetime")
         self.assertNotIn("payload_json", bars["schema"])
-        self.assertEqual(bars["rows"][0]["close"], 100.0)
+        self.assertEqual(bars["rows"][0]["close"], 106.0, "most recent session first")
+        self.assertEqual(set(bars["columns"][-3:]), {"bar_id", "capture_id", "values_fingerprint"}, "hashes go last")
+        self.assertLess(bars["columns"].index("security_id"), bars["columns"].index("bar_id"))
         notes = json.loads((export.out_dir / by_name["experiment_notes"]["file"]).read_text())
         self.assertEqual(notes["schema"]["bad_payload_json"], "string")  # not an object: kept raw
         self.assertEqual(notes["rows"][0]["happened"], 1788264000000)

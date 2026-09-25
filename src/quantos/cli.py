@@ -224,7 +224,14 @@ def capture_sec_document(
 def ingest_fred(*, series_id: str, vintage_date: str, db: str) -> int:
     api_key = os.environ.get("FRED_API_KEY")
     if not api_key:
-        raise SystemExit("FRED_API_KEY is required for FRED/ALFRED API ingestion")
+        from .security import SecretProvider, SecretUnavailable
+
+        try:
+            api_key = SecretProvider().get("FRED_API_KEY").reveal()
+        except SecretUnavailable:
+            raise SystemExit(
+                "a free FRED API key is required for ALFRED vintages: add it with `quantos setup`"
+            ) from None
     store = _store(db)
     try:
         events = FREDVintageAdapter(api_key=api_key).fetch_series_as_of(
@@ -362,8 +369,41 @@ def capture_market_data(
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(prog="quantos")
+    from . import __version__
+    from .home import activate
+
+    parser = argparse.ArgumentParser(
+        prog="quantos",
+        description="First Current Quant OS: point-in-time investment research. "
+        "Start with `quantos setup`, then `quantos doctor` and `quantos daily`.",
+    )
+    parser.add_argument("--version", action="version", version=f"First Current Quant OS {__version__}")
     sub = parser.add_subparsers(dest="command", required=True)
+
+    setup = sub.add_parser("setup", help="first-run setup: contact email, universe, optional free API keys")
+    setup.add_argument("--email", default=None)
+    setup.add_argument("--organization", default=None)
+    setup.add_argument("--universe", default=None, help="comma-separated tickers")
+    setup.add_argument("--non-interactive", action="store_true", help="use flags and existing values only")
+    setup.add_argument(
+        "--key-file",
+        action="append",
+        default=[],
+        metavar="NAME=PATH",
+        help="read an optional key from a file, e.g. TIINGO_API_KEY=/path/to/file (repeatable)",
+    )
+
+    doctor = sub.add_parser("doctor", help="check this installation and explain what works")
+    doctor.add_argument("--online", action="store_true", help="also probe each keyless public source")
+
+    daily = sub.add_parser("daily", help="run the daily pipeline: universe, fundamentals, rates, prices, research, terminal")
+    daily.add_argument(
+        "--only",
+        default=None,
+        help="comma-separated subset of: universe,fundamentals,rates,prices,research,terminal",
+    )
+    daily.add_argument("--backfill-from", type=int, default=None, help="first year of Treasury/ECB history to load")
+    daily.add_argument("--price-days", type=int, default=10, help="calendar days of prices to (re)capture")
 
     sub.add_parser("demo", help="run the fail-closed synthetic intelligence demo")
     sub.add_parser("edge-demo", help="run the provenance-to-shadow edge demo")
@@ -438,7 +478,7 @@ def main() -> int:
     market.add_argument("--artifact-db", default="data/artifacts.duckdb")
 
     terminal = sub.add_parser("terminal", help="export or serve the read-only Perspective terminal")
-    terminal.add_argument("action", choices=("export", "serve"))
+    terminal.add_argument("action", choices=("export", "serve", "vendor"))
     terminal.add_argument("--data-dir", default="data")
     terminal.add_argument("--out", default="data/terminal")
     terminal.add_argument("--host", default="127.0.0.1")
@@ -446,6 +486,41 @@ def main() -> int:
     terminal.add_argument("--row-limit", type=int, default=50_000)
 
     args = parser.parse_args()
+    activate()
+    if args.command == "setup":
+        from .home import HomeError, run_setup
+
+        keys = {}
+        for item in args.key_file:
+            name, _, path = item.partition("=")
+            if not path:
+                raise SystemExit("--key-file expects NAME=PATH")
+            keys[name.strip()] = Path(path).expanduser().read_text().strip()
+        try:
+            run_setup(
+                email=args.email,
+                organization=args.organization,
+                universe=tuple(t.strip().upper() for t in args.universe.split(",") if t.strip())
+                if args.universe is not None
+                else None,
+                keys=keys,
+                interactive=not args.non_interactive,
+            )
+        except HomeError as exc:
+            raise SystemExit(f"quantos setup: {exc}") from None
+        return 0
+    if args.command == "doctor":
+        from .doctor import doctor_command
+
+        return doctor_command(online=args.online)
+    if args.command == "daily":
+        from .runbook import daily_command
+
+        steps = tuple(s.strip() for s in args.only.split(",")) if args.only else None
+        valid = {"universe", "fundamentals", "rates", "prices", "research", "terminal"}
+        if steps and set(steps) - valid:
+            raise SystemExit("unknown step(s): " + ", ".join(sorted(set(steps) - valid)))
+        return daily_command(steps=steps, backfill_from=args.backfill_from, price_days=args.price_days)
     if args.command == "terminal":
         from .terminal import terminal_command
 

@@ -45,7 +45,7 @@ MAX_FLATTENED_KEYS = 40
 
 WORKSPACES: dict[str, tuple[str, ...]] = {
     "Markets": (
-        "daily_bars", "security_master_records", "corporate_action_events", "discount_curves",
+        "daily_bars", "public_observations", "security_master_records", "corporate_action_events", "discount_curves",
         "market_reactions", "pricing_market_snapshots",
     ),
     "Research Radar": ("radar_items", "radar_triage", "research_review_queue", "research_sources"),
@@ -53,7 +53,7 @@ WORKSPACES: dict[str, tuple[str, ...]] = {
         "claim_cards", "claim_drafts", "claim_relations", "replication_records", "events",
         "entity_edges", "hypotheses", "research_decisions",
     ),
-    "Company / Financials": ("financial_statements",),
+    "Company / Financials": ("financial_statements", "xbrl_facts"),
     "Valuation": ("fundamental_model_runs", "research_cases", "case_reviews", "case_review_resolutions"),
     "Portfolio": (
         "investable_universes", "covariance_artifacts", "portfolio_solutions",
@@ -92,6 +92,11 @@ TABLE_WORKSPACE = {table: ws for ws, tables in WORKSPACES.items() for table in t
 OTHER_WORKSPACE = "Other"
 
 _NUMERIC = re.compile(r"-?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?")
+_HASHLIKE = re.compile(r"(?:^|:)[0-9a-f]{32,}$")
+RECENCY_COLUMNS = (  # business dates first: a backfill shares one capture time
+    "session_date", "observation_date", "period_end", "filed", "published_at", "event_time",
+    "knowledge_time", "discovered_at", "triaged_at", "queued_at", "recorded_at", "started_at", "fetched_at",
+)
 _INTEGER_TYPES = {"TINYINT", "SMALLINT", "INTEGER", "UTINYINT", "USMALLINT"}
 _FLOAT_PREFIXES = ("BIGINT", "UBIGINT", "UINTEGER", "HUGEINT", "DOUBLE", "FLOAT", "REAL", "DECIMAL")
 
@@ -169,8 +174,11 @@ class TerminalExporter:
             "tables": [t.__dict__ for t in tables],
             "unreadable_sources": unreadable,
         }
-        (out_dir / "terminal_manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True))
         _install_static(out_dir)
+        from .terminal_vendor import install_into_export
+
+        manifest["terminal_assets"] = "vendored-offline" if install_into_export(out_dir) else "cdn-jsdelivr"
+        (out_dir / "terminal_manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True))
         return TerminalExport(export_id, out_dir, exported_at, tuple(tables), tuple(unreadable))
 
     def _export_table(self, con, name: str, source: str, tables_dir: Path) -> TerminalTable:
@@ -180,12 +188,16 @@ class TerminalExporter:
             [name],
         ).fetchall()
         total = con.execute(f'SELECT count(*) FROM "{name}"').fetchone()[0]
-        cursor = con.execute(f'SELECT * FROM "{name}" LIMIT {self.row_limit}')
+        names = [col for col, _ in columns]
+        recency = next((c for c in RECENCY_COLUMNS if c in names), None)
+        order = f' ORDER BY "{recency}" DESC NULLS LAST' if recency else ""
+        # When a table is truncated, the most recent rows are the ones kept.
+        cursor = con.execute(f'SELECT * FROM "{name}"{order} LIMIT {self.row_limit}')
         raw_rows = cursor.fetchall()
         schema: dict[str, str] = {col: _perspective_type(kind) for col, kind in columns}
         rows = [{col: _value(v) for (col, _), v in zip(columns, row)} for row in raw_rows]
         _flatten_payloads(schema, rows)
-        document = {"table": name, "source": source, "schema": schema, "columns": _column_order(schema), "rows": rows}
+        document = {"table": name, "source": source, "schema": schema, "columns": _column_order(schema, rows), "rows": rows}
         body = REDACTOR.redact(json.dumps(document, sort_keys=True, separators=(",", ":"), allow_nan=False)).encode()
         stem = source.removesuffix(".duckdb").replace("/", "__")
         file = f"tables/{stem}__{name}.json"
@@ -201,13 +213,16 @@ class TerminalExporter:
         )
 
 
-def _column_order(schema: dict[str, str]) -> list[str]:
-    """Descriptive columns first; long identifiers and hashes last."""
+def _column_order(schema: dict[str, str], rows: list[dict]) -> list[str]:
+    """Descriptive columns first; content hashes and long opaque identifiers last."""
 
-    def is_identifier(column: str) -> bool:
-        return column.endswith(("_id", "_hash", "fingerprint", "sha256")) or column in {"id", "json"}
+    def opaque(column: str) -> bool:
+        sample = next((r[column] for r in rows if r.get(column) is not None), None)
+        if isinstance(sample, str):
+            return bool(_HASHLIKE.search(sample)) or len(sample) > 80 and " " not in sample
+        return column.endswith(("_hash", "sha256"))
 
-    return [c for c in schema if not is_identifier(c)] + [c for c in schema if is_identifier(c)]
+    return [c for c in schema if not opaque(c)] + [c for c in schema if opaque(c)]
 
 
 def _perspective_type(kind: str) -> str:
@@ -335,6 +350,13 @@ def make_server(*, directory: str | Path, host: str = "127.0.0.1", port: int = 8
 
 
 def terminal_command(*, action: str, data_dir: str, out_dir: str, host: str, port: int, row_limit: int) -> int:
+    if action == "vendor":
+        from .terminal_vendor import vendor_perspective
+
+        root = vendor_perspective()
+        print(f"TERMINAL_VENDOR Perspective {PERSPECTIVE_VERSION} verified and stored at {root}")
+        print("Re-run `quantos terminal export` to use it offline.")
+        return 0
     if action == "export":
         export = TerminalExporter(row_limit=row_limit).export(data_dir=data_dir, out_dir=out_dir)
         print(f"TERMINAL_EXPORT {export.export_id}")

@@ -585,6 +585,9 @@ def main() -> int:
     catalog_verify.add_argument("--notes", required=True)
 
     args = parser.parse_args()
+    from .home import activate
+
+    activate()
 
     if args.command == "review-list":
         return list_reviews(

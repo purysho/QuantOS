@@ -14,6 +14,13 @@ const browser = await chromium.launch(
 // Explicit locale: containers often report "en-US@posix", which Intl rejects.
 const context = await browser.newContext({ locale: "en-US", ...(proxy ? { ignoreHTTPSErrors: true } : {}) });
 const page = await context.newPage();
+// Optional: prove offline operation by refusing every CDN request.
+if (process.env.TERMINAL_SMOKE_BLOCK_CDN === "1") {
+  await context.route(/^https:\/\/cdn\.jsdelivr\.net\//, (route) => {
+    errors.push(`blocked CDN request: ${route.request().url()}`);
+    return route.abort();
+  });
+}
 // Optional: serve the pinned CDN files from unpacked npm tarballs (offline or
 // flaky-proxy environments). SRI still verifies the bytes in the browser.
 const vendor = process.env.PERSPECTIVE_VENDOR_DIR;

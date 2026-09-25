@@ -134,7 +134,7 @@ class FeedRadarAdapter:
             if remaining > 0:
                 self.sleeper(remaining)
         body, media_type = self.transport(
-            source.url, {"user-agent": self.user_agent, "accept": "application/rss+xml, application/xml"}, self.timeout_seconds
+            source.url, {"user-agent": self.user_agent, "accept": "application/rss+xml, application/atom+xml, application/xml, text/xml;q=0.9, */*;q=0.8"}, self.timeout_seconds
         )
         self._last_request_at = self.clock()
         fetched_at = datetime.now(timezone.utc)

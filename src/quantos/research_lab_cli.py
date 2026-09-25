@@ -36,6 +36,9 @@ def main() -> int:
         help="optional directory for persistent demo ledgers",
     )
     args = parser.parse_args()
+    from .home import activate
+
+    activate()
     if args.command == "demo":
         return demo(args.root)
     return 2
