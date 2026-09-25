@@ -6,9 +6,9 @@
 >
 > **Repository:** purysho/First-Current-Quant-OS-prototype  
 > **Repository visibility:** private  
-> **Current package version:** 0.12.4  
-> **Implementation baseline for this handoff:** Stage 12.4 — frozen Nautilus equivalence contracts  
-> **Previous green baseline:** b262fcf1f18787fd5f4661de2ed3c5c3510ad49b (Stage 12.3)
+> **Current package version:** 0.15.1  
+> **Implementation baseline for this handoff:** Stages 12.4–15.1 on branch `claude/stoic-cerf-mts7pn` (execution program, Security Master, ORE differential, Crossref radar, licensing, locked environment)  
+> **Previous green baseline on main:** b262fcf1f18787fd5f4661de2ed3c5c3510ad49b (Stage 12.3)
 
 ---
 
@@ -294,21 +294,29 @@ VALUATION ENGINE                              │
 - skfolio for portfolio estimators/optimizers.
 - QuantLib for pricing.
 - NautilusTrader 2.0.0rc5 on Python 3.12+ for experimental historical differential execution.
+- OpenSourceRisk/Engine 1.8.17.0 (`open-source-risk-engine`) as the optional `ore` extra, x86-64 Linux/Windows only, run in an isolated child process.
 - requests/pytz for external intake and time support.
 - Parquet export exists in the earlier point-in-time data layer.
+- uv for locking and syncing exact environments.
 
-Current pyproject dependencies at v0.12.4 (unchanged from v0.12.3):
+Current pyproject dependencies at v0.15.1:
 
 ~~~
 cvxpy >=1.6,<2
 duckdb >=1.4,<2
 numpy >=2,<3
+packaging >=24
 nautilus_trader ==2.0.0rc5 ; python_version >= 3.12
 QuantLib >=1.43,<2
 pytz >=2025.2
 requests >=2.32,<3
 skfolio >=1.0,<2
+
+[optional ore]
+open-source-risk-engine ==1.8.17.0 ; x86-64 Linux or AMD64 Windows
 ~~~
+
+Exact versions and hashes are in `uv.lock` (source of truth) and `requirements.lock` (hashed pip export). See docs/REPRODUCIBLE_ENVIRONMENT.md.
 
 ## Important architecture ideas researched but not yet fully implemented
 
@@ -321,9 +329,9 @@ The original target architecture also considered:
 - exchange_calendars for exchange/session semantics;
 - EdgarTools for richer SEC/XBRL ingestion;
 - DuckDB + Parquet as the analytical/PIT foundation;
-- a full Security Master;
-- OpenSourceRisk/Engine;
 - Perspective terminal.
+
+The Security Master core (Stage 13) and an ORE differential (Stage 14) now exist, but not their provider feeds or the broader ORE product scope.
 
 Do not assume those items are implemented just because they were part of the design research.
 
@@ -927,21 +935,130 @@ Observed divergences that define Stage 12.5 work:
 
 Reference: docs/NAUTILUS_EQUIVALENCE_CONTRACTS_STAGE_12_4.md
 
+### 12.5 Multi-order execution schedules — built
+
+- explicit position targets bound to child order intents;
+- exact allocation, direction and currency (no implicit FX) checks;
+- orders run through the unchanged reference engine;
+- fills reconciled into positions, cash, fees and minimum cash;
+- concurrent working orders on one instrument fail closed, because the reference has no shared-liquidity semantics;
+- cash and short breaches kept as `CONSTRAINT_BREACH`.
+
+Reference: docs/EXECUTION_SCHEDULES_STAGE_12_5.md
+
+### 12.6 Multi-instrument Nautilus schedule differential — built
+
+- the seventh frozen contract, `MULTI_INSTRUMENT_SCHEDULE`, allows one zero-friction order per instrument, with several instruments in one BacktestEngine;
+- fills are attributed by client_order_id;
+- per-order differentials are aggregated, and one mismatch keeps the whole schedule MISMATCH.
+
+Reference: docs/NAUTILUS_SCHEDULE_DIFFERENTIAL_STAGE_12_6.md
+
+### 12.7 Replay data-quality gate — built
+
+Reports CLEAN, DEGRADED or UNUSABLE. It never repairs data. It checks:
+
+- insufficient quotes;
+- sequence regressions;
+- no book at submission;
+- ambiguous arrival order;
+- gaps, wide spreads, mid jumps, thin books and knowledge lag;
+- stale book at submission;
+- trades outside the quote.
+
+Reference: docs/REPLAY_DATA_QUALITY_STAGE_12_7.md
+
+### 12.8 Deterministic TCA — built
+
+- implementation shortfall against the arrival mid;
+- decomposed exactly into timing, half-spread, slippage/impact, fees and opportunity cost;
+- the reconciliation is asserted in Decimal;
+- fill ratio, participation and fill timing;
+- a market-VWAP benchmark only when trade prints exist;
+- aggregation across a schedule.
+
+Reference: docs/EXECUTION_TCA_STAGE_12_8.md
+
+### 12.9 Two-person execution review — built
+
+- binds the schedule and its result, the replay quality report, TCA for exactly the schedule's orders, and an optional Nautilus schedule differential;
+- reviewer and Red Team challenger must differ;
+- unresolved objections cannot be outvoted;
+- WITHIN_POLICY recommends only `ELIGIBLE_FOR_SHADOW_EXECUTION_DESIGN_REVIEW`;
+- every authority stays NONE.
+
+Reference: docs/EXECUTION_REVIEW_STAGE_12_9.md
+
+## Stage 13 — Security Master & corporate actions
+
+### 13.1 Bitemporal Security Master — built
+
+- Company → Security → Listing hierarchy, plus ISIN/FIGI/CUSIP/SEDOL/CIK/vendor identifiers;
+- each record has world validity and knowledge time;
+- supersession and retraction;
+- ticker and identifier resolution through symbol changes and reuse; ambiguity raises;
+- integrity report: collisions, overlapping primaries, dangling references, lifetime violations, invalid check digits.
+
+Reference: docs/SECURITY_MASTER_STAGE_13_1.md
+
+### 13.2 Corporate-action economics — built
+
+- bitemporal events: cash and stock dividends, splits, spin-offs, cash and stock mergers, delistings;
+- split-only or total-return backward adjustment factors;
+- total-return series with terminal proceeds;
+- position transformations;
+- missing prior closes, counterparty prices, delisting proceeds and spin-off basis are reported or refused, never inferred.
+
+Reference: docs/CORPORATE_ACTIONS_STAGE_13_2.md
+
+## Stage 14 — OpenSourceRisk/Engine differential — built (narrow)
+
+- pinned ORE 1.8.17.0 as an optional extra, run in an isolated child process (`quantos.ore_worker`); its SWIG bindings crash when sharing a process with the QuantLib package;
+- a content-addressed ORE input bundle is generated from frozen swap and curve artifacts;
+- 14.1: swap NPV compared with the Stage 11.5 reference and QuantLib;
+- 14.2: Stage 11.6 scenario P&L compared per cell and across a cube, after proving the rebuilt curves are the exact curves the revaluation used.
+
+Reference: docs/ORE_DIFFERENTIAL_STAGE_14.md
+
+## Stage 15 — research library expansion
+
+### 15.1 Crossref DOI radar — built
+
+- metadata-only journal discovery into the existing triage/review workflow;
+- mandatory contact etiquette and throttling;
+- archived response artifacts;
+- DOI validation and case normalization;
+- partial publication dates keep their precision tag.
+
+Reference: docs/CROSSREF_RADAR_STAGE_15_1.md
+
+## Cross-cutting — licensing and reproducibility
+
+- **License:** the project is proprietary. `quantos.license_policy` gates every locked dependency's license, and `THIRD_PARTY_NOTICES.md` is generated from it. See docs/LICENSING.md.
+- **Environment:** `uv.lock` and the hashed `requirements.lock` are enforced in CI, with a weekly dependency-drift workflow. `quantos env-manifest` gives a content-addressed environment identity. See docs/REPRODUCIBLE_ENVIRONMENT.md.
+
 ---
 
 # 6. Current repository state — IMPORTANT
 
 ## Current implementation head
 
-**Stage 12.4 — frozen Nautilus equivalence contracts** (branch `claude/stoic-cerf-mts7pn`, pending merge to main).
+**Stages 12.4 through 15.1** are on branch `claude/stoic-cerf-mts7pn`, pending review and merge to main.
 
 Current pyproject version:
 
-**0.12.4**
+**0.15.1**
 
 ## Current CI status
 
-Before push, Stage 12.4 was validated locally on Python 3.11, 3.12 and 3.13: 529 tests passing, plus the fail-closed demo and the edge-discovery demo. On 3.12 and 3.13 all Nautilus runtime tests executed under `QUANTOS_REQUIRE_NAUTILUS=1`, with none skipped. Confirm the GitHub CI matrix is green on the merged head before starting Stage 12.5.
+The branch was validated locally with `uv sync --locked --extra ore` on Python 3.11, 3.12 and 3.13:
+
+- 638 tests pass on each version;
+- the fail-closed demo and the edge-discovery demo pass;
+- on 3.11, 47 NautilusTrader runtime tests are skipped by design;
+- the ORE runtime tests executed on every version.
+
+The CI workflow was rewritten to use `uv sync --locked --extra ore`, a lock-freshness job, `QUANTOS_REQUIRE_NAUTILUS` and `QUANTOS_REQUIRE_ORE`. It runs only on pull requests and on pushes to main, so **it has not yet run on GitHub for this branch**. Open a PR and confirm the full matrix is green before building further.
 
 Stage 12.3 history: it was **green and complete at its deliberately narrow differential scope**.
 
@@ -973,29 +1090,28 @@ The later HANDOFF.md commit is documentation-only; if its own workflow is still 
 
 Do these in order.
 
-## 1. Confirm current main and CI
+## 1. Confirm CI on the branch or merged head
 
-Start by reading:
+Open or inspect the PR for `claude/stoic-cerf-mts7pn`. Confirm these jobs are green on the current head:
 
-- HANDOFF.md;
-- docs/NAUTILUS_DIFFERENTIAL_STAGE_12_3.md;
-- src/quantos/execution_nautilus.py;
-- tests/test_execution_nautilus.py.
+- the `lock` job;
+- the 3.11/3.12/3.13 `test` jobs, with ORE and NautilusTrader required where declared.
 
-Confirm that the latest implementation ancestor at or after b262fcf remains green before adding scope.
+The first CI run also exercises the new `astral-sh/setup-uv` step and the 77 MB ORE wheel download.
 
-## 2. Begin Stage 12.5 only through new frozen equivalence contracts
+## 2. Pick the next slice from section 14
 
-Stage 12.4 is complete (see section 5). The next slice is multi-event / multi-order replay and the recorded Stage 12.4 divergences.
+Keep the pattern that every new stage used:
 
-For each divergence, decide explicitly whether to:
+- a frozen, content-addressed contract or policy;
+- an independent First Current reference;
+- a fail-closed scope;
+- mismatches preserved;
+- adversarial tests;
+- a stage document;
+- no new authority.
 
-- extend First Current reference semantics (for example, an explicit "match on next arrival" latency mode or a resting-limit maker-price policy); or
-- keep it refused and documented.
-
-Never add a numeric tolerance to make a divergence pass.
-
-Do not edit an existing contract to widen it; add a new contract (its `contract_id` will differ).
+For NautilusTrader, the recorded Stage 12.4 divergences are still open. Resolve each one by extending the reference semantics explicitly, or keep it refused. Never add a tolerance to make a divergence pass. Never widen an existing contract; add a new one.
 
 ## 3. Preserve the Python compatibility boundary
 
@@ -1023,7 +1139,11 @@ At minimum preserve comparison of:
 
 Stage 12 remains historical simulation/differential validation.
 
-No network authority, external-order authority, or capital authority should be introduced by Stage 12.4.
+No network authority, external-order authority, or capital authority has been introduced by any stage.
+
+## 6. Keep ORE out of the QuantLib process
+
+ORE must only run through `OREEngineRunner`, which isolates it in a child process. Importing `ORE` in a process that has used the QuantLib Python package can crash the interpreter.
 
 ---
 
@@ -1592,7 +1712,7 @@ These are major outstanding engineering areas even though the prototype already 
 
 ## Full Security Master
 
-A complete durable Security Master is still a major requirement.
+The Stage 13 core (bitemporal identity, listings, identifiers, resolution, integrity, corporate-action economics) is built. Still missing: provider feeds, calendars, cross-vendor reconciliation and wiring into research datasets. The requirements below remain the target.
 
 Conceptual hierarchy:
 
@@ -1662,90 +1782,49 @@ Need eventually:
 
 The exact numbering after Stage 12 is not frozen beyond the existing Stage 12 docs. The recommended order below preserves the current architecture.
 
-## Completed — Stage 12.3 and Stage 12.4
+## Completed since the Stage 12.3 baseline
 
-The zero-friction Nautilus baseline (12.3) and the five single-behavior contracts (12.4.1–12.4.5: fees, order latency, market-data latency, IOC/FOK remainders, limit transitions) are implemented as frozen equivalence contracts.
+- **Stage 12.4:** single-behavior Nautilus contracts (fees, latencies, IOC/FOK, limit transitions).
+- **Stage 12.5:** multi-order schedules with inventory and cash.
+- **Stage 12.6:** multi-instrument Nautilus schedule differential.
+- **Stage 12.7:** replay data-quality gate.
+- **Stage 12.8:** TCA.
+- **Stage 12.9:** two-person execution review.
+- **Stage 13.1/13.2:** Security Master core and corporate-action economics.
+- **Stage 14.1/14.2:** ORE swap NPV and scenario-cube differential.
+- **Stage 15.1:** Crossref DOI radar.
+- **Cross-cutting:** license decision and license gate, uv lockfiles, environment manifest.
 
-Multi-quote partial-fill accumulation was deliberately **not** admitted in 12.4, because Nautilus semantics diverge (see section 5). It moves to Stage 12.5.
+## Still open in execution (Stage 12.x)
 
-## Stage 12.5 — multi-event validation and divergence resolution
+- Resolve or keep refusing each recorded Stage 12.4 Nautilus divergence:
+  - next-arrival latency matching;
+  - L1 market-order sweep;
+  - maker fill at the limit price;
+  - consumption refresh;
+  - IOC with partial fills disabled;
+  - fee rounding.
+- Multi-quote partial-fill accumulation through a new contract.
+- Cancels/replaces and conflicting orders on one instrument. The reference needs explicit shared-liquidity and queue semantics first.
+- Session boundaries and exchange calendars.
+- Sizing share targets from portfolio weights, which needs a frozen capital, price and lot-rounding policy.
+- A shadow/paper execution adapter. It must come only with a separate authority plane:
+  - finite authorization;
+  - kill switch independent of strategy code;
+  - broker/sandbox reconciliation;
+  - credential isolation;
+  - no reuse of historical permits.
 
-For every new behavior, keep the Stage 12.4 pattern:
+## Still open in ORE (Stage 14.x)
 
-- write a separate frozen equivalence contract;
-- prove First Current reference behavior first;
-- map Nautilus explicitly;
-- compare outcomes, including the per-fill sequence;
-- preserve mismatches rather than tolerating them silently.
+The version is frozen, the process boundary exists, swap mapping and input lineage are done, and the scenario-cube differential works for swaps. Remaining:
 
-Do not jump directly to “Nautilus matches our simulator.”
+1. bonds, options and further products, each with its own frozen overlap;
+2. ORE's own sensitivity and stress analytics, compared with the Stage 11.7 cube;
+3. VaR/ES comparison only where the semantics truly match;
+4. XVA only after broader mapping is proven.
 
-## Later Stage 12 — execution research
-
-Recommended later slices:
-
-### Multi-event / multi-order replay
-
-- multiple orders;
-- portfolio schedule;
-- cash/inventory state;
-- conflicting orders;
-- cancels/replaces;
-- session boundaries.
-
-### Execution analytics
-
-- arrival price;
-- VWAP;
-- implementation shortfall;
-- spread cost;
-- impact estimate;
-- participation;
-- fill ratio;
-- latency cost;
-- opportunity cost.
-
-### Execution robustness
-
-- market-data gaps;
-- stale book;
-- crossed/locked states;
-- partial sessions;
-- extreme volatility;
-- liquidity collapse;
-- oversized orders;
-- replay determinism.
-
-### Shadow execution only
-
-Only after historical differentials are stable should a shadow/paper adapter be considered.
-
-It must still have:
-
-- no live capital;
-- explicit finite authorization;
-- kill conditions;
-- broker/account reconciliation if a sandbox broker is later used;
-- no reuse of a historical-only permit for network activity.
-
-## ORE integration
-
-Stage 11 intentionally stopped before OpenSourceRisk/Engine.
-
-Remaining work:
-
-1. freeze the exact ORE version/build;
-2. define service/FFI boundary;
-3. map First Current instruments and market data;
-4. preserve input lineage;
-5. run deterministic scenario fixtures that overlap Stage 11;
-6. compare ORE vs First Current risk cube;
-7. compare supported VaR/ES fixtures where semantics truly match;
-8. record mismatches explicitly;
-9. only then expose ORE-specific capabilities;
-10. XVA only after core mapping is proven.
-
-ORE must not replace First Current’s risk contracts.
+ORE must not replace First Current's risk contracts.
 
 ## Broader pricing/risk
 
@@ -1796,28 +1875,28 @@ It must not implement independent business logic in the UI.
 
 ## Real research library
 
-The Research Radar currently proves live arXiv metadata discovery, but the broad professional library is not yet built.
-
-Add adapters/ingestion for:
+Crossref journal discovery (15.1) now sits beside arXiv. Still to add, all through the verified Claim Workbench gate:
 
 - NBER;
 - SSRN where feasible;
-- DOI/Crossref metadata;
-- academic journals;
 - regulator publications;
 - BIS;
 - central banks;
-- SEC;
 - accounting standards;
 - institutional research;
-- GitHub code associated with papers;
-- canonical books/manuals where lawful source access exists.
-
-The verified Claim Workbench remains the ingestion gate.
+- code linked to papers;
+- lawful canonical books and manuals.
 
 ## Security Master / corporate actions
 
-Build before serious real-universe backtests.
+The core exists (Stage 13). Still to add:
+
+- a licensed reference-data and corporate-action provider feed;
+- cross-vendor identifier reconciliation;
+- exchange calendars;
+- rights issues and tender offers;
+- tax treatment;
+- wiring adjusted and total-return series into the Stage 9 research datasets.
 
 ## Data validation layer
 
@@ -1844,14 +1923,13 @@ Need:
 
 ## Reproducible environment
 
-Current pyproject ranges are useful for development but final reproducible research should add:
+Done:
 
-- lockfile strategy;
-- exact environment manifests;
-- OS/architecture metadata;
-- solver versions;
-- native-library versions;
-- QuantLib/Nautilus build details.
+- `uv.lock` and the hashed `requirements.lock`, enforced in CI;
+- a weekly drift workflow;
+- `quantos env-manifest`, a content-addressed record of OS/arch/libc, exact packages, BLAS, QuantLib/Nautilus/ORE builds, CVXPY solvers, lock fingerprints and consistency, and git revision state.
+
+Still to do: cite `manifest_id` automatically from Research Run Manifests and simulation runs.
 
 ## Security
 
@@ -1895,21 +1973,20 @@ No current artifact should be repurposed as live authorization.
 
 # 14. Recommended future build order
 
-Stage 12.3 is repaired and Stage 12.4 is complete. Next:
+Stages 12.3–15.1 are built (see section 5). Recommended next:
 
-1. ~~Stage 12.4 controlled execution differential expansion~~ — done.
-2. Stage 12.5 multi-event / partial-fill / latency execution validation, starting from the recorded 12.4 divergences.
-3. Stage 12 execution robustness + TCA + shadow-only review.
-4. OpenSourceRisk/Engine differential adapter.
-5. Full Security Master + corporate actions.
-6. Production point-in-time market-data provider pipeline.
-7. Broader verified research-library ingestion.
-8. Perspective terminal.
-9. Cross-engine orchestration / application services.
-10. Performance and scale hardening.
-11. Security / operational readiness.
-12. Long prospective PAPER program.
-13. Only then discuss a separate live-capital architecture.
+1. Confirm the full CI matrix on the branch PR, then merge.
+2. Stage 12.x: resolve the recorded Nautilus divergences through new frozen contracts, multi-quote partial fills, and cancel/replace with explicit shared-liquidity semantics.
+3. Stage 13.3: exchange calendars and session semantics (exchange_calendars, Apache-2.0), plus wiring adjusted and total-return series into the Stage 9 research datasets.
+4. Stage 14.3+: ORE bonds and options, and ORE sensitivity/stress analytics versus the Stage 11.7 cube.
+5. Production point-in-time market-data provider pipeline, after a licensed provider decision.
+6. Stage 15.2+: further verified research-library sources (NBER, SSRN, regulators, central banks).
+7. Perspective terminal, consuming immutable artifacts only.
+8. Cross-engine orchestration / application services.
+9. Performance and scale hardening.
+10. Security / operational readiness: secrets, audit logs, egress policy, independent kill switch.
+11. A long prospective PAPER program.
+12. Only then discuss a separate live-capital architecture.
 
 ---
 
@@ -1961,7 +2038,16 @@ These are architectural notes from prior research and should be reverified befor
 - OpenBB — previously identified as AGPL-3.0; do not casually embed without accepting its obligations.
 - ArcticDB — previously identified with BSL/commercial-production restrictions; not recommended as default core storage.
 
-The repository itself should receive an explicit top-level licensing decision before public/commercial release if one is still absent.
+**Decided:**
+
+- The repository is **proprietary, all rights reserved** (`LICENSE`, docs/LICENSING.md), with the `Private :: Do Not Upload` classifier.
+- If it is ever opened, Apache-2.0 is the recommended license.
+- `quantos.license_policy` enforces the dependency rules in tests:
+  - permissive licenses are free to use;
+  - LGPL/MPL only while unmodified and separately installed;
+  - AGPL/GPL/PolyForm-NC/BUSL/SSPL are prohibited.
+- ORE-SWIG (modified BSD) was reviewed and admitted.
+- Have counsel review before any commercial distribution.
 
 ---
 
@@ -2069,6 +2155,30 @@ The source package is now broad. Important groups:
 - execution_contracts.py
 - execution_reference.py
 - execution_nautilus.py
+- execution_schedule.py
+- execution_data_quality.py
+- execution_analytics.py
+- execution_review.py
+
+## Security Master / corporate actions
+
+- security_master.py
+- corporate_actions.py
+
+## ORE
+
+- ore_risk.py
+- ore_worker.py (child-process boundary)
+
+## Research intake adapters
+
+- adapters/arxiv_radar.py
+- adapters/crossref_radar.py
+
+## Environment / governance
+
+- environment_manifest.py
+- license_policy.py
 
 ---
 
@@ -2107,7 +2217,7 @@ Existing test families cover:
 - replay horizon violations;
 - Nautilus differential behavior.
 
-At Stage 12.4 the suite has 529 tests. On Python 3.11, 42 NautilusTrader runtime tests are intentionally skipped.
+At v0.15.1 the suite has 638 tests. On Python 3.11, 47 NautilusTrader runtime tests are intentionally skipped. With the `ore` extra installed, the ORE runtime tests run on every Python version.
 
 Do not weaken tests just to make CI green.
 
@@ -2137,7 +2247,15 @@ Therefore:
 - Nautilus runtime tests must be intentionally gated;
 - a green 3.11 job alone does not validate Stage 12.3.
 
-There is also a separate live arXiv smoke workflow that must remain DISCOVERY_ONLY.
+As of v0.15.1:
+
+- the `lock` job verifies that `uv.lock` matches `pyproject.toml` and that `requirements.lock` is its exact export;
+- the test matrix installs with `uv sync --locked --extra ore` and records the environment manifest;
+- `QUANTOS_REQUIRE_NAUTILUS=1` (3.12+) and `QUANTOS_REQUIRE_ORE=1` (all versions) turn a missing engine into a failure instead of a silent skip;
+- the license gate test fails on any unreviewed or prohibited dependency license;
+- a weekly **Dependency Drift** workflow tests the newest versions the ranges allow, without gating merges.
+
+There is also a separate live arXiv smoke workflow that must remain DISCOVERY_ONLY. It installs through the hashed `requirements.lock`.
 
 ---
 
@@ -2168,23 +2286,25 @@ There is also a separate live arXiv smoke workflow that must remain DISCOVERY_ON
 
 # 21. Commands / entry points
 
-Install:
+Install (exact, locked):
 
 ~~~bash
-python -m pip install -e .
+uv sync --locked --extra ore      # omit --extra ore off x86-64 Linux/Windows
+# or: python -m pip install --require-hashes -r requirements.lock && python -m pip install --no-deps -e .
 ~~~
 
 Run tests:
 
 ~~~bash
-python -m unittest discover -s tests -v
+uv run python -m unittest discover -s tests -v
 ~~~
 
-Core demos:
+Core demos and environment identity:
 
 ~~~bash
 quantos demo
 quantos edge-demo
+quantos env-manifest [--db data/environment.duckdb]
 ~~~
 
 Research Lab:
@@ -2197,10 +2317,17 @@ Research Radar:
 
 ~~~bash
 quantos-radar scan-arxiv --max-results 20
+CROSSREF_MAILTO=you@example.com quantos-radar scan-crossref --from-index-date 2026-09-01
 quantos-radar review-list --status QUEUED
 ~~~
 
-The user does not rely on a local repo for this project; ChatGPT has been operating directly through GitHub tooling and pushing to the repository.
+Third-party notices (regenerate after dependency changes):
+
+~~~bash
+python -m quantos.license_policy > THIRD_PARTY_NOTICES.md
+~~~
+
+Earlier sessions ran through GitHub tooling without a local repo. The v0.15.1 work was done in a cloud container with local Python 3.11/3.12/3.13 environments.
 
 ---
 
@@ -2215,8 +2342,11 @@ Read these first:
 5. docs/REFERENCE_EXECUTION_STAGE_12_2.md
 6. docs/NAUTILUS_DIFFERENTIAL_STAGE_12_3.md
 7. docs/NAUTILUS_EQUIVALENCE_CONTRACTS_STAGE_12_4.md
-8. src/quantos/execution_nautilus.py
-9. tests/test_execution_nautilus.py
+8. docs/EXECUTION_SCHEDULES_STAGE_12_5.md … docs/EXECUTION_REVIEW_STAGE_12_9.md
+9. docs/SECURITY_MASTER_STAGE_13_1.md and docs/CORPORATE_ACTIONS_STAGE_13_2.md
+10. docs/ORE_DIFFERENTIAL_STAGE_14.md
+11. docs/CROSSREF_RADAR_STAGE_15_1.md
+12. docs/LICENSING.md and docs/REPRODUCIBLE_ENVIRONMENT.md
 
 For earlier architecture:
 
@@ -2339,28 +2469,48 @@ A serious “Quant OS prototype complete” claim should require at least:
 - security review;
 - no silent capital path.
 
+Progress against these criteria at v0.15.1:
+
+- **Met at prototype depth:** fundamentals, valuation, research lab, portfolio, pricing/risk, historical execution simulation, reproducible environment.
+- **Partial:**
+  - research intake now covers arXiv and Crossref, but the reviewed claim library is not populated;
+  - the Security Master core exists without provider feeds;
+  - the ORE differential covers swaps only.
+- **Not started:**
+  - real point-in-time provider path;
+  - shadow execution/reconciliation;
+  - Perspective terminal;
+  - operational observability beyond the environment manifest;
+  - security review.
+
 A separate production/live program would require materially more.
 
 ---
 
 # 26. Recommended next action
 
-Begin **Stage 12.5 — multi-event execution validation and divergence resolution**.
+1. Open a PR for `claude/stoic-cerf-mts7pn` and get the full CI matrix green. This is the first GitHub run of the uv/ORE workflow.
+2. Then pick **one** slice from section 14. The most valuable next slices are:
+   - **Stage 13.3:** exchange calendars, and adjusted/total-return series flowing into Stage 9 datasets. Real-universe backtests depend on this.
+   - **Stage 14.3:** an ORE fixed-rate bond overlap.
 
-The first slice should pick exactly one recorded Stage 12.4 divergence, for example multi-quote partial-fill accumulation for resting limits. Then:
+Required pattern, unchanged:
 
-- decide the First Current reference semantics explicitly;
-- freeze a new equivalence contract;
-- only then map Nautilus.
+> extend the First Current reference semantics first → freeze the contract or policy → map the external engine or provider explicitly → run differential or adversarial fixtures → preserve mismatches explicitly → require the full Python 3.11/3.12/3.13 CI matrix to remain green.
 
-Required pattern:
-
-> extend the First Current reference semantics first → freeze the equivalence contract → map the same behavior into NautilusTrader → run differential fixtures → preserve mismatches explicitly → require the full Python 3.11/3.12/3.13 CI matrix to remain green.
-
-Do not combine latency, fees, partial fills, queue behavior, and multiple orders into one change.
+Do not combine several new behaviors into one change.
 
 ---
 
 # 27. One-sentence handoff
 
-First Current Quant OS has already built a strict point-in-time evidence → reasoning → fundamentals → valuation → quant research → portfolio → pricing/risk pipeline and now has six frozen Stage 12.3/12.4 NautilusTrader historical equivalence contracts. The codebase is at v0.12.4. The next controlled build is Stage 12.5 (multi-event execution validation and resolution of the recorded divergences), without weakening the no-live-capital boundary.
+First Current Quant OS has already built a strict point-in-time evidence → reasoning → fundamentals → valuation → quant research → portfolio → pricing/risk pipeline and now adds:
+
+- a complete historical execution program: seven frozen Nautilus contracts, schedules, a replay-quality gate, TCA and a two-person execution review;
+- a bitemporal Security Master with corporate-action economics;
+- a process-isolated ORE differential;
+- Crossref research discovery;
+- a proprietary license with a dependency gate;
+- a locked, manifest-captured environment.
+
+The codebase is at v0.15.1. The next controlled builds are exchange calendars and dataset wiring, broader ORE overlaps and the open Nautilus divergences, all without weakening the no-live-capital boundary.

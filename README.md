@@ -1,4 +1,4 @@
-# First Current Quant OS — Prototype v0.12.4
+# First Current Quant OS — Prototype v0.15.1
 
 A high-assurance quantitative research and valuation operating-system prototype built around one rule:
 
@@ -6,7 +6,7 @@ A high-assurance quantitative research and valuation operating-system prototype 
 
 The repository is research-only. It can ingest live information, construct reviewed evidence, build professional research cases, create point-in-time financial models, value businesses through multiple controlled frameworks, and run prospective shadow evaluation controls, but **live order authorization is disabled by construction**.
 
-## What v0.12.4 proves
+## What v0.15.1 proves
 
 ### Point-in-time foundation
 - separate event time and knowledge time
@@ -18,6 +18,7 @@ The repository is research-only. It can ingest live information, construct revie
 
 ### Research intake and claim trust
 - live arXiv metadata radar
+- Crossref DOI journal radar (finance journals, mandatory contact etiquette, precision-preserving dates)
 - immutable raw-feed provenance
 - deterministic attention triage and review quarantine
 - exact-source SHA-256 verification
@@ -245,7 +246,7 @@ Examples:
 - statistical non-rejection never becomes model approval;
 - no regulatory classification is inferred.
 
-### Simulation & Execution Engine — v0.12.4 baseline
+### Simulation & Execution Engine — v0.12.9 baseline
 
 **Execution contracts and reference oracle**
 - canonical execution instruments separate from venue symbols;
@@ -259,7 +260,31 @@ Examples:
 - six frozen, content-addressed equivalence contracts, each adding exactly one behavior: zero friction, deterministic fees, order latency, market-data latency, IOC/FOK remainders, and non-marketable-to-marketable limit transitions;
 - exact comparison of final state, fill count, quantity, VWAP, total fees and the per-fill time/quantity/price/fee sequence;
 - observed reference/Nautilus divergences are recorded on each contract and refused rather than tolerated;
-- a match grants only `REFERENCE_MATCH_ONLY`; no network, external-order or capital authority.
+- a match grants only `REFERENCE_MATCH_ONLY`; no network, external-order or capital authority;
+- a seventh contract runs one order per instrument across several instruments in one backtest and aggregates per-order differentials.
+
+**Execution research and review**
+- multi-order execution schedules reconciled into inventory and cash; concurrent orders on one book fail closed; cash/short breaches preserved;
+- replay data-quality gate (gaps, spreads, jumps, thin/stale books, sequence regressions, trades outside the quote) that reports and never repairs;
+- exact implementation-shortfall TCA (timing, half-spread, slippage/impact, fees, opportunity) proven to reconcile in Decimal;
+- two-person execution review whose best outcome only permits designing a separate shadow-execution authority plane.
+
+### Security Master & corporate actions — v0.13.2 baseline
+- bitemporal Company → Security → Listing hierarchy with ISIN/FIGI/CUSIP/SEDOL/CIK identifiers and check-digit validation;
+- ticker resolution through symbol changes and symbol reuse; ambiguity raises, unknown returns nothing;
+- corrections supersede by knowledge time and never leak backward;
+- corporate-action economics (dividends, splits, spin-offs, mergers, delistings) with split-only or total-return adjustment factors, total-return series and position transformations; missing prior closes, counterparty prices, delisting proceeds and spin-off basis allocations are reported, never inferred.
+
+### OpenSourceRisk/Engine differential — v0.14 baseline
+- pinned `open-source-risk-engine==1.8.17.0` as an optional `ore` extra behind First Current contracts;
+- ORE isolated in a child process (its SWIG bindings crash when sharing a process with QuantLib);
+- content-addressed ORE input bundles generated from frozen swap and curve artifacts;
+- swap NPV compared with the Stage 11.5 reference and QuantLib; Stage 11.6 scenario P&L compared cell by cell and across a cube.
+
+### Reproducibility and licensing
+- `uv.lock` universal lockfile plus hashed `requirements.lock`, enforced in CI;
+- content-addressed environment manifest (`quantos env-manifest`) with lock-consistency and code-revision state;
+- proprietary license with a dependency license gate over the whole lockfile.
 
 ## Intelligence, modeling and valuation chain
 
@@ -327,6 +352,8 @@ prospective calibration + risk review
 historical replay + reference fill oracle
     ↓
 frozen-contract Nautilus differential
+    ↓
+schedules + replay quality + TCA + two-person execution review
 
     ╳
 no automatic live-capital path
@@ -338,7 +365,7 @@ no automatic live-capital path
 Exact, hash-verified environment (see `docs/REPRODUCIBLE_ENVIRONMENT.md`):
 
 ```bash
-uv sync --locked
+uv sync --locked            # add --extra ore for the ORE differential (x86-64 Linux/Windows)
 uv run python -m unittest discover -s tests -v
 uv run quantos demo
 uv run quantos edge-demo
@@ -357,6 +384,7 @@ CI validates the complete suite on Python 3.11, 3.12 and 3.13. NautilusTrader v2
 
 ```bash
 quantos-radar scan-arxiv --max-results 20
+CROSSREF_MAILTO=you@example.com quantos-radar scan-crossref --from-index-date 2026-09-01
 quantos-radar review-list --status QUEUED
 ```
 
