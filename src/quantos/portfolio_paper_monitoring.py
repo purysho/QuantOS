@@ -45,6 +45,7 @@ class PortfolioPaperAuthorizationState(str, Enum):
     SUSPENDED = "SUSPENDED"
     TERMINATED = "TERMINATED"
     EXPIRED = "EXPIRED"
+    CLOSED = "CLOSED"
 
 
 @dataclass(frozen=True)
@@ -442,6 +443,54 @@ class PortfolioPaperShadowLedger:
             raise
         return observation
 
+    def complete(
+        self,
+        *,
+        authorization: PortfolioPaperAuthorization,
+        completed_at: datetime,
+        reviewer: str,
+        reason: str,
+        evidence_references: tuple[str, ...],
+    ) -> PortfolioPaperEnforcementEvent:
+        if (
+            authorization.authorization_id
+            != portfolio_paper_authorization_identity(authorization)
+        ):
+            raise ValueError(
+                "portfolio PAPER authorization identity does not match content"
+            )
+        if self.state(authorization.authorization_id) is not (
+            PortfolioPaperAuthorizationState.ACTIVE
+        ):
+            raise ValueError(
+                "only an active portfolio PAPER authorization can be closed"
+            )
+        if completed_at.tzinfo is None:
+            raise ValueError("completed_at must be timezone-aware")
+        if (
+            completed_at < authorization.authorized_at
+            or completed_at > authorization.expires_at
+        ):
+            raise ValueError(
+                "normal PAPER closure must occur inside authorization window"
+            )
+        if not reviewer.strip():
+            raise ValueError("PAPER completion reviewer is required")
+        event = self._build_event(
+            authorization_id=authorization.authorization_id,
+            occurred_at=completed_at,
+            prior_state=PortfolioPaperAuthorizationState.ACTIVE,
+            new_state=PortfolioPaperAuthorizationState.CLOSED,
+            kill_conditions=(),
+            reason=reason.strip(),
+            evidence_references=(
+                *evidence_references,
+                f"reviewer:{reviewer.strip()}",
+            ),
+        )
+        self._insert_event(event)
+        return event
+
     def state(
         self,
         authorization_id: str,
@@ -726,6 +775,13 @@ class PortfolioPaperShadowLedger:
         self,
         observation: PortfolioPaperShadowObservation,
     ) -> None:
+        if (
+            observation.observation_id
+            != portfolio_paper_shadow_observation_identity(observation)
+        ):
+            raise ValueError(
+                "portfolio PAPER observation identity does not match content"
+            )
         payload = json.dumps(
             _observation_payload(observation),
             sort_keys=True,
@@ -769,6 +825,13 @@ class PortfolioPaperShadowLedger:
         self,
         event: PortfolioPaperEnforcementEvent,
     ) -> None:
+        if (
+            event.event_id
+            != portfolio_paper_enforcement_event_identity(event)
+        ):
+            raise ValueError(
+                "portfolio PAPER enforcement event identity does not match content"
+            )
         self._con.execute(
             """
             INSERT INTO portfolio_paper_enforcement_events
@@ -799,6 +862,82 @@ class PortfolioPaperShadowLedger:
             [authorization_id],
         ).fetchone()
         return int(row[0]) + 1
+
+
+def portfolio_paper_shadow_observation_identity(
+    observation: PortfolioPaperShadowObservation,
+) -> str:
+    payload = {
+        "authorization_id": observation.authorization_id,
+        "model_id": observation.model_id,
+        "manifest_id": observation.manifest_id,
+        "selected_solution_id": observation.selected_solution_id,
+        "period_start": observation.period_start.isoformat(),
+        "period_end": observation.period_end.isoformat(),
+        "observed_at": observation.observed_at.isoformat(),
+        "gross_return": str(observation.gross_return),
+        "net_return": str(observation.net_return),
+        "implementation_cost_rate": str(
+            observation.implementation_cost_rate
+        ),
+        "expected_implementation_cost_rate": str(
+            observation.expected_implementation_cost_rate
+        ),
+        "implementation_cost_assumption_variance": str(
+            observation.implementation_cost_assumption_variance
+        ),
+        "one_way_turnover": str(observation.one_way_turnover),
+        "weights": [
+            {
+                "security_id": item.security_id,
+                "weight": str(item.weight),
+            }
+            for item in observation.weights
+        ],
+        "net_exposure": str(observation.net_exposure),
+        "gross_exposure": str(observation.gross_exposure),
+        "solution_drift_turnover": str(
+            observation.solution_drift_turnover
+        ),
+        "cumulative_net_return": str(
+            observation.cumulative_net_return
+        ),
+        "running_maximum_drawdown": str(
+            observation.running_maximum_drawdown
+        ),
+        "running_average_implementation_cost_rate": str(
+            observation.running_average_implementation_cost_rate
+        ),
+        "source_fact_ids": list(observation.source_fact_ids),
+        "triggered_kill_conditions": [
+            item.value for item in observation.triggered_kill_conditions
+        ],
+        "authorization_state_after_record": (
+            observation.authorization_state_after_record.value
+        ),
+        "paper_authority": observation.paper_authority,
+        "order_authority": observation.order_authority,
+        "capital_authority": observation.capital_authority,
+    }
+    return _content_id("portfolio-paper-shadow-observation", payload)
+
+
+def portfolio_paper_enforcement_event_identity(
+    event: PortfolioPaperEnforcementEvent,
+) -> str:
+    payload = {
+        "ordinal": event.ordinal,
+        "authorization_id": event.authorization_id,
+        "occurred_at": event.occurred_at.isoformat(),
+        "prior_state": event.prior_state.value,
+        "new_state": event.new_state.value,
+        "kill_conditions": [
+            item.value for item in event.kill_conditions
+        ],
+        "reason": event.reason,
+        "evidence_references": list(event.evidence_references),
+    }
+    return _content_id("portfolio-paper-enforcement-event", payload)
 
 
 def _solution_method(
