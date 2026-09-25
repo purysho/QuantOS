@@ -61,6 +61,7 @@ NEW_YORK = ZoneInfo("America/New_York")
 FRANKFURT = ZoneInfo("Europe/Berlin")
 MAX_BODY_BYTES = 50_000_000
 
+NASDAQ_SYMBOLS_URL = "https://www.nasdaqtrader.com/dynamic/SymDir/nasdaqtraded.txt"
 SEC_TICKERS_URL = "https://www.sec.gov/files/company_tickers_exchange.json"
 SEC_FACTS_URL = "https://data.sec.gov/api/xbrl/companyfacts/CIK{cik:010d}.json"
 TREASURY_URL = (
@@ -72,6 +73,8 @@ ECB_URL = "https://data-api.ecb.europa.eu/service/data/EXR/D.{currency}.EUR.SP00
 FRED_CSV_URL = "https://fred.stlouisfed.org/graph/fredgraph.csv?id={series}"
 
 KEYLESS_HEALTH_URLS = {
+    "Fama-French factors": "https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/ftp/F-F_Momentum_Factor_daily_CSV.zip",
+    "Nasdaq symbols": NASDAQ_SYMBOLS_URL,
     "SEC tickers": SEC_TICKERS_URL,
     "SEC XBRL facts": SEC_FACTS_URL.format(cik=320193),
     "US Treasury": TREASURY_URL.format(year=date.today().year),
@@ -80,6 +83,8 @@ KEYLESS_HEALTH_URLS = {
 }
 
 EXCHANGE_MIC = {"NASDAQ": "XNAS", "NYSE": "XNYS", "CBOE": "BATS", "OTC": "OTCM"}
+# Listing-exchange codes used in Nasdaq Trader's symbol directory.
+NASDAQ_LISTING_MIC = {"Q": "XNAS", "N": "XNYS", "A": "XASE", "P": "ARCX", "Z": "BATS", "V": "IEXG"}
 
 
 class KeylessError(ValueError):
@@ -231,6 +236,7 @@ class SeedResult:
     unchanged: int
     security_ids: dict[str, str]
     unresolved: tuple[str, ...]
+    kinds: dict[str, str] = None  # ticker -> security kind ("?" suffix = unverified)
 
 
 def seed_security_master(
@@ -238,33 +244,54 @@ def seed_security_master(
     master: SecurityMaster,
     directory: TickerDirectory,
     tickers: tuple[str, ...],
+    symbols: SymbolDirectory | None = None,
 ) -> SeedResult:
     """Adds company, security, listing and CIK records for the given tickers.
 
     The directory is a snapshot, so records are valid from the capture date
-    only. No historical ticker mapping is claimed. The security kind is not
-    in the directory; seeded securities are recorded as COMMON_STOCK, with
-    that assumption stated in their evidence references, so a reviewer can
-    correct ETFs, ADRs and funds.
+    only. No historical ticker mapping is claimed. SEC's directory has no
+    security kind; with Nasdaq's symbol directory the kind (ETF, ADR,
+    preferred, common) and the precise listing venue come from the exchange
+    listing. When neither says, the security is recorded as COMMON_STOCK
+    with ``assumption:security-kind-unverified`` in its evidence, for a
+    reviewer to correct.
     """
 
     known_at = directory.fetched_at
     valid_from = known_at.astimezone(NEW_YORK).date()
     evidence = (f"sec-ticker-directory:{directory.artifact_id or known_at.isoformat()}",)
-    assumption = evidence + ("assumption:security-kind-unverified",)
+    if symbols is not None:
+        evidence = evidence + (f"nasdaq-symbol-directory:{symbols.artifact_id or symbols.file_created}",)
     added = unchanged = 0
     # A later snapshot that says the same thing is not a new fact.
     existing = {r.record_key: r for r in master.records(known_at=known_at)}
     ids: dict[str, str] = {}
+    kinds: dict[str, str] = {}
     unresolved = []
     for ticker in tickers:
         entry = directory.lookup(ticker)
         if entry is None:
-            unresolved.append(ticker.upper())
+            listing = symbols.lookup(ticker) if symbols is not None else None
+            if listing is None or listing.listing_mic is None:
+                unresolved.append(ticker.upper())
+                continue
+            # Listed on a US exchange but not an SEC company filer (many funds
+            # file under series IDs): seeded from the exchange listing, no CIK.
+            records, security_id, kind, assumption = _listing_only_records(
+                listing, valid_from=valid_from, known_at=known_at, evidence=evidence)
+            for record in records:
+                if _same_as_known(existing.get(record.record_key), record) or not master.add(record):
+                    unchanged += 1
+                else:
+                    added += 1
+            ids[listing.symbol] = security_id
+            kinds[listing.symbol] = kind.value + ("?" if assumption else "")
             continue
         company_id = f"CIK:{entry.cik:010d}"
         security_id = f"SEC:{entry.cik:010d}:{entry.ticker}"
-        mic = EXCHANGE_MIC.get(entry.exchange.upper())
+        listing = symbols.lookup(entry.ticker) if symbols is not None else None
+        kind, assumption = classify_security(listing)
+        mic = (listing.listing_mic if listing and listing.listing_mic else None) or EXCHANGE_MIC.get(entry.exchange.upper())
         records = [
             CompanyRecord(record_key=f"company:{company_id}", company_id=company_id, legal_name=entry.name,
                           country="US", valid_from=valid_from, valid_to=None, knowledge_time=known_at,
@@ -273,13 +300,15 @@ def seed_security_master(
                              security_id=None, company_id=company_id, valid_from=valid_from, valid_to=None,
                              knowledge_time=known_at, evidence_references=evidence),
             SecurityRecord(record_key=f"security:{security_id}", security_id=security_id, company_id=company_id,
-                           kind=SecurityKind.COMMON_STOCK, share_class=entry.ticker,
-                           description=f"{entry.name} ({entry.ticker})", valid_from=valid_from, valid_to=None,
-                           knowledge_time=known_at, evidence_references=assumption),
+                           kind=kind, share_class=entry.ticker,
+                           description=f"{listing.name if listing else entry.name} ({entry.ticker})",
+                           valid_from=valid_from, valid_to=None, knowledge_time=known_at,
+                           evidence_references=evidence + ((assumption,) if assumption else ())),
         ]
         if mic is not None:
             records.append(
-                ListingRecord(record_key=f"listing:{security_id}:{mic}", listing_id=f"{security_id}:{mic}",
+                # One primary-listing key per security: a corrected venue supersedes the old one.
+                ListingRecord(record_key=f"listing:{security_id}", listing_id=f"{security_id}:{mic}",
                               security_id=security_id, venue_mic=mic, ticker=entry.ticker, currency="USD",
                               is_primary=True, valid_from=valid_from, valid_to=None, knowledge_time=known_at,
                               evidence_references=evidence)
@@ -292,7 +321,29 @@ def seed_security_master(
             else:
                 added += 1
         ids[entry.ticker] = security_id
-    return SeedResult(added, unchanged, ids, tuple(unresolved))
+        kinds[entry.ticker] = kind.value + ("?" if assumption else "")
+    return SeedResult(added, unchanged, ids, tuple(unresolved), kinds)
+
+
+def _listing_only_records(listing: SymbolEntry, *, valid_from: date, known_at: datetime, evidence: tuple[str, ...]):
+    kind, assumption = classify_security(listing)
+    company_id = f"LISTING:{listing.symbol}"
+    security_id = f"LISTING:{listing.symbol}"
+    security_evidence = evidence + ((assumption,) if assumption else ())
+    records = [
+        CompanyRecord(record_key=f"company:{company_id}", company_id=company_id, legal_name=listing.name,
+                      country="US", valid_from=valid_from, valid_to=None, knowledge_time=known_at,
+                      evidence_references=evidence),
+        SecurityRecord(record_key=f"security:{security_id}", security_id=security_id, company_id=company_id,
+                       kind=kind, share_class=listing.symbol, description=f"{listing.name} ({listing.symbol})",
+                       valid_from=valid_from, valid_to=None, knowledge_time=known_at,
+                       evidence_references=security_evidence),
+        ListingRecord(record_key=f"listing:{security_id}", listing_id=f"{security_id}:{listing.listing_mic}",
+                      security_id=security_id, venue_mic=listing.listing_mic, ticker=listing.symbol, currency="USD",
+                      is_primary=True, valid_from=valid_from, valid_to=None, knowledge_time=known_at,
+                      evidence_references=evidence),
+    ]
+    return records, security_id, kind, assumption
 
 
 def _same_as_known(known, candidate) -> bool:
@@ -300,6 +351,85 @@ def _same_as_known(known, candidate) -> bool:
         return False
     return replace(known, knowledge_time=candidate.knowledge_time, valid_from=candidate.valid_from,
                    evidence_references=candidate.evidence_references) == candidate
+
+
+# ------------------------------------------------ Nasdaq symbol directory
+
+
+@dataclass(frozen=True)
+class SymbolEntry:
+    symbol: str
+    name: str
+    listing_mic: str | None
+    is_etf: bool
+
+
+@dataclass(frozen=True)
+class SymbolDirectory:
+    fetched_at: datetime
+    artifact_id: str | None
+    file_created: str
+    entries: dict[str, SymbolEntry]
+
+    def lookup(self, ticker: str) -> SymbolEntry | None:
+        wanted = re.sub(r"[-/]", ".", ticker.strip().upper())
+        return self.entries.get(wanted)
+
+
+class NasdaqSymbolDirectoryAdapter(_Client):
+    """Every US-listed symbol with its listing exchange and ETF flag (keyless)."""
+
+    def fetch(self, *, fetched_at: datetime | None = None) -> SymbolDirectory:
+        body, fetched_at, artifact_id = self.get(NASDAQ_SYMBOLS_URL, fetched_at=fetched_at)
+        created, entries = parse_symbol_directory(body)
+        return SymbolDirectory(fetched_at, artifact_id, created, entries)
+
+
+def parse_symbol_directory(body: bytes) -> tuple[str, dict[str, SymbolEntry]]:
+    lines = body.decode("utf-8", errors="replace").splitlines()
+    if not lines or not lines[0].startswith("Nasdaq Traded|Symbol|Security Name|Listing Exchange"):
+        raise KeylessError("unexpected Nasdaq symbol directory header")
+    header = lines[0].split("|")
+    index = {name: header.index(name) for name in ("Symbol", "Security Name", "Listing Exchange", "ETF", "Test Issue")}
+    created = ""
+    entries: dict[str, SymbolEntry] = {}
+    for line in lines[1:]:
+        if line.startswith("File Creation Time"):
+            created = line.split(":", 1)[1].split("|")[0].strip()
+            continue
+        cells = line.split("|")
+        if len(cells) < len(header) or cells[index["Test Issue"]] == "Y":
+            continue
+        symbol = cells[index["Symbol"]].strip().upper()
+        if not symbol:
+            continue
+        entries[symbol] = SymbolEntry(
+            symbol=symbol,
+            name=" ".join(cells[index["Security Name"]].split()),
+            listing_mic=NASDAQ_LISTING_MIC.get(cells[index["Listing Exchange"]].strip()),
+            is_etf=cells[index["ETF"]].strip() == "Y",
+        )
+    if not created or len(entries) < 100:
+        raise KeylessError("Nasdaq symbol directory is incomplete (no creation time or too few symbols)")
+    return created, entries
+
+
+def classify_security(entry: SymbolEntry | None) -> tuple[SecurityKind, str | None]:
+    """Security kind from the exchange directory, or COMMON_STOCK with a
+    stated assumption when the directory does not say."""
+
+    if entry is None:
+        return SecurityKind.COMMON_STOCK, "assumption:security-kind-unverified"
+    name = entry.name.lower()
+    if entry.is_etf:
+        return SecurityKind.ETF, None
+    if "depositary" in name:
+        return SecurityKind.ADR, None
+    if "preferred" in name or re.search(r"\bpfd\b", name):
+        return SecurityKind.PREFERRED, None
+    if any(term in name for term in ("common stock", "ordinary share", "class a", "class b", "common shares")):
+        return SecurityKind.COMMON_STOCK, None
+    return SecurityKind.COMMON_STOCK, "assumption:security-kind-unverified"
 
 
 # ---------------------------------------------------------- SEC XBRL facts
@@ -574,6 +704,75 @@ def parse_fred_csv(body: bytes, *, series_id: str, captured_at: datetime) -> tup
             value=_decimal(raw, series_id), unit="as published", knowledge_time=captured_at,
             knowledge_policy=KnowledgeTimePolicy.CAPTURE_TIME, captured_at=captured_at,
         ))
+    return tuple(output)
+
+
+FRENCH_BASE = "https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/ftp/"
+FRENCH_DATASETS = {
+    # dataset id -> (zip file, series prefix)
+    "FF5_DAILY": ("F-F_Research_Data_5_Factors_2x3_daily_CSV.zip", "FF5_"),
+    "MOM_DAILY": ("F-F_Momentum_Factor_daily_CSV.zip", "FF_"),
+}
+
+
+class FamaFrenchAdapter(_Client):
+    """Kenneth R. French Data Library factor returns (keyless).
+
+    The library is rebuilt from each new CRSP release and history can be
+    revised, so observations are CAPTURE_TIME and the CRSP vintage is
+    recorded in the unit. A later vintage that changes a value is stored as
+    a revision.
+    """
+
+    SOURCE = "ken-french"
+
+    def fetch(self, *, dataset: str, fetched_at: datetime | None = None) -> tuple[PublicObservation, ...]:
+        if dataset not in FRENCH_DATASETS:
+            raise KeylessError(f"unknown French dataset {dataset!r}")
+        filename, prefix = FRENCH_DATASETS[dataset]
+        body, captured, _ = self.get(FRENCH_BASE + filename, fetched_at=fetched_at)
+        return parse_french_zip(body, prefix=prefix, captured_at=captured)
+
+
+def parse_french_zip(body: bytes, *, prefix: str, captured_at: datetime) -> tuple[PublicObservation, ...]:
+    import zipfile
+
+    try:
+        archive = zipfile.ZipFile(io.BytesIO(body))
+        names = [n for n in archive.namelist() if n.lower().endswith(".csv")]
+        if len(names) != 1 or archive.getinfo(names[0]).file_size > MAX_BODY_BYTES:
+            raise KeylessError("French data zip must contain exactly one reasonable CSV")
+        text = archive.read(names[0]).decode("latin-1")
+    except zipfile.BadZipFile as exc:
+        raise KeylessError("invalid French data zip") from exc
+    vintage_match = re.search(r"(\d{6}) CRSP database", text)
+    unit = "percent daily return" + (f"; CRSP {vintage_match.group(1)} vintage" if vintage_match else "")
+    header: list[str] | None = None
+    output = []
+    for line in text.splitlines():
+        cells = [c.strip() for c in line.split(",")]
+        if header is None:
+            if len(cells) > 1 and cells[0] == "" and all(cells[1:]):
+                header = cells
+            continue
+        if not re.fullmatch(r"\d{8}", cells[0]):
+            if output:
+                break  # the daily section ended (annual tables and notes follow in some files)
+            continue
+        if len(cells) != len(header):
+            raise KeylessError(f"French data row has {len(cells)} cells, header has {len(header)}")
+        day = datetime.strptime(cells[0], "%Y%m%d").date()
+        for name, raw in zip(header[1:], cells[1:]):
+            if raw in ("", "-99.99", "-999"):
+                continue  # the library's missing-value markers
+            series = prefix + re.sub(r"[^A-Z0-9]+", "_", name.upper()).strip("_")
+            output.append(PublicObservation(
+                source=FamaFrenchAdapter.SOURCE, series_id=series, observation_date=day,
+                value=_decimal(raw, series), unit=unit, knowledge_time=captured_at,
+                knowledge_policy=KnowledgeTimePolicy.CAPTURE_TIME, captured_at=captured_at,
+            ))
+    if header is None or not output:
+        raise KeylessError("French data file contained no daily observations")
     return tuple(output)
 
 

@@ -199,6 +199,7 @@ class RunbookTests(unittest.TestCase):
                 with mock.patch.object(runbook, "step_universe", return_value=("1/1 tickers", {"AAPL": (320193, "SEC:0000320193:AAPL")})), \
                      mock.patch.object(runbook, "step_fundamentals", side_effect=RuntimeError("SEC down")), \
                      mock.patch.object(runbook, "step_rates", return_value="inserted=1"), \
+                     mock.patch.object(runbook, "step_factors", return_value="inserted=2"), \
                      mock.patch.object(runbook, "step_research", return_value="0 items"), \
                      mock.patch.object(runbook, "step_terminal", return_value="exported"):
                     results = runbook.run_daily()
@@ -207,7 +208,7 @@ class RunbookTests(unittest.TestCase):
             finally:
                 os.chdir(cwd)
         by_step = {r.step: r for r in results}
-        self.assertEqual(list(by_step), ["universe", "fundamentals", "rates", "prices", "research", "terminal"])
+        self.assertEqual(list(by_step), ["universe", "fundamentals", "rates", "factors", "prices", "research", "terminal"])
         self.assertFalse(by_step["fundamentals"].ok)
         self.assertTrue(by_step["terminal"].ok)
         self.assertIn("keyless mode", by_step["prices"].summary)

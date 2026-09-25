@@ -21,8 +21,12 @@ from .artifacts import SourceArtifactStore
 from .home import QuantosConfig, load_config
 from .keyless import (
     ECBReferenceRateAdapter,
+    FRENCH_DATASETS,
+    FamaFrenchAdapter,
     FredCsvAdapter,
+    KeylessError,
     KnowledgeTimePolicy,
+    NasdaqSymbolDirectoryAdapter,
     NotFound,
     PublicObservationStore,
     SECCompanyFactsAdapter,
@@ -40,6 +44,7 @@ MARKET_DATA_DB = "data/market_data.duckdb"
 ARTIFACT_ROOT = "data/artifacts"
 ARTIFACT_DB = "data/artifacts.duckdb"
 
+STEPS = ("universe", "fundamentals", "rates", "factors", "prices", "research", "terminal")
 DEFAULT_FX = ("USD", "GBP", "JPY", "CHF")
 DEFAULT_FRED = ("DGS10", "DGS2", "DFF", "CPIAUCSL", "UNRATE", "T10YIE")
 
@@ -67,17 +72,32 @@ def step_universe(config: QuantosConfig, *, transport=None) -> tuple[str, dict[s
 
     from .security_master import SecurityMaster
 
+    artifacts = _artifacts()
     directory = SECTickerDirectoryAdapter(user_agent=config.user_agent, transport=transport,
-                                          artifacts=_artifacts()).fetch()
+                                          artifacts=artifacts).fetch()
     if not config.universe:
         return f"SEC directory has {len(directory.entries)} tickers; universe is empty (add tickers with `quantos setup`)", {}
     master = SecurityMaster(SECURITY_MASTER_DB)
     try:
-        seeded = seed_security_master(master=master, directory=directory, tickers=config.universe)
+        try:
+            symbols = NasdaqSymbolDirectoryAdapter(user_agent=config.user_agent, transport=transport,
+                                                   artifacts=artifacts).fetch()
+        except KeylessError:
+            symbols = None  # kinds are then recorded as assumptions, never guessed
+        seeded = seed_security_master(master=master, directory=directory, tickers=config.universe, symbols=symbols)
     finally:
         master.close()
-    resolved = {t: (directory.lookup(t).cik, sid) for t, sid in seeded.security_ids.items()}
+    resolved = {
+        t: ((directory.lookup(t).cik if directory.lookup(t) else None), sid)
+        for t, sid in seeded.security_ids.items()
+    }
     summary = f"{len(resolved)}/{len(config.universe)} tickers resolved, {seeded.added} new records"
+    etfs = sorted(t for t, k in (seeded.kinds or {}).items() if k.startswith("ETF"))
+    unverified = sorted(t for t, k in (seeded.kinds or {}).items() if k.endswith("?"))
+    if etfs:
+        summary += "; ETFs: " + ", ".join(etfs)
+    if unverified:
+        summary += "; kind unverified: " + ", ".join(unverified)
     if seeded.unresolved:
         summary += "; unresolved: " + ", ".join(seeded.unresolved)
     return summary, resolved
@@ -91,7 +111,7 @@ def step_fundamentals(config: QuantosConfig, resolved: dict[str, tuple[int, str]
     store = XbrlFactStore(FUNDAMENTALS_DB)
     added = total = 0
     without_facts = []
-    by_cik = {cik: ticker for ticker, (cik, _) in resolved.items()}
+    by_cik = {cik: ticker for ticker, (cik, _) in resolved.items() if cik is not None}
     try:
         for cik in sorted(by_cik):
             try:
@@ -133,6 +153,21 @@ def step_rates(config: QuantosConfig, *, transport=None, backfill_from: int | No
         fred = FredCsvAdapter(user_agent=agent, transport=transport)
         for series in DEFAULT_FRED:
             merge(store.add(fred.fetch(series_id=series)))
+    finally:
+        store.close()
+    return ", ".join(f"{k}={v}" for k, v in counts.items())
+
+
+def step_factors(config: QuantosConfig, *, transport=None) -> str:
+    """Fama-French 5 factors and momentum (daily), from the French Data Library."""
+
+    store = PublicObservationStore(PUBLIC_DATA_DB)
+    counts = {"inserted": 0, "unchanged": 0, "revisions": 0}
+    try:
+        adapter = FamaFrenchAdapter(user_agent=config.user_agent, transport=transport)
+        for dataset in FRENCH_DATASETS:
+            for key, value in store.add(adapter.fetch(dataset=dataset)).items():
+                counts[key] += value
     finally:
         store.close()
     return ", ".join(f"{k}={v}" for k, v in counts.items())
@@ -203,7 +238,7 @@ def step_terminal() -> str:
 def run_daily(*, steps: tuple[str, ...] | None = None, backfill_from: int | None = None,
               price_days: int = 10) -> tuple[StepResult, ...]:
     config = _config()
-    wanted = steps or ("universe", "fundamentals", "rates", "prices", "research", "terminal")
+    wanted = steps or STEPS
     results: list[StepResult] = []
     resolved: dict[str, tuple[int, str]] = {}
 
@@ -227,6 +262,7 @@ def run_daily(*, steps: tuple[str, ...] | None = None, backfill_from: int | None
     run("universe", universe)
     run("fundamentals", lambda: step_fundamentals(config, resolved))
     run("rates", lambda: step_rates(config, backfill_from=backfill_from))
+    run("factors", lambda: step_factors(config))
     run("prices", lambda: step_prices(config, resolved, days=price_days))
     run("research", lambda: step_research(config))
     run("terminal", step_terminal)

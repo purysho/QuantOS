@@ -6,6 +6,10 @@ from decimal import Decimal as D
 from pathlib import Path
 
 from quantos.keyless import (
+    parse_french_zip,
+    NasdaqSymbolDirectoryAdapter,
+    classify_security,
+    parse_symbol_directory,
     KEYLESS_HEALTH_URLS,
     KeylessError,
     KnowledgeTimePolicy,
@@ -22,7 +26,7 @@ from quantos.keyless import (
     seed_security_master,
 )
 from quantos.security import DEFAULT_EGRESS_ALLOWLIST
-from quantos.security_master import ListingRecord, SecurityMaster
+from quantos.security_master import ListingRecord, SecurityKind, SecurityMaster
 from urllib.parse import urlparse
 
 UTC = timezone.utc
@@ -116,6 +120,57 @@ class TickerDirectoryTests(unittest.TestCase):
                 master.close()
 
 
+SYMBOLS_HEADER = "Nasdaq Traded|Symbol|Security Name|Listing Exchange|Market Category|ETF|Round Lot Size|Test Issue|Financial Status|CQS Symbol|NASDAQ Symbol|NextShares"
+SYMBOL_ROWS = [
+    "Y|AAPL|Apple Inc. - Common Stock|Q|Q|N|100|N|N||AAPL|N",
+    "Y|BRK.B|Berkshire Hathaway Inc. New Common Stock|N| |N|40|N||BRK.B|BRK.B|N",
+    "Y|SPY|SPDR S&P 500 ETF Trust|P| |Y|100|N||SPY|SPY|N",
+    "Y|VNQ|Vanguard Real Estate ETF|P| |Y|100|N||VNQ|VNQ|N",
+    "Y|BABA|Alibaba Group Holding Limited American Depositary Shares|N| |N|100|N||BABA|BABA|N",
+    "Y|TSM|Taiwan Semiconductor Manufacturing Company Ltd.|N| |N|40|N||TSM|TSM|N",
+    "Y|ZTEST|Test Stock Common Stock|Q|Q|N|100|Y|N||ZTEST|N",
+] + [f"Y|F{i:03d}|Filler {i} Common Stock|Q|Q|N|100|N|N||F{i:03d}|N" for i in range(100)]
+SYMBOLS = ("\n".join([SYMBOLS_HEADER, *SYMBOL_ROWS, "File Creation Time: 0925202610:02|||||"]) + "\n").encode()
+
+
+class SymbolDirectoryTests(unittest.TestCase):
+    def setUp(self):
+        self.symbols = NasdaqSymbolDirectoryAdapter(user_agent=AGENT, transport=FakeTransport({"nasdaqtraded": SYMBOLS})).fetch(fetched_at=CAPTURED)
+
+    def test_parse_classify_and_skip_test_issues(self):
+        self.assertIsNone(self.symbols.lookup("ZTEST"))
+        self.assertEqual(self.symbols.lookup("brk-b").listing_mic, "XNYS")
+        kinds = {t: classify_security(self.symbols.lookup(t)) for t in ("AAPL", "SPY", "BABA", "TSM")}
+        self.assertEqual(kinds["AAPL"], (SecurityKind.COMMON_STOCK, None))
+        self.assertEqual(kinds["SPY"], (SecurityKind.ETF, None))
+        self.assertEqual(kinds["BABA"], (SecurityKind.ADR, None))
+        self.assertEqual(kinds["TSM"][1], "assumption:security-kind-unverified", "unknown is flagged, not guessed")
+        self.assertEqual(classify_security(None)[1], "assumption:security-kind-unverified")
+        with self.assertRaises(KeylessError):
+            parse_symbol_directory(b"garbage")
+        with self.assertRaises(KeylessError):
+            parse_symbol_directory(("\n".join([SYMBOLS_HEADER, *SYMBOL_ROWS[:3]])).encode())  # no footer, too short
+
+    def test_seed_uses_exchange_listing_and_resolves_non_sec_funds(self):
+        directory = SECTickerDirectoryAdapter(user_agent=AGENT, transport=FakeTransport({"company_tickers": TICKERS})).fetch(fetched_at=CAPTURED)
+        with tempfile.TemporaryDirectory() as tmp:
+            master = SecurityMaster(Path(tmp) / "m.duckdb")
+            try:
+                result = seed_security_master(master=master, directory=directory, symbols=self.symbols,
+                                              tickers=("AAPL", "SPY", "VNQ", "TSM"))
+                self.assertEqual(result.kinds, {"AAPL": "COMMON_STOCK", "SPY": "ETF", "VNQ": "ETF", "TSM": "COMMON_STOCK?"})
+                self.assertEqual(result.security_ids["VNQ"], "LISTING:VNQ")
+                self.assertEqual(result.unresolved, ())
+                self.assertEqual(result.security_ids["TSM"], "LISTING:TSM", "exchange-listed, not in the SEC fixture")
+                self.assertEqual(
+                    master.resolve_ticker(ticker="SPY", venue_mic="ARCX", on=date(2026, 9, 25), known_at=CAPTURED),
+                    "SEC:0000884394:SPY", "venue from the exchange directory, not SEC's coarse label",
+                )
+                self.assertTrue(master.integrity_report(known_at=CAPTURED).clean)
+            finally:
+                master.close()
+
+
 class CompanyFactsTests(unittest.TestCase):
     def test_facts_parse_with_filing_day_knowledge_time_and_dedupe(self):
         facts = parse_company_facts(facts_document(), expected_cik=320193)
@@ -155,6 +210,49 @@ class CompanyFactsTests(unittest.TestCase):
 TREASURY = b'Date,"1 Mo","1.5 Month","10 Yr","30 Yr"\n09/24/2026,4.01,4.10,4.55,\n09/23/2026,4.00,4.09,4.52,4.90\n'
 ECB = b"KEY,FREQ,CURRENCY,CURRENCY_DENOM,EXR_TYPE,EXR_SUFFIX,TIME_PERIOD,OBS_VALUE\nEXR.D.USD.EUR.SP00.A,D,USD,EUR,SP00,A,2026-09-23,1.1350\nEXR.D.USD.EUR.SP00.A,D,USD,EUR,SP00,A,2026-09-24,1.1367\n"
 FRED = b"observation_date,DGS10\n2026-09-22,5.10\n2026-09-23,\n2026-09-24,5.11\n"
+
+
+def french_zip(text: str) -> bytes:
+    import io, zipfile
+
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr("F-F_Test_daily.csv", text)
+    return buffer.getvalue()
+
+
+FRENCH = """This file was created by using the 202607 CRSP database.
+Some notes.
+
+,Mkt-RF,SMB,HML,RF
+20260730,    1.59,   -1.12,   -1.36,    0.02
+20260731,    0.68,  -99.99,   -0.59,    0.02
+
+ Annual Factors: January-December
+,Mkt-RF,SMB,HML,RF
+  2025,   20.1,   -3.2,   1.0,  4.1
+Copyright 2026 Eugene F. Fama and Kenneth R. French
+"""
+
+
+class FactorTests(unittest.TestCase):
+    def test_daily_section_only_with_vintage_and_missing_markers(self):
+        obs = parse_french_zip(french_zip(FRENCH), prefix="FF5_", captured_at=CAPTURED)
+        series = {(o.series_id, o.observation_date): o.value for o in obs}
+        self.assertEqual(series[("FF5_MKT_RF", date(2026, 7, 30))], D("1.59"))
+        self.assertNotIn(("FF5_SMB", date(2026, 7, 31)), series, "-99.99 means missing")
+        self.assertEqual(len(obs), 7)
+        self.assertTrue(all(o.knowledge_policy is KnowledgeTimePolicy.CAPTURE_TIME for o in obs))
+        self.assertIn("CRSP 202607 vintage", obs[0].unit)
+        self.assertFalse(any(o.observation_date.year == 2025 for o in obs), "annual table not read as daily")
+
+    def test_bad_archives_fail_closed(self):
+        with self.assertRaises(KeylessError):
+            parse_french_zip(b"not a zip", prefix="FF5_", captured_at=CAPTURED)
+        with self.assertRaises(KeylessError):
+            parse_french_zip(french_zip("no data here"), prefix="FF5_", captured_at=CAPTURED)
+        with self.assertRaises(KeylessError):
+            parse_french_zip(french_zip(",A,B\n20260730, 1\n"), prefix="FF5_", captured_at=CAPTURED)
 
 
 class RatesTests(unittest.TestCase):

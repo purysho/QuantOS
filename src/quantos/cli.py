@@ -400,7 +400,7 @@ def _main() -> int:
     daily.add_argument(
         "--only",
         default=None,
-        help="comma-separated subset of: universe,fundamentals,rates,prices,research,terminal",
+        help="comma-separated subset of: universe,fundamentals,rates,factors,prices,research,terminal",
     )
     daily.add_argument("--backfill-from", type=int, default=None, help="first year of Treasury/ECB history to load")
     daily.add_argument("--price-days", type=int, default=10, help="calendar days of prices to (re)capture")
@@ -517,7 +517,9 @@ def _main() -> int:
         from .runbook import daily_command
 
         steps = tuple(s.strip() for s in args.only.split(",")) if args.only else None
-        valid = {"universe", "fundamentals", "rates", "prices", "research", "terminal"}
+        from .runbook import STEPS
+
+        valid = set(STEPS)
         if steps and set(steps) - valid:
             raise SystemExit("unknown step(s): " + ", ".join(sorted(set(steps) - valid)))
         return daily_command(steps=steps, backfill_from=args.backfill_from, price_days=args.price_days)

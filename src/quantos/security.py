@@ -236,6 +236,8 @@ DEFAULT_EGRESS_ALLOWLIST = frozenset(
         "data-api.ecb.europa.eu",
         "fred.stlouisfed.org",
         "registry.npmjs.org",
+        "www.nasdaqtrader.com",
+        "mba.tuck.dartmouth.edu",
         "www.federalreserve.gov",
         "www.bis.org",
         "www.ecb.europa.eu",
