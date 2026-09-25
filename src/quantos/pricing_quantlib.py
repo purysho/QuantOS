@@ -3,7 +3,6 @@ from __future__ import annotations
 import hashlib
 import json
 import math
-import threading
 from dataclasses import dataclass
 from decimal import Decimal
 from importlib.metadata import version as package_version
@@ -28,7 +27,9 @@ from .pricing_risk_contracts import (
 )
 
 
-_QUANTLIB_LOCK = threading.RLock()
+from .quantlib_runtime import QUANTLIB_LOCK
+
+_QUANTLIB_LOCK = QUANTLIB_LOCK
 
 
 @dataclass(frozen=True)
