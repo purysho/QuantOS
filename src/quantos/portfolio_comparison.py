@@ -388,34 +388,8 @@ class PortfolioComparisonEngine:
             "comparison_policy_id": policy.policy_id,
             "fold_ids": list(fold_ids),
             "benchmark_id": next(iter(benchmark_ids)),
-            "evaluation_summaries": [
-                {
-                    "method": item.method.value,
-                    "solution_ids": list(item.solution_ids),
-                    "cumulative_net_return": str(item.cumulative_net_return),
-                    "realized_period_volatility": str(
-                        item.realized_period_volatility
-                    ),
-                    "maximum_drawdown": str(item.maximum_drawdown),
-                    "expected_shortfall_return": str(
-                        item.expected_shortfall_return
-                    ),
-                    "total_implementation_cost_rate": str(
-                        item.total_implementation_cost_rate
-                    ),
-                    "average_one_way_turnover": str(
-                        item.average_one_way_turnover
-                    ),
-                    "average_effective_number_of_assets": str(
-                        item.average_effective_number_of_assets
-                    ),
-                    "maximum_absolute_weight": str(
-                        item.maximum_absolute_weight
-                    ),
-                    "market_relative_wealth_return": str(
-                        item.market_relative_wealth_return
-                    ),
-                }
+            "evaluations": [
+                _evaluation_identity_payload(item)
                 for item in evaluations
             ],
             "selection_authority": "NONE",
@@ -650,34 +624,8 @@ def portfolio_comparison_dossier_identity(
         "comparison_policy_id": dossier.comparison_policy_id,
         "fold_ids": list(dossier.fold_ids),
         "benchmark_id": dossier.benchmark_id,
-        "evaluation_summaries": [
-            {
-                "method": item.method.value,
-                "solution_ids": list(item.solution_ids),
-                "cumulative_net_return": str(item.cumulative_net_return),
-                "realized_period_volatility": str(
-                    item.realized_period_volatility
-                ),
-                "maximum_drawdown": str(item.maximum_drawdown),
-                "expected_shortfall_return": str(
-                    item.expected_shortfall_return
-                ),
-                "total_implementation_cost_rate": str(
-                    item.total_implementation_cost_rate
-                ),
-                "average_one_way_turnover": str(
-                    item.average_one_way_turnover
-                ),
-                "average_effective_number_of_assets": str(
-                    item.average_effective_number_of_assets
-                ),
-                "maximum_absolute_weight": str(
-                    item.maximum_absolute_weight
-                ),
-                "market_relative_wealth_return": str(
-                    item.market_relative_wealth_return
-                ),
-            }
+        "evaluations": [
+            _evaluation_identity_payload(item)
             for item in dossier.evaluations
         ],
         "selection_authority": dossier.selection_authority,
@@ -750,6 +698,56 @@ class PortfolioComparisonDossierStore:
 
     def close(self) -> None:
         self._con.close()
+
+
+def _evaluation_identity_payload(
+    item: PortfolioMethodEvaluation,
+) -> dict[str, object]:
+    return {
+        "method": item.method.value,
+        "solution_ids": list(item.solution_ids),
+        "fold_outcomes": [
+            {
+                "fold_id": fold.fold_id,
+                "method": fold.method.value,
+                "solution_id": fold.solution_id,
+                "gross_return": str(fold.gross_return),
+                "implementation_cost_rate": str(
+                    fold.implementation_cost_rate
+                ),
+                "net_return": str(fold.net_return),
+                "one_way_turnover": str(fold.one_way_turnover),
+                "effective_number_of_assets": str(
+                    fold.effective_number_of_assets
+                ),
+                "maximum_absolute_weight": str(
+                    fold.maximum_absolute_weight
+                ),
+            }
+            for fold in item.fold_outcomes
+        ],
+        "cumulative_net_return": str(item.cumulative_net_return),
+        "realized_period_volatility": str(
+            item.realized_period_volatility
+        ),
+        "maximum_drawdown": str(item.maximum_drawdown),
+        "expected_shortfall_return": str(
+            item.expected_shortfall_return
+        ),
+        "total_implementation_cost_rate": str(
+            item.total_implementation_cost_rate
+        ),
+        "average_one_way_turnover": str(
+            item.average_one_way_turnover
+        ),
+        "average_effective_number_of_assets": str(
+            item.average_effective_number_of_assets
+        ),
+        "maximum_absolute_weight": str(item.maximum_absolute_weight),
+        "market_relative_wealth_return": str(
+            item.market_relative_wealth_return
+        ),
+    }
 
 
 def _security_traded_notional(
