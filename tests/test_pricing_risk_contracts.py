@@ -125,6 +125,21 @@ class PricingRiskContractTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             market_data_snapshot_identity(tampered)
 
+
+    def test_discount_factor_above_one_is_valid_under_negative_rates(self):
+        item = MarketQuote(
+            quote_type=MarketQuoteType.DISCOUNT_FACTOR,
+            market_key="EUR-OIS",
+            value=Decimal("1.01"),
+            unit=QuoteUnit.DISCOUNT_FACTOR,
+            event_time=AT,
+            knowledge_time=AT,
+            source_fact_ids=("source:negative-rate-df",),
+            tenor="1Y",
+            currency=Currency.EUR,
+        )
+        self.assertEqual(item.value, Decimal("1.01"))
+
     def test_fixed_rate_bond_contract_validates_dates_and_terms(self):
         bond = FixedRateBondInstrument(
             contract_id="BOND:TEST",
