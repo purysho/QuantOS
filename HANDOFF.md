@@ -912,34 +912,29 @@ Current pyproject version:
 
 ## Current CI status
 
-Stage 11 and Stage 12.1/12.2 were green before Stage 12.3.
+Stage 12.3 is now **green and complete at its deliberately narrow differential scope**.
 
-Stage 12.3 is **not currently complete**.
+The integration had two intermediate failures worth remembering:
 
-The first Stage 12.3 attempt failed on Python 3.12 because NautilusTrader 2.0.0rc5 rejected the old MakerTakerFeeModel constructor arguments.
+1. the initial NautilusTrader 2.0.0rc5 runtime rejected an obsolete MakerTakerFeeModel constructor mapping;
+2. the first compatibility edit then introduced a syntax error while reconstructing execution_nautilus.py.
 
-A follow-up commit changed the fee-model mapping.
+The repair commit:
 
-That follow-up currently introduces a parser failure:
+**b262fcf1f18787fd5f4661de2ed3c5c3510ad49b — Restore complete Nautilus differential module after rc5 patch**
 
-~~~
-src/quantos/execution_nautilus.py
-around line 999
+completed successfully across the full CI matrix:
 
-SyntaxError: '(' was never closed
-~~~
+- Python 3.11 — green;
+- Python 3.12 — green;
+- Python 3.13 — green;
+- unit tests — green;
+- fail-closed demo — green;
+- edge-discovery demo — green.
 
-Latest observed CI behavior:
+This means the Stage 12.3 zero-friction differential adapter is again validated under the current pinned dependency set.
 
-- Python 3.11: failed/cancelled due unit-test import failure;
-- Python 3.12: failed/cancelled;
-- Python 3.13: failed;
-- the failure happens while importing test_execution_nautilus;
-- therefore Stage 12.3 differential runtime behavior has NOT yet been revalidated after the fee-model fix.
-
-The earlier Python 3.12 Stage 12.3 runtime had run roughly 483 tests and produced four Nautilus errors all stemming from the fee-model API mismatch.
-
-The immediate next engineer must not mark Stage 12.3 complete until the syntax error is repaired and the full 3.11/3.12/3.13 CI matrix is green.
+The later HANDOFF.md commit is documentation-only; if its own workflow is still queued/running, it should not be confused with the implementation gate above.
 
 ---
 
@@ -947,62 +942,57 @@ The immediate next engineer must not mark Stage 12.3 complete until the syntax e
 
 Do these in order.
 
-## 1. Repair the current Stage 12.3 syntax error
+## 1. Confirm current main and CI
 
-Inspect:
+Start by reading:
 
-- src/quantos/execution_nautilus.py
-- around line 999;
-- especially the recently edited pricing/error serialization block.
+- HANDOFF.md;
+- docs/NAUTILUS_DIFFERENTIAL_STAGE_12_3.md;
+- src/quantos/execution_nautilus.py;
+- tests/test_execution_nautilus.py.
 
-Run/inspect the exact latest CI failure first.
+Confirm that the latest implementation ancestor at or after b262fcf remains green before adding scope.
 
-Do not change semantics while fixing syntax unless required.
+## 2. Begin Stage 12.4 only through frozen equivalence contracts
 
-## 2. Re-run Stage 12.3 matrix
+The documented next slice is controlled differential expansion.
 
-Required matrix:
+Add one behavior at a time:
 
-- Python 3.11;
-- Python 3.12;
-- Python 3.13.
+1. explicit order latency;
+2. explicit market-data latency;
+3. deterministic fees;
+4. controlled partial-liquidity / partial-fill cases.
 
-Expected behavior:
+Do not broaden the Stage 12.3 claim implicitly.
 
-- Python 3.11 remains a supported First Current runtime without Nautilus v2 installed;
-- Nautilus-specific runtime tests must be correctly gated/skipped where the dependency is unavailable;
-- Python 3.12/3.13 must actually execute the Nautilus differential fixtures.
+## 3. Preserve the Python compatibility boundary
 
-## 3. Confirm original fee-model problem is genuinely solved
+- Python 3.11 remains a supported First Current runtime without NautilusTrader v2;
+- NautilusTrader 2.0.0rc5 is installed only on Python 3.12+;
+- generic imports and tests must remain safe on 3.11;
+- 3.12/3.13 must execute the actual Nautilus differential runtime tests.
 
-The code now uses the Nautilus rc5-compatible fee-model mapping.
+## 4. Preserve the exact differential oracle
 
-Verify against the installed 2.0.0rc5 API rather than guessing.
+For every new overlap fixture compare the same economic order through:
 
-The zero-friction Stage 12.3 contract must still produce exactly zero maker/taker fee in the eligible overlap.
+- FIRST_CURRENT_REFERENCE;
+- NAUTILUS_TRADER.
 
-## 4. Verify exact differential fixtures
+At minimum preserve comparison of:
 
-At minimum retain tests for:
+- final state;
+- fill count;
+- filled quantity;
+- VWAP;
+- later, any newly frozen fee/latency/partial-fill semantics.
 
-- market BUY;
-- market SELL;
-- marketable limit BUY;
-- idempotent differential result persistence.
+## 5. Do not proceed to paper/live execution
 
-Expected result for eligible zero-friction fixtures:
+Stage 12 remains historical simulation/differential validation.
 
-- same final state;
-- same fill count;
-- same filled quantity;
-- same VWAP;
-- REFERENCE_MATCH_ONLY if exact;
-- no external-order authority;
-- no capital authority.
-
-## 5. Only after green CI, mark 12.3 complete
-
-Do not add 12.4 complexity on a broken 12.3 base.
+No network authority, external-order authority, or capital authority should be introduced by Stage 12.4.
 
 ---
 
@@ -1641,13 +1631,11 @@ Need eventually:
 
 The exact numbering after Stage 12 is not frozen beyond the existing Stage 12 docs. The recommended order below preserves the current architecture.
 
-## Immediate — finish Stage 12.3
+## Immediate — Stage 12.3 is complete
 
-Highest priority.
+The zero-friction Nautilus differential baseline is green across Python 3.11–3.13 after the rc5 compatibility repair.
 
-Repair syntax → run CI → prove Nautilus zero-friction differential.
-
-No new scope before green.
+The next implementation work begins at Stage 12.4.
 
 ## Stage 12.4 — controlled differential expansion
 
@@ -2337,18 +2325,18 @@ A separate production/live program would require materially more.
 
 # 26. Recommended next action
 
-**Do not begin a new feature.**
+Begin **Stage 12.4 — controlled Nautilus differential expansion**.
 
-First repair Stage 12.3.
+The first slice should add exactly one new behavior behind a frozen equivalence contract, preferably explicit deterministic latency or deterministic fees.
 
-Current restart target:
+Required pattern:
 
-> Fix the syntax error in src/quantos/execution_nautilus.py introduced after the Nautilus rc5 fee-model compatibility change, run the complete Python 3.11/3.12/3.13 matrix, and prove the original Stage 12.3 zero-friction differential fixtures pass again.
+> extend the First Current reference semantics first → freeze the equivalence contract → map the same behavior into NautilusTrader → run differential fixtures → preserve mismatches explicitly → require the full Python 3.11/3.12/3.13 CI matrix to remain green.
 
-Only after that should Stage 12.4 begin.
+Do not combine latency, fees, partial fills, queue behavior, and multiple orders into one change.
 
 ---
 
 # 27. One-sentence handoff
 
-First Current Quant OS has already built a strict point-in-time evidence → reasoning → fundamentals → valuation → quant research → portfolio → pricing/risk pipeline and is now integrating historical execution through an independently validated NautilusTrader adapter; the current codebase is at v0.12.3, but Stage 12.3 is temporarily red because the latest Nautilus compatibility patch introduced a syntax error that must be fixed before any further scope is added.
+First Current Quant OS has already built a strict point-in-time evidence → reasoning → fundamentals → valuation → quant research → portfolio → pricing/risk pipeline and now has a green Stage 12.3 historical NautilusTrader differential baseline; the current codebase is at v0.12.3 and the next controlled build is Stage 12.4 execution-equivalence expansion without weakening the no-live-capital boundary.
