@@ -1,24 +1,37 @@
 <p align="center">
-  <img src="docs/images/logo.svg" width="96" alt="First Current logo">
-</p>
-
-<h1 align="center">First Current Quant OS</h1>
-
-<p align="center">
-  <b>A free, open-source investment research workstation that runs without API keys and can never trade.</b>
+  <a href="https://github.com/purysho/First-Current-Quant-OS-prototype/releases/latest"><img src="docs/images/hero.svg" alt="First Current: point-in-time investment research. Research what was known. Never trade." width="100%"></a>
 </p>
 
 <p align="center">
-  <a href="LICENSE"><img alt="License: Apache-2.0" src="https://img.shields.io/badge/license-Apache--2.0-2f81f7?style=flat-square"></a>
-  <img alt="Python 3.11 – 3.13" src="https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-3776ab?style=flat-square&logo=python&logoColor=white">
-  <img alt="Windows, macOS, Linux" src="https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20USB-3fb950?style=flat-square">
-  <img alt="No API keys required" src="https://img.shields.io/badge/API%20keys-none%20required-8957e5?style=flat-square">
-  <img alt="No trading" src="https://img.shields.io/badge/order%20routing-none%2C%20by%20design-d73a49?style=flat-square">
+  <a href="https://github.com/purysho/First-Current-Quant-OS-prototype/releases/latest/download/FirstCurrent-Windows-x64.zip"><img alt="Download for Windows" src="https://img.shields.io/badge/Download-Windows-0078D6?style=for-the-badge&logo=windows&logoColor=white"></a>
+  <a href="https://github.com/purysho/First-Current-Quant-OS-prototype/releases/latest/download/FirstCurrent-macOS-arm64.dmg"><img alt="Download for macOS" src="https://img.shields.io/badge/Download-macOS-000000?style=for-the-badge&logo=apple&logoColor=white"></a>
+  <a href="https://github.com/purysho/First-Current-Quant-OS-prototype/releases/latest/download/FirstCurrent-Linux-x86_64.AppImage"><img alt="Download for Linux" src="https://img.shields.io/badge/Download-Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black"></a>
+  <a href="https://github.com/purysho/First-Current-Quant-OS-prototype/releases/latest/download/first-current-live-usb-amd64.iso"><img alt="Download the live USB" src="https://img.shields.io/badge/Download-Live%20USB-C9A44C?style=for-the-badge&logo=debian&logoColor=black"></a>
 </p>
 
-First Current pulls official public data into one local, point-in-time research database: SEC filings, US Treasury yields, ECB exchange rates, Federal Reserve data and new working papers. You explore it in a fast analytical terminal. Every number records where it came from and when it became knowable, so research never quietly uses information from the future. It runs from a bootable USB stick, a container or a plain Python install, with no account, no subscription and no API keys.
+<p align="center">
+  <a href="LICENSE"><img alt="License: Apache-2.0" src="https://img.shields.io/badge/license-Apache--2.0-C9A44C?style=flat-square"></a>
+  <img alt="Windows, macOS, Linux, USB" src="https://img.shields.io/badge/runs%20on-Windows%20%C2%B7%20macOS%20%C2%B7%20Linux%20%C2%B7%20USB-1d222b?style=flat-square">
+  <img alt="No API keys required" src="https://img.shields.io/badge/API%20keys-none%20required-1d222b?style=flat-square">
+  <img alt="No trading" src="https://img.shields.io/badge/order%20routing-none%2C%20by%20design-1d222b?style=flat-square">
+</p>
 
-![US Treasury par yield curve in the First Current terminal](docs/images/terminal-treasury.png)
+<p align="center">
+  <a href="#download"><b>Download</b></a> ·
+  <a href="docs/USER_GUIDE.md"><b>User Guide</b></a> ·
+  <a href="#features"><b>Features</b></a> ·
+  <a href="#data-sources"><b>Data sources</b></a> ·
+  <a href="docs/CAPABILITIES.md"><b>Capabilities</b></a> ·
+  <a href="CHANGELOG.md"><b>Changelog</b></a>
+</p>
+
+# First Current
+
+A free, open-source investment research workstation. It pulls official public data (SEC filings, US Treasury yields, ECB exchange rates, Federal Reserve data, Fama-French factors and new working papers) into one local, point-in-time database on your own computer. You then analyze it in a desktop app and a fast analytical terminal.
+
+Every number records where it came from and when it became knowable, so research never quietly uses information from the future. There's no account, no subscription and no API key, and it can never place a trade.
+
+![The First Current control center: one-button data updates and your setup](docs/images/app-control-center.png)
 
 ## Features
 
@@ -39,24 +52,21 @@ First Current pulls official public data into one local, point-in-time research 
 - **Evidence discipline.** Claims need verified sources, a reviewer who isn't the drafter, and counter-evidence. Blocking objections can't be outvoted.
 - **Safe by design.** There's no broker connection and no order routing anywhere. Secrets stay in a private folder, outbound hosts are allow-listed, an operator kill switch stops all fetching, and every action lands in a hash-chained audit log.
 
-| Company fundamentals | Euro reference rates | Research radar |
+| Company analysis | Health check | Company metrics in the terminal |
 | --- | --- | --- |
-| ![Apple total assets from SEC XBRL filings](docs/images/terminal-assets.png) | ![ECB euro reference rates](docs/images/terminal-fx.png) | ![Research radar of new working papers](docs/images/terminal-radar.png) |
+| ![Ten years of Microsoft statements, as originally filed](docs/images/app-analysis.png) | ![Health check of the installation](docs/images/app-health.png) | ![Company metrics across tickers in the terminal](docs/images/terminal-company-metrics.png) |
 
-| Point-in-time filings | Source lineage | First run |
+| Treasury yield curve | Company fundamentals | Euro reference rates |
 | --- | --- | --- |
-| ![Restated values kept alongside originals](docs/images/terminal-fundamentals.png) | ![Every fetched source archived and hashed](docs/images/terminal-lineage.png) | ![Setup, daily run and health check](docs/images/cli-first-run.svg) |
+| ![US Treasury par yield curve](docs/images/terminal-treasury.png) | ![Apple total assets from SEC XBRL filings](docs/images/terminal-assets.png) | ![ECB euro reference rates](docs/images/terminal-fx.png) |
+
+| Research radar | Point-in-time filings | Source lineage |
+| --- | --- | --- |
+| ![Research radar of new working papers](docs/images/terminal-radar.png) | ![Restated values kept alongside originals](docs/images/terminal-fundamentals.png) | ![Every fetched source archived and hashed](docs/images/terminal-lineage.png) |
 
 ## Download
 
-<p>
-  <a href="https://github.com/purysho/First-Current-Quant-OS-prototype/releases/latest/download/FirstCurrent-Windows-x64.zip"><img alt="Download for Windows" src="https://img.shields.io/badge/Download-Windows-0078D6?style=for-the-badge&logo=windows&logoColor=white"></a>
-  <a href="https://github.com/purysho/First-Current-Quant-OS-prototype/releases/latest/download/FirstCurrent-macOS-arm64.dmg"><img alt="Download for macOS" src="https://img.shields.io/badge/Download-macOS-000000?style=for-the-badge&logo=apple&logoColor=white"></a>
-  <a href="https://github.com/purysho/First-Current-Quant-OS-prototype/releases/latest/download/FirstCurrent-Linux-x86_64.AppImage"><img alt="Download for Linux" src="https://img.shields.io/badge/Download-Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black"></a>
-  <a href="https://github.com/purysho/First-Current-Quant-OS-prototype/releases/latest/download/first-current-live-usb-amd64.iso"><img alt="Download the live USB" src="https://img.shields.io/badge/Download-Live%20USB-0f2a44?style=for-the-badge&logo=debian&logoColor=white"></a>
-</p>
-
-Each button always gets the newest release. After installing, start with the **[User Guide](docs/USER_GUIDE.md)**.
+The buttons at the top always get the newest release; every file is also on the [Releases page](https://github.com/purysho/First-Current-Quant-OS-prototype/releases/latest). After installing, start with the **[User Guide](docs/USER_GUIDE.md)**.
 
 - **Windows 10/11:** unzip `FirstCurrent-Windows-x64.zip`, open the `FirstCurrent` folder and double-click `FirstCurrent.exe`. It needs no installation or admin rights, and it runs from a USB stick too (create a `FirstCurrent-data` folder beside the exe to keep your data with it).
 - **macOS 12+ (Apple Silicon):** open the `.dmg` and drag **First Current** to Applications.
