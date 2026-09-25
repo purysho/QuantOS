@@ -398,6 +398,11 @@ def _main() -> int:
     analyze.add_argument("--as-of", default=None, help="knowledge time (ISO date or datetime, UTC); default now")
     analyze.add_argument("--years", type=int, default=10)
 
+    app = sub.add_parser("app", help="open the First Current control center in your browser")
+    app.add_argument("--port", type=int, default=0, help="loopback port (default: any free port)")
+    app.add_argument("--no-browser", action="store_true", help="print the link instead of opening a browser")
+    app.add_argument("--smoke-test", action="store_true", help="headless self-test (used by release builds)")
+
     doctor = sub.add_parser("doctor", help="check this installation and explain what works")
     doctor.add_argument("--online", action="store_true", help="also probe each keyless public source")
 
@@ -491,6 +496,10 @@ def _main() -> int:
     terminal.add_argument("--row-limit", type=int, default=200_000)
 
     args = parser.parse_args()
+    if args.command == "app":
+        from .app import app_command
+
+        return app_command(port=args.port, open_browser=not args.no_browser, smoke_test=args.smoke_test)
     activate()
     if args.command == "setup":
         from .home import HomeError, run_setup

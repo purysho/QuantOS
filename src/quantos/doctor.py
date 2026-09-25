@@ -116,34 +116,48 @@ def run_checks(*, online: bool = False, probe: Callable[[str], int] | None = Non
                         else "loaded from jsDelivr at view time (run `quantos terminal vendor` for offline use)"))
 
     if online:
+        import time as _time
+
         from .keyless import KEYLESS_HEALTH_URLS
 
         run_probe = probe or _probe
         for label, url in KEYLESS_HEALTH_URLS.items():
             try:
                 code = run_probe(url)
-                checks.append(Check(f"online {label}", "OK" if code == 200 else "FAIL", f"HTTP {code}"))
             except Exception as exc:  # report, never crash the doctor
-                checks.append(Check(f"online {label}", "FAIL", f"{type(exc).__name__}: {exc}"[:160]))
+                slow = "timeout" in type(exc).__name__.lower() or "timed out" in str(exc).lower()
+                checks.append(Check(f"online {label}", "WARN" if slow else "FAIL",
+                                    "no answer within 30 s (the source is slow or unreachable right now)" if slow
+                                    else f"{type(exc).__name__}: {exc}"[:160]))
+            else:
+                if code == 200:
+                    checks.append(Check(f"online {label}", "OK", "HTTP 200"))
+                elif code in (403, 429):
+                    checks.append(Check(f"online {label}", "WARN",
+                                        f"HTTP {code}: the source is rate-limiting this computer after many requests "
+                                        "(normal after big updates); try again in a few minutes"))
+                else:
+                    checks.append(Check(f"online {label}", "FAIL", f"HTTP {code}"))
+            if probe is None:
+                _time.sleep(0.5)  # be a considerate client: no bursts
     return tuple(checks)
 
 
 def _probe(url: str) -> int:
+    """A HEAD request (a few hundred bytes) through the egress guard; GET only
+    if a source does not support HEAD."""
+
     import requests
 
     from .security import guarded
 
     guarded(url, "doctor")
     agent = os.environ.get("SEC_USER_AGENT", "First Current Quant OS doctor")
-    for attempt in range(2):
-        try:
-            response = requests.get(url, headers={"User-Agent": agent}, timeout=30, stream=True)
-            response.close()
-            return response.status_code
-        except requests.Timeout:
-            if attempt:
-                raise
-    raise AssertionError("unreachable")
+    response = requests.head(url, headers={"User-Agent": agent}, timeout=30, allow_redirects=False)
+    if response.status_code in (405, 501):
+        response = requests.get(url, headers={"User-Agent": agent}, timeout=30, stream=True)
+        response.close()
+    return response.status_code
 
 
 def doctor_command(*, online: bool) -> int:

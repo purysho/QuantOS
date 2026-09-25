@@ -203,6 +203,33 @@ class SECTickerDirectoryAdapter(_Client):
         body, fetched_at, artifact_id = self.get(SEC_TICKERS_URL, fetched_at=fetched_at)
         return TickerDirectory(fetched_at, artifact_id, parse_ticker_directory(body))
 
+    def cached(self, cache_dir: str | Path, *, max_age: timedelta = timedelta(hours=20)) -> TickerDirectory:
+        """The directory from a local copy younger than ``max_age``, else a fresh fetch.
+
+        SEC publishes it once a day; re-downloading ~800 KB for every lookup
+        is wasteful and gets a client throttled. The copy keeps its original
+        fetch time, so its knowledge time stays honest.
+        """
+
+        cache = Path(cache_dir)
+        meta_path, body_path = cache / "sec_tickers.json", cache / "sec_tickers.bin"
+        try:
+            meta = json.loads(meta_path.read_text())
+            fetched_at = datetime.fromisoformat(meta["fetched_at"])
+            if datetime.now(timezone.utc) - fetched_at < max_age:
+                body = body_path.read_bytes()
+                if hashlib.sha256(body).hexdigest() == meta["sha256"]:
+                    return TickerDirectory(fetched_at, meta.get("artifact_id"), parse_ticker_directory(body))
+        except (OSError, ValueError, KeyError, KeylessError):
+            pass
+        body, fetched_at, artifact_id = self.get(SEC_TICKERS_URL)
+        directory = TickerDirectory(fetched_at, artifact_id, parse_ticker_directory(body))
+        cache.mkdir(parents=True, exist_ok=True)
+        body_path.write_bytes(body)
+        meta_path.write_text(json.dumps({"fetched_at": fetched_at.isoformat(), "artifact_id": artifact_id,
+                                         "sha256": hashlib.sha256(body).hexdigest()}))
+        return directory
+
 
 def parse_ticker_directory(body: bytes) -> tuple[TickerEntry, ...]:
     try:

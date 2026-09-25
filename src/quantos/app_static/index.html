@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>First Current</title>
+  <link rel="icon" href="logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="app.css">
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+  <header class="top">
+    <div class="brand"><img src="logo.svg" alt="" width="36" height="36"><div><strong>First Current</strong><span id="version" class="muted"></span></div></div>
+    <nav>
+      <a id="open-terminal" class="button primary" href="/terminal/" target="_blank" rel="noopener">Open terminal</a>
+      <button id="quit" class="button ghost" type="button">Quit</button>
+    </nav>
+  </header>
+
+  <main>
+    <p id="notice" class="notice" hidden></p>
+
+    <section id="setup-card" class="card" hidden>
+      <h2>Welcome — let's set up</h2>
+      <p class="muted">Everything stays on this computer. Your email is only sent as the contact identity that SEC EDGAR and Crossref require from every client.</p>
+      <form id="setup-form" novalidate>
+        <label>Contact email <span class="req">required</span>
+          <input name="contact_email" type="email" autocomplete="email" required placeholder="you@example.org"></label>
+        <label>Name or organization <span class="muted">optional</span>
+          <input name="organization" autocomplete="organization" placeholder="e.g. Personal research"></label>
+        <label>Tickers to follow <span class="muted">optional, comma-separated</span>
+          <input name="universe" placeholder="AAPL, MSFT, JPM, BRK.B"></label>
+        <details>
+          <summary>Optional free API keys</summary>
+          <p class="muted">Not needed for fundamentals, rates, FX, factors or research. Keys are stored in a private folder and never shown again.</p>
+          <div id="key-fields"></div>
+        </details>
+        <div class="row"><button class="button primary" type="submit">Save</button><span id="setup-status" class="muted"></span></div>
+      </form>
+    </section>
+
+    <div class="grid">
+      <section class="card">
+        <h2>Data</h2>
+        <p id="last-run" class="muted">No update has run yet.</p>
+        <div class="row"><button id="update" class="button primary" type="button">Update now</button>
+          <span class="muted">Fetches new filings, rates, FX, factors and papers, then refreshes the terminal.</span></div>
+        <ol id="steps" class="steps"></ol>
+      </section>
+
+      <section class="card">
+        <h2>Your setup</h2>
+        <dl id="config" class="config"></dl>
+        <div class="row"><button id="edit-setup" class="button ghost" type="button">Edit setup</button></div>
+      </section>
+
+      <section class="card wide">
+        <h2>Analyze a company</h2>
+        <form id="analyze-form" class="row">
+          <input name="ticker" placeholder="Ticker, e.g. AAPL" aria-label="Ticker" autocomplete="off">
+          <button class="button" type="submit">Analyze</button>
+        </form>
+        <p id="analyze-status" class="muted">Standardized statements from SEC filings, as originally filed, point in time.</p>
+        <div id="analysis" class="table-wrap"></div>
+      </section>
+
+
+      <section class="card wide">
+        <h2>Health check</h2>
+        <div class="row"><button id="doctor" class="button ghost" type="button">Run check</button>
+          <label class="inline"><input id="doctor-online" type="checkbox" checked> include online sources</label></div>
+        <ul id="checks" class="checks"></ul>
+      </section>
+    </div>
+  </main>
+
+  <footer><span>Research software. It never trades and nothing it produces is investment advice.</span><span>Apache-2.0</span></footer>
+</body>
+</html>

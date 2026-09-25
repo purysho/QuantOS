@@ -43,6 +43,7 @@ PUBLIC_DATA_DB = "data/public_data.duckdb"
 MARKET_DATA_DB = "data/market_data.duckdb"
 ARTIFACT_ROOT = "data/artifacts"
 ARTIFACT_DB = "data/artifacts.duckdb"
+CACHE_DIR = "data/cache"
 
 STEPS = ("universe", "fundamentals", "analysis", "rates", "factors", "prices", "research", "terminal")
 STATEMENTS_DB = "data/financial_statements.duckdb"
@@ -76,7 +77,7 @@ def step_universe(config: QuantosConfig, *, transport=None) -> tuple[str, dict[s
 
     artifacts = _artifacts()
     directory = SECTickerDirectoryAdapter(user_agent=config.user_agent, transport=transport,
-                                          artifacts=artifacts).fetch()
+                                          artifacts=artifacts).cached(CACHE_DIR)
     if not config.universe:
         return f"SEC directory has {len(directory.entries)} tickers; universe is empty (add tickers with `quantos setup`)", {}
     master = SecurityMaster(SECURITY_MASTER_DB)
@@ -140,7 +141,7 @@ def analyze_ticker(config: QuantosConfig, ticker: str, *, known_at: datetime | N
     from .company_analysis import CompanyAnalysisStore, analyze_company, load_facts, store_statements
 
     directory = SECTickerDirectoryAdapter(user_agent=config.user_agent, transport=transport,
-                                          artifacts=_artifacts()).fetch()
+                                          artifacts=_artifacts()).cached(CACHE_DIR)
     entry = directory.lookup(ticker)
     if entry is None:
         raise KeylessError(f"{ticker.upper()} is not in SEC's company directory (funds and non-US listings are not)")
@@ -292,9 +293,17 @@ def step_terminal() -> str:
     return f"{len(export.tables)} tables exported ({export.export_id[:32]}…)"
 
 
+LAST_RUN_FILE = "data/last_daily_run.json"
+
+
 def run_daily(*, steps: tuple[str, ...] | None = None, backfill_from: int | None = None,
-              price_days: int = 10) -> tuple[StepResult, ...]:
+              price_days: int = 10, on_step: Callable[[str, str, str], None] | None = None) -> tuple[StepResult, ...]:
+    """Runs the pipeline. ``on_step(name, state, summary)`` reports progress
+    (state is RUNNING, OK or FAILED) for interactive front ends."""
+
     config = _config()
+    started = datetime.now(timezone.utc)
+    notify = on_step or (lambda *_: None)
     wanted = steps or STEPS
     results: list[StepResult] = []
     resolved: dict[str, tuple[int, str]] = {}
@@ -302,6 +311,7 @@ def run_daily(*, steps: tuple[str, ...] | None = None, backfill_from: int | None
     def run(name: str, action: Callable[[], str]) -> None:
         if name not in wanted:
             return
+        notify(name, "RUNNING", "")
         try:
             with span("runbook", name):
                 results.append(StepResult(name, True, action()))
@@ -310,6 +320,7 @@ def run_daily(*, steps: tuple[str, ...] | None = None, backfill_from: int | None
             if os.environ.get("QUANTOS_DEBUG"):
                 detail += "\n" + traceback.format_exc()
             results.append(StepResult(name, False, detail))
+        notify(name, "OK" if results[-1].ok else "FAILED", results[-1].summary)
 
     def universe() -> str:
         nonlocal resolved
@@ -324,7 +335,32 @@ def run_daily(*, steps: tuple[str, ...] | None = None, backfill_from: int | None
     run("prices", lambda: step_prices(config, resolved, days=price_days))
     run("research", lambda: step_research(config))
     run("terminal", step_terminal)
+    _record_last_run(started, results)
     return tuple(results)
+
+
+def _record_last_run(started: datetime, results: list[StepResult]) -> None:
+    import json
+
+    record = {
+        "started_at": started.isoformat(),
+        "finished_at": datetime.now(timezone.utc).isoformat(),
+        "results": [{"step": r.step, "ok": r.ok, "summary": r.summary} for r in results],
+    }
+    path = Path(LAST_RUN_FILE)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(".tmp")
+    temporary.write_text(json.dumps(record, indent=2))
+    temporary.replace(path)
+
+
+def last_run() -> dict | None:
+    import json
+
+    try:
+        return json.loads(Path(LAST_RUN_FILE).read_text())
+    except (OSError, ValueError):
+        return None
 
 
 def daily_command(*, steps: tuple[str, ...] | None, backfill_from: int | None, price_days: int) -> int:

@@ -31,7 +31,7 @@ from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from enum import Enum
 from pathlib import Path
-from typing import Callable
+from typing import TYPE_CHECKING, Callable
 from urllib.parse import urlencode
 from zoneinfo import ZoneInfo
 
@@ -40,8 +40,10 @@ import duckdb
 from .artifacts import SourceArtifactStore
 from .corporate_actions import CorporateActionEvent, CorporateActionKind
 from .exchange_calendar import SessionCalendar
-from .research_price_panel import SessionCloseObservation
 from .security import SecretProvider, guarded
+
+if TYPE_CHECKING:
+    from .research_price_panel import SessionCloseObservation
 
 Transport = Callable[[str, dict[str, str], float], tuple[bytes, str]]
 
@@ -549,8 +551,12 @@ def to_session_closes(
     *,
     bars: tuple[DailyBar, ...],
     calendar: SessionCalendar,
-) -> tuple[SessionCloseObservation, ...]:
+) -> tuple["SessionCloseObservation", ...]:
     """Raw closes for the Stage 13.4 panel; intraday captures are excluded."""
+
+    # Imported here: the research panel pulls in the portfolio stack
+    # (cvxpy, skfolio), which the capture path does not need.
+    from .research_price_panel import SessionCloseObservation
 
     output = []
     for bar in bars:
