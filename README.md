@@ -335,12 +335,21 @@ no automatic live-capital path
 
 ## Install and test
 
+Exact, hash-verified environment (see `docs/REPRODUCIBLE_ENVIRONMENT.md`):
+
 ```bash
-python -m pip install -e .
-python -m unittest discover -s tests -v
-quantos demo
-quantos edge-demo
+uv sync --locked
+uv run python -m unittest discover -s tests -v
+uv run quantos demo
+uv run quantos edge-demo
+uv run quantos env-manifest
 ```
+
+With plain pip: `python -m pip install --require-hashes -r requirements.lock && python -m pip install --no-deps -e .`
+
+## License
+
+Proprietary, all rights reserved (see `LICENSE` and `docs/LICENSING.md`). Third-party components keep their own licenses (`THIRD_PARTY_NOTICES.md`); a license gate in the test suite blocks unreviewed or prohibited dependency licenses.
 
 CI validates the complete suite on Python 3.11, 3.12 and 3.13. NautilusTrader v2 installs only on Python 3.12+, where CI sets `QUANTOS_REQUIRE_NAUTILUS=1` so the runtime differential tests cannot silently skip.
 
