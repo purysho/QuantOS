@@ -6,6 +6,7 @@ on:
     paths:
       - ".github/workflows/radar-smoke.yml"
       - "src/quantos/adapters/arxiv_radar.py"
+      - "src/quantos/adapters/feed_radar.py"
       - "src/quantos/radar_cli.py"
       - "requirements.lock"
 
@@ -35,6 +36,10 @@ jobs:
             --artifact-root data/artifacts \
             --artifact-db data/artifacts.duckdb \
             --triage-db data/radar-triage.duckdb
+      - name: Parse every registered NBER / central-bank / regulator feed
+        env:
+          QUANTOS_LIVE_FEEDS: "1"
+        run: python -m unittest tests.test_feed_radar.LiveFeedSmokeTests -v
       - name: Upload disposable radar state
         if: always()
         uses: actions/upload-artifact@v4

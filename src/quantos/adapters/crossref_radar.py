@@ -10,6 +10,12 @@ the "polite" pool and lets Crossref reach the operator), requests are
 rate-limited, and the exact response bytes are archived as an artifact.
 Partial publication dates are not padded silently; their precision is
 recorded as a category tag.
+
+Stage 15.2 adds SSRN working papers through the same API: SSRN registers
+its DOIs under the prefix 10.2139 as ``posted-content``. SSRN volume is very
+large (tens of thousands of re-indexed records a month), so an SSRN scan
+requires a bibliographic query and filters on the posting date, not the
+index date.
 """
 
 from __future__ import annotations
@@ -37,6 +43,8 @@ FINANCE_JOURNAL_ISSNS = (
     "0095-4918",  # The Journal of Portfolio Management
     "0015-198X",  # Financial Analysts Journal
 )
+
+SSRN_DOI_PREFIX = "10.2139"
 
 _ISSN = re.compile(r"^\d{4}-\d{3}[\dX]$")
 _DOI = re.compile(r"^10\.\d{4,9}/\S+$")
@@ -130,6 +138,27 @@ class CrossrefRadarAdapter:
             max_results=max_results,
             mailto=self.mailto,
         )
+        return self._fetch_url(url, artifact_store)
+
+    def fetch_ssrn(
+        self,
+        *,
+        from_posted_date: date,
+        query: str,
+        max_results: int = 50,
+        artifact_store: SourceArtifactStore | None = None,
+    ) -> CrossrefRadarFetch:
+        url = self.build_ssrn_url(
+            from_posted_date=from_posted_date,
+            query=query,
+            max_results=max_results,
+            mailto=self.mailto,
+        )
+        return self._fetch_url(url, artifact_store)
+
+    def _fetch_url(
+        self, url: str, artifact_store: SourceArtifactStore | None
+    ) -> CrossrefRadarFetch:
         self._throttle()
         body, media_type = self.transport(
             url,
@@ -200,6 +229,36 @@ class CrossrefRadarAdapter:
             params["query.bibliographic"] = query.strip()
         return f"{cls.base_url}?{urlencode(params)}"
 
+    @classmethod
+    def build_ssrn_url(
+        cls,
+        *,
+        from_posted_date: date,
+        query: str,
+        max_results: int,
+        mailto: str,
+    ) -> str:
+        if not query or not query.strip():
+            raise CrossrefRadarError("an SSRN scan requires a bibliographic query")
+        if not 1 <= max_results <= 100:
+            raise CrossrefRadarError("prototype max_results must be between 1 and 100")
+        params = {
+            "filter": ",".join(
+                [
+                    f"prefix:{SSRN_DOI_PREFIX}",
+                    "type:posted-content",
+                    f"from-posted-date:{from_posted_date.isoformat()}",
+                ]
+            ),
+            "query.bibliographic": query.strip(),
+            "rows": max_results,
+            "sort": "issued",
+            "order": "desc",
+            "select": cls.SELECT + ",posted,group-title",
+            "mailto": mailto,
+        }
+        return f"{cls.base_url}?{urlencode(params)}"
+
     @staticmethod
     def parse_response(
         body: bytes,
@@ -232,7 +291,9 @@ class CrossrefRadarAdapter:
             if not indexed:
                 raise CrossrefRadarError(f"Crossref work {doi} has no index time")
             updated_at = _parse_datetime(indexed)
-            published_at, precision = _published(work.get("published"), doi)
+            published_at, precision = _published(
+                work.get("published") or work.get("posted"), doi
+            )
             authors = tuple(
                 name
                 for author in work.get("author", [])
@@ -253,6 +314,11 @@ class CrossrefRadarAdapter:
                         *(f"journal:{_normalize(t)}" for t in work.get("container-title", [])),
                         *(f"subject:{_normalize(s)}" for s in work.get("subject", [])),
                         *(f"issn:{i}" for i in work.get("ISSN", [])),
+                        *(
+                            f"repository:{_normalize(work['group-title'])}"
+                            for _ in [0]
+                            if work.get("group-title")
+                        ),
                         f"published-precision:{precision}",
                     ]
                 )

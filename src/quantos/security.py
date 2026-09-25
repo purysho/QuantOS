@@ -231,6 +231,7 @@ DEFAULT_EGRESS_ALLOWLIST = frozenset(
         "api.tiingo.com",
         "api.polygon.io",
         "www.nber.org",
+        "back.nber.org",
         "www.federalreserve.gov",
         "www.bis.org",
         "www.ecb.europa.eu",
