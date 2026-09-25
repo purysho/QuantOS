@@ -202,10 +202,12 @@ class PricingRiskContractTests(unittest.TestCase):
             maturity_date=date(2031, 9, 25),
             fixed_rate=Decimal("0.04"),
             fixed_leg_frequency_months=6,
+            fixed_leg_day_count=DayCountConvention.ACT_365_FIXED,
+            floating_leg_frequency_months=3,
+            floating_leg_day_count=DayCountConvention.ACT_360,
             floating_index_id="USD-SOFR",
             floating_spread=Decimal("0"),
             fixed_leg_direction=PayReceive.PAY,
-            day_count=DayCountConvention.ACT_360,
         )
         self.assertTrue(swap.instrument_id.startswith("pricing-instrument:"))
 

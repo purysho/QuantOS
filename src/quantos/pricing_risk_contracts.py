@@ -335,10 +335,12 @@ class FixedFloatSwapInstrument:
     maturity_date: date
     fixed_rate: Decimal
     fixed_leg_frequency_months: int
+    fixed_leg_day_count: DayCountConvention
+    floating_leg_frequency_months: int
+    floating_leg_day_count: DayCountConvention
     floating_index_id: str
     floating_spread: Decimal
     fixed_leg_direction: PayReceive
-    day_count: DayCountConvention
 
     def __post_init__(self) -> None:
         if not self.contract_id.strip():
@@ -351,6 +353,10 @@ class FixedFloatSwapInstrument:
         if self.fixed_leg_frequency_months not in {1, 3, 6, 12}:
             raise ValueError(
                 "swap fixed-leg frequency must be 1, 3, 6, or 12 months"
+            )
+        if self.floating_leg_frequency_months not in {1, 3, 6, 12}:
+            raise ValueError(
+                "swap floating-leg frequency must be 1, 3, 6, or 12 months"
             )
         if not self.floating_index_id.strip():
             raise ValueError("swap requires floating_index_id")
@@ -372,10 +378,16 @@ class FixedFloatSwapInstrument:
                 "fixed_leg_frequency_months": (
                     self.fixed_leg_frequency_months
                 ),
+                "fixed_leg_day_count": self.fixed_leg_day_count.value,
+                "floating_leg_frequency_months": (
+                    self.floating_leg_frequency_months
+                ),
+                "floating_leg_day_count": (
+                    self.floating_leg_day_count.value
+                ),
                 "floating_index_id": self.floating_index_id.strip(),
                 "floating_spread": str(self.floating_spread),
                 "fixed_leg_direction": self.fixed_leg_direction.value,
-                "day_count": self.day_count.value,
             },
         )
 
@@ -887,12 +899,20 @@ def instrument_payload(
             "fixed_leg_frequency_months": (
                 instrument.fixed_leg_frequency_months
             ),
+            "fixed_leg_day_count": (
+                instrument.fixed_leg_day_count.value
+            ),
+            "floating_leg_frequency_months": (
+                instrument.floating_leg_frequency_months
+            ),
+            "floating_leg_day_count": (
+                instrument.floating_leg_day_count.value
+            ),
             "floating_index_id": (
                 instrument.floating_index_id.strip()
             ),
             "floating_spread": str(instrument.floating_spread),
             "fixed_leg_direction": instrument.fixed_leg_direction.value,
-            "day_count": instrument.day_count.value,
         }
     raise ValueError("unsupported pricing instrument")
 
