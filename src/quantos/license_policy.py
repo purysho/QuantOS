@@ -1,4 +1,4 @@
-"""Dependency license policy for the proprietary First Current core.
+"""Dependency license policy for First Current Quant OS (Apache-2.0).
 
 Every distribution in the locked runtime closure must be listed here with
 its reviewed SPDX license expression, and that expression must be allowed.
@@ -39,11 +39,11 @@ ALLOWED_LICENSES: dict[str, LicenseTreatment] = {
 
 # Licenses researched for this project and rejected for the core.
 PROHIBITED_LICENSES: dict[str, str] = {
-    "AGPL-3.0-only": "network copyleft would reach the proprietary core",
-    "AGPL-3.0-or-later": "network copyleft would reach the proprietary core",
-    "GPL-2.0-only": "strong copyleft would reach the proprietary core",
-    "GPL-3.0-only": "strong copyleft would reach the proprietary core",
-    "GPL-3.0-or-later": "strong copyleft would reach the proprietary core",
+    "AGPL-3.0-only": "network copyleft would force the combined work off Apache-2.0",
+    "AGPL-3.0-or-later": "network copyleft would force the combined work off Apache-2.0",
+    "GPL-2.0-only": "strong copyleft would force the combined work off Apache-2.0",
+    "GPL-3.0-only": "strong copyleft would force the combined work off Apache-2.0",
+    "GPL-3.0-or-later": "strong copyleft would force the combined work off Apache-2.0",
     "PolyForm-Noncommercial-1.0.0": "forbids commercial use",
     "BUSL-1.1": "restricts production use",
     "SSPL-1.0": "service-source copyleft",
@@ -209,11 +209,13 @@ def render_third_party_notices() -> str:
     lines = [
         "# Third-Party Notices",
         "",
-        "First Current Quant OS is proprietary (see LICENSE). It does not "
-        "vendor, modify or redistribute the packages below; they are "
-        "installed separately from their own distributions under their own "
-        "licenses. The versions in use are pinned in `uv.lock` and "
-        "`requirements.lock`.",
+        "First Current Quant OS is licensed under Apache-2.0 (see LICENSE "
+        "and NOTICE). The source repository does not vendor or modify the "
+        "packages below; they are installed from their own distributions "
+        "under their own licenses. Container and live-USB images do "
+        "redistribute them unmodified, with their license files kept in "
+        "place inside each installed package. The versions in use are "
+        "pinned in `uv.lock` and `requirements.lock`.",
         "",
         "This file is generated from `quantos.license_policy` "
         "(`python -m quantos.license_policy > THIRD_PARTY_NOTICES.md`), "

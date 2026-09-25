@@ -1,0 +1,14 @@
+First Current Quant OS
+Copyright 2026 purysho and the First Current Quant OS contributors
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+It depends on third-party software distributed under its own licenses; see
+THIRD_PARTY_NOTICES.md. Offline terminal bundles additionally contain FINOS
+Perspective (Apache-2.0), whose license and NOTICE files are shipped inside
+the bundle.
+
+First Current Quant OS is research software. Nothing it produces is
+investment advice, a recommendation, or an authorization to trade, and it
+contains no live-capital path. Market and reference data obtained through it
+remain subject to each data provider's own terms of use.

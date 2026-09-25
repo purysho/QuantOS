@@ -87,13 +87,14 @@ class LicensePolicyTests(unittest.TestCase):
                 any("not been reviewed" in item for item in license_violations())
             )
 
-    def test_project_declares_proprietary_license(self):
+    def test_project_declares_apache_license(self):
         project = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]
-        self.assertEqual(project["license"], "LicenseRef-Proprietary")
-        self.assertIn("Private :: Do Not Upload", project["classifiers"])
-        self.assertTrue((ROOT / "LICENSE").read_text().startswith(
-            "First Current Quant OS — Proprietary License"
-        ))
+        self.assertEqual(project["license"], "Apache-2.0")
+        self.assertIn("NOTICE", project["license-files"])
+        text = (ROOT / "LICENSE").read_text()
+        self.assertIn("Apache License", text)
+        self.assertIn("Version 2.0, January 2004", text)
+        self.assertIn("Copyright 2026", (ROOT / "NOTICE").read_text())
 
     @unittest.skipUnless(project_installed(), "project is not installed")
     def test_installed_runtime_closure_is_reviewed(self):

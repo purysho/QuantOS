@@ -5,12 +5,22 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "first-current-quant-os"
 version = "0.18.0"
-description = "High-assurance point-in-time professional research intelligence prototype"
+description = "Free, open-source, point-in-time investment research operating system: evidence, fundamentals, valuation, portfolio, risk and execution research with no live-capital path"
 requires-python = ">=3.11"
-license = "LicenseRef-Proprietary"
-license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md"]
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE", "THIRD_PARTY_NOTICES.md"]
+authors = [{ name = "purysho and the First Current Quant OS contributors" }]
+readme = "README.md"
+keywords = ["quantitative finance", "investment research", "point-in-time", "valuation", "portfolio", "risk"]
 classifiers = [
-  "Private :: Do Not Upload",
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Financial and Insurance Industry",
+  "Intended Audience :: Science/Research",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Office/Business :: Financial :: Investment",
 ]
 dependencies = [
   "cvxpy>=1.6,<2",
@@ -30,6 +40,11 @@ dependencies = [
 ore = [
   "open-source-risk-engine==1.8.17.0; (sys_platform == 'linux' and platform_machine == 'x86_64') or (sys_platform == 'win32' and platform_machine == 'AMD64')",
 ]
+
+[project.urls]
+Homepage = "https://github.com/purysho/First-Current-Quant-OS-prototype"
+Documentation = "https://github.com/purysho/First-Current-Quant-OS-prototype/tree/main/docs"
+Issues = "https://github.com/purysho/First-Current-Quant-OS-prototype/issues"
 
 [project.scripts]
 quantos = "quantos.cli:main"
